@@ -1,4 +1,4 @@
-name: Gerar APK
+name: Gerar APK - ControleHoras
 
 on:
   workflow_dispatch:
@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Baixar projeto
         uses: actions/checkout@v4
 
@@ -26,10 +27,14 @@ jobs:
       - name: Extrair projeto
         shell: bash
         run: |
-          rm -rf ControleHoras
-          unzip -o ControleHoras.zip || test $? -eq 1
+          set -e
 
-          echo "Verificando projeto..."
+          rm -rf ControleHoras
+
+          echo "Extraindo ControleHoras.zip..."
+          unzip -o ControleHoras.zip
+
+          echo "Verificando estrutura..."
 
           test -f ControleHoras/settings.gradle.kts
           test -f ControleHoras/build.gradle.kts
@@ -39,32 +44,300 @@ jobs:
 
           echo "Projeto encontrado corretamente."
 
+      - name: Corrigir Kotlin durante o Build
+        shell: bash
+        run: |
+          set -e
+
+          python3 <<'PY'
+          from pathlib import Path
+
+          p = Path(
+              "ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
+          )
+
+          s = p.read_text(encoding="utf-8")
+
+          print("Aplicando correções no MainActivity.kt durante o Build...")
+
+          # ---------------------------------------------------------
+          # 1. Corrigir addView com quatro inteiros.
+          #
+          # Código original:
+          # box.addView(card().apply { ... }, 0, 0, 0, dp(10))
+          #
+          # Esse overload não existe no Android.
+          # ---------------------------------------------------------
+
+          old = '''        box.addView(card().apply {
+            val line = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(12), dp(16), dp(12)) }
+            line.addView(label("Funcionário"))
+            val spinner = Spinner(context)
+            val names = employees.map { it.name }
+            spinner.adapter = ArrayAdapter(context, android.R.layout.simple_spinner_dropdown_item, names)
+            spinner.setSelection(employees.indexOfFirst { it.id == selectedEmployeeId }.coerceAtLeast(0))
+            spinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+                override fun onNothingSelected(p: android.widget.AdapterView<*>?) {}
+                override fun onItemSelected(p: android.widget.AdapterView<*>?, v: View?, pos: Int, id: Long) {
+                    if (employees[pos].id != selectedEmployeeId) { selectedEmployeeId = employees[pos].id; showPunch() }
+                }
+            }
+            line.addView(spinner)
+            val sal = TextView(context).apply { text = "Salário mensal   ${money.format(emp.salary)}"; textSize = 14f; setTextColor(muted); setPadding(0, dp(8), 0, 0) }
+            line.addView(sal)
+            addView(line)
+        }, 0, 0, 0, dp(10))'''
+
+          new = '''        box.addView(
+            card().apply {
+                val line = LinearLayout(context).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(dp(16), dp(12), dp(16), dp(12))
+                }
+
+                line.addView(label("Funcionário"))
+
+                val spinner = Spinner(context)
+
+                val names = employees.map { it.name }
+
+                spinner.adapter = ArrayAdapter(
+                    context,
+                    android.R.layout.simple_spinner_dropdown_item,
+                    names
+                )
+
+                spinner.setSelection(
+                    employees.indexOfFirst {
+                        it.id == selectedEmployeeId
+                    }.coerceAtLeast(0)
+                )
+
+                spinner.onItemSelectedListener =
+                    object : android.widget.AdapterView.OnItemSelectedListener {
+
+                        override fun onNothingSelected(
+                            p: android.widget.AdapterView<*>?
+                        ) {}
+
+                        override fun onItemSelected(
+                            p: android.widget.AdapterView<*>?,
+                            v: View?,
+                            pos: Int,
+                            id: Long
+                        ) {
+                            if (employees[pos].id != selectedEmployeeId) {
+                                selectedEmployeeId = employees[pos].id
+                                showPunch()
+                            }
+                        }
+                    }
+
+                line.addView(spinner)
+
+                val sal = TextView(context).apply {
+                    text = "Salário mensal   ${money.format(emp.salary)}"
+                    textSize = 14f
+                    setTextColor(muted)
+                    setPadding(0, dp(8), 0, 0)
+                }
+
+                line.addView(sal)
+
+                addView(line)
+            },
+            LinearLayout.LayoutParams(
+                -1,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = dp(10)
+            }
+        )'''
+
+          if old in s:
+              s = s.replace(old, new)
+              print("OK: primeiro addView corrigido.")
+          else:
+              print("AVISO: primeiro bloco addView já estava diferente ou corrigido.")
+
+          # ---------------------------------------------------------
+          # 2. Corrigir segundo addView com quatro inteiros.
+          # ---------------------------------------------------------
+
+          old = '''        box.addView(card().apply {
+            val line = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(16), dp(10), dp(16), dp(10)) }
+            line.addView(TextView(context).apply { text = "▣"; textSize = 28f; setTextColor(blue) }, LinearLayout.LayoutParams(dp(42), dp(50)))
+            line.addView(TextView(context).apply { text = "Hoje\\n${df.format(Date())}"; textSize = 16f; setTextColor(text); setTypeface(null, Typeface.BOLD) }, LinearLayout.LayoutParams(0, dp(60), 1f))
+            addView(line)
+        }, 0, 0, 0, dp(12))'''
+
+          new = '''        box.addView(
+            card().apply {
+                val line = LinearLayout(context).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(dp(16), dp(10), dp(16), dp(10))
+                }
+
+                line.addView(
+                    TextView(context).apply {
+                        text = "▣"
+                        textSize = 28f
+                        setTextColor(blue)
+                    },
+                    LinearLayout.LayoutParams(dp(42), dp(50))
+                )
+
+                line.addView(
+                    TextView(context).apply {
+                        text = "Hoje\\n${df.format(Date())}"
+                        textSize = 16f
+                        setTextColor(this@MainActivity.text)
+                        setTypeface(null, Typeface.BOLD)
+                    },
+                    LinearLayout.LayoutParams(0, dp(60), 1f)
+                )
+
+                addView(line)
+            },
+            LinearLayout.LayoutParams(
+                -1,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = dp(12)
+            }
+        )'''
+
+          if old in s:
+              s = s.replace(old, new)
+              print("OK: segundo addView corrigido.")
+          else:
+              print("AVISO: segundo bloco addView já estava diferente ou corrigido.")
+
+          # ---------------------------------------------------------
+          # 3. Corrigir setTextColor(text).
+          #
+          # Dentro de TextView.apply {}, "text" é o texto do próprio
+          # TextView e não a variável de cor da Activity.
+          # ---------------------------------------------------------
+
+          count = s.count("setTextColor(text)")
+
+          s = s.replace(
+              "setTextColor(text)",
+              "setTextColor(this@MainActivity.text)"
+          )
+
+          print(f"OK: {count} ocorrência(s) de setTextColor(text) corrigida(s).")
+
+          # ---------------------------------------------------------
+          # 4. Corrigir sintaxe inválida do salário.
+          #
+          # Original:
+          # if(existing!=null)existing.salary.toString():""
+          #
+          # Correto:
+          # if (existing != null) existing.salary.toString() else ""
+          # ---------------------------------------------------------
+
+          old = 'setText(if(existing!=null)existing.salary.toString():"")'
+          new = 'setText(if (existing != null) existing.salary.toString() else "")'
+
+          if old in s:
+              s = s.replace(old, new)
+              print("OK: expressão do salário corrigida.")
+          else:
+              print("AVISO: expressão do salário já estava corrigida ou diferente.")
+
+          # ---------------------------------------------------------
+          # 5. Garantia adicional para possíveis variações.
+          # ---------------------------------------------------------
+
+          s = s.replace(
+              'if(existing!=null)existing.salary.toString():""',
+              'if (existing != null) existing.salary.toString() else ""'
+          )
+
+          s = s.replace(
+              'if(existing != null) existing.salary.toString():""',
+              'if (existing != null) existing.salary.toString() else ""'
+          )
+
+          # ---------------------------------------------------------
+          # 6. Grava a versão corrigida somente dentro do ambiente
+          #    do Build.
+          # ---------------------------------------------------------
+
+          p.write_text(s, encoding="utf-8")
+
+          print("")
+          print("===== VERIFICAÇÃO =====")
+
+          remaining = [
+              "setTextColor(text)",
+              'if(existing!=null)existing.salary.toString():""',
+              'if(existing != null) existing.salary.toString():""'
+          ]
+
+          for item in remaining:
+              if item in s:
+                  raise SystemExit(
+                      f"ERRO: ainda existe trecho inválido: {item}"
+                  )
+
+          print("Nenhum dos trechos conhecidos inválidos permanece.")
+          print("Correção Kotlin aplicada somente durante o Build.")
+          PY
+
       - name: Configurar AndroidX
         working-directory: ControleHoras
         shell: bash
         run: |
-          grep -q '^android.useAndroidX=true' gradle.properties || echo 'android.useAndroidX=true' >> gradle.properties
-          grep -q '^android.enableJetifier=true' gradle.properties || echo 'android.enableJetifier=true' >> gradle.properties
+          set -e
+
+          grep -q '^android.useAndroidX=true' gradle.properties \
+            || echo 'android.useAndroidX=true' >> gradle.properties
+
+          grep -q '^android.enableJetifier=true' gradle.properties \
+            || echo 'android.enableJetifier=true' >> gradle.properties
 
       - name: Preparar Gradle
         working-directory: ControleHoras
         shell: bash
         run: |
+          set -e
+
           gradle wrapper --gradle-version 8.11.1
+
           chmod +x gradlew
+
+          ./gradlew --version
 
       - name: Compilar APK
         working-directory: ControleHoras
         shell: bash
         run: |
-          ./gradlew clean assembleDebug --no-daemon --stacktrace
+          set -e
+
+          ./gradlew clean assembleDebug \
+            --no-daemon \
+            --stacktrace
 
       - name: Conferir APK
         working-directory: ControleHoras
         shell: bash
         run: |
-          find app/build/outputs/apk/debug -type f -name "*.apk" -print
+          set -e
+
+          echo "APKs encontrados:"
+          find app/build/outputs/apk/debug \
+            -type f \
+            -name "*.apk" \
+            -print
+
           test -s app/build/outputs/apk/debug/app-debug.apk
+
+          echo "APK gerado com sucesso."
 
       - name: Publicar APK
         uses: actions/upload-artifact@v4
