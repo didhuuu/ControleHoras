@@ -15,41 +15,23 @@ jobs:
 
     steps:
 
-      # ============================================================
-      # 1 - BAIXAR PROJETO
-      # ============================================================
       - name: Baixar projeto
         uses: actions/checkout@v4
 
-
-      # ============================================================
-      # 2 - CONFIGURAR JAVA
-      # ============================================================
       - name: Configurar Java 17
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
-
-      # ============================================================
-      # 3 - EXTRAIR PROJETO
-      # ============================================================
       - name: Extrair projeto
         shell: bash
         run: |
           set -e
-
-          echo "========================================"
           echo "EXTRAINDO PROJETO"
-          echo "========================================"
 
           rm -rf ControleHoras
-
           unzip -o ControleHoras.zip
-
-          echo ""
-          echo "Verificando arquivos..."
 
           test -f ControleHoras/settings.gradle.kts
           test -f ControleHoras/build.gradle.kts
@@ -57,14 +39,9 @@ jobs:
           test -f ControleHoras/app/src/main/AndroidManifest.xml
           test -f ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt
 
-          echo ""
-          echo "Projeto encontrado corretamente."
+          echo "PROJETO OK"
 
-
-      # ============================================================
-      # 4 - CORRIGIR CÓDIGO DO APLICATIVO
-      # ============================================================
-      - name: Corrigir aplicativo durante o Build
+      - name: Corrigir aplicativo
         shell: bash
         run: |
           set -e
@@ -72,15 +49,10 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          p = Path(
-              "ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
-          )
+          p = Path("ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt")
 
           s = p.read_text(encoding="utf-8")
 
-          print("Aplicando correções no MainActivity.kt...")
-
-          # Correção de LayoutParams
           s = s.replace(
               "        }, 0, 0, 0, dp(10))",
               "        }, LinearLayout.LayoutParams(-1, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(10) })"
@@ -91,13 +63,11 @@ jobs:
               "        }, LinearLayout.LayoutParams(-1, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(12) })"
           )
 
-          # Correção de setTextColor
           s = s.replace(
               "setTextColor(text)",
               "setTextColor(this@MainActivity.text)"
           )
 
-          # Correções da condição do salário
           s = s.replace(
               'setText(if(existing!=null)existing.salary.toString():"")',
               'setText(if (existing != null) existing.salary.toString() else "")'
@@ -113,7 +83,6 @@ jobs:
               'if (existing != null) existing.salary.toString() else ""'
           )
 
-          # Correção do filtro histórico por mês
           s = s.replace(
               'it.date.endsWith(SimpleDateFormat("MM-yyyy", Locale.US).format(Date()))',
               'it.date.startsWith(SimpleDateFormat("yyyy-MM", Locale.US).format(Date()))'
@@ -121,50 +90,71 @@ jobs:
 
           p.write_text(s, encoding="utf-8")
 
-          print("Correções aplicadas com sucesso.")
+          print("CORREÇÕES APLICADAS")
           PY
 
-
-      # ============================================================
-      # 5 - INSTALAR GRADLE 8.11.1
-      # ============================================================
-      - name: Instalar Gradle
+      - name: Instalar Gradle 8.11.1
         shell: bash
         run: |
           set -e
 
-          echo "========================================"
-          echo "INSTALANDO GRADLE 8.11.1"
-          echo "========================================"
-
           GRADLE_VERSION="8.11.1"
 
-          wget -q \
-            "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"
+          echo "INSTALANDO GRADLE $GRADLE_VERSION"
 
-          unzip -q \
-            "gradle-${GRADLE_VERSION}-bin.zip"
+          wget -q "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"
+
+          unzip -q "gradle-${GRADLE_VERSION}-bin.zip"
 
           echo "$PWD/gradle-${GRADLE_VERSION}/bin" >> "$GITHUB_PATH"
 
           export PATH="$PWD/gradle-${GRADLE_VERSION}/bin:$PATH"
 
-          echo ""
-          echo "Versão do Gradle instalada:"
           gradle --version
 
-
-      # ============================================================
-      # 6 - LIMPAR PROJETO
-      # ============================================================
       - name: Limpar projeto
         working-directory: ControleHoras
         shell: bash
         run: |
           set -e
 
-          echo "========================================"
           echo "LIMPANDO PROJETO"
-          echo "========================================"
 
-          gradle clean --no
+          gradle clean
+
+          echo "LIMPEZA CONCLUIDA"
+
+      - name: Gerar APK
+        working-directory: ControleHoras
+        shell: bash
+        run: |
+          set -e
+
+          echo "GERANDO APK"
+
+          gradle assembleDebug
+
+          echo "VERIFICANDO APK"
+
+          test -f app/build/outputs/apk/debug/app-debug.apk
+
+          echo "APK GERADO COM SUCESSO"
+
+          ls -lh app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Publicar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ControleHoras-APK
+          path: ControleHoras/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Finalizar
+        shell: bash
+        run: |
+          echo "================================"
+          echo "BUILD FINALIZADO"
+          echo "================================"
+          echo "APK:"
+          ls -lh ControleHoras/app/build/outputs/apk/debug/app-debug.apk
+          echo "Artifact: ControleHoras-APK"
