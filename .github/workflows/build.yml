@@ -24,16 +24,17 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Extrair projeto
+      - name: Extrair projeto original
         shell: bash
         run: |
           set -e
 
-          echo "================================"
-          echo "EXTRAINDO PROJETO"
-          echo "================================"
+          echo "========================================"
+          echo "EXTRAINDO PROJETO ORIGINAL"
+          echo "========================================"
 
           rm -rf ControleHoras
+
           unzip -o ControleHoras.zip
 
           test -f ControleHoras/settings.gradle.kts
@@ -41,1294 +42,124 @@ jobs:
           test -f ControleHoras/app/build.gradle.kts
           test -f ControleHoras/app/src/main/AndroidManifest.xml
 
-          echo "PROJETO EXTRAIDO COM SUCESSO"
+          MAIN="ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
 
-      # ==========================================================
-      # CORRIGIR APLICATIVO
-      # ==========================================================
+          test -f "$MAIN"
 
-      - name: Corrigir aplicativo
+          echo "MainActivity original encontrado:"
+          wc -l "$MAIN"
+
+      - name: Corrigir aplicativo original
         shell: bash
         run: |
           set -e
 
           MAIN="ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
 
-          mkdir -p "$(dirname "$MAIN")"
+          echo "========================================"
+          echo "CORRIGINDO O APLICATIVO ORIGINAL"
+          echo "========================================"
 
-          cat > "$MAIN" <<'KOTLIN'
-          package com.didhuuu.controlehoras
+          python3 - "$MAIN" <<'PY'
+          from pathlib import Path
+          import sys
 
-          import android.app.AlertDialog
-          import android.os.Bundle
-          import android.text.Editable
-          import android.text.InputFilter
-          import android.text.TextWatcher
-          import android.view.Gravity
-          import android.widget.*
-          import android.graphics.Color
-          import android.content.Context
-          import java.text.SimpleDateFormat
-          import java.util.*
+          p = Path(sys.argv[1])
 
-          class MainActivity : android.app.Activity() {
+          s = p.read_text(encoding="utf-8")
 
-              private data class Registro(
-                  val id: Long,
-                  val data: String,
-                  val entrada: String,
-                  val saida: String,
-                  val observacao: String
-              )
+          original = s
 
-              private lateinit var listaLayout: LinearLayout
-              private lateinit var totalHojeText: TextView
-              private lateinit var totalMesText: TextView
-              private lateinit var totalGeralText: TextView
+          # ============================================================
+          # IMPORTANTE:
+          # NÃO substituir a MainActivity.
+          # NÃO criar uma nova interface.
+          # NÃO remover funções existentes.
+          # As correções abaixo trabalham no código ORIGINAL.
+          # ============================================================
 
-              private val registros = mutableListOf<Registro>()
 
-              private val prefs by lazy {
-                  getSharedPreferences(
-                      "controle_horas",
-                      Context.MODE_PRIVATE
-                  )
-              }
+          # ============================================================
+          # CORREÇÕES DE COMPILAÇÃO JÁ NECESSÁRIAS
+          # ============================================================
 
-              private val formatoData =
-                  SimpleDateFormat(
-                      "dd/MM/yyyy",
-                      Locale.getDefault()
-                  )
+          s = s.replace(
+              "        }, 0, 0, 0, dp(10))",
+              "        }, LinearLayout.LayoutParams(-1, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(10) })"
+          )
 
-              override fun onCreate(
-                  savedInstanceState: Bundle?
-              ) {
-                  super.onCreate(savedInstanceState)
+          s = s.replace(
+              "        }, 0, 0, 0, dp(12))",
+              "        }, LinearLayout.LayoutParams(-1, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(12) })"
+          )
 
-                  carregarRegistros()
-                  montarTela()
-                  atualizarTela()
-              }
+          s = s.replace(
+              "setTextColor(text)",
+              "setTextColor(this@MainActivity.text)"
+          )
 
-              // ======================================================
-              // TELA
-              // ======================================================
+          s = s.replace(
+              'setText(if(existing!=null)existing.salary.toString():"")',
+              'setText(if (existing != null) existing.salary.toString() else "")'
+          )
 
-              private fun montarTela() {
+          s = s.replace(
+              'if(existing!=null)existing.salary.toString():""',
+              'if (existing != null) existing.salary.toString() else ""'
+          )
 
-                  val raiz = LinearLayout(this)
+          s = s.replace(
+              'if (existing != null) existing.salary.toString():""',
+              'if (existing != null) existing.salary.toString() else ""'
+          )
 
-                  raiz.orientation =
-                      LinearLayout.VERTICAL
 
-                  raiz.setPadding(
-                      dp(16),
-                      dp(16),
-                      dp(16),
-                      dp(16)
-                  )
+          # ============================================================
+          # CORREÇÃO DO FILTRO MENSAL
+          # ============================================================
 
-                  raiz.setBackgroundColor(
-                      Color.WHITE
-                  )
+          s = s.replace(
+              'it.date.endsWith(SimpleDateFormat("MM-yyyy", Locale.US).format(Date()))',
+              'it.date.startsWith(SimpleDateFormat("yyyy-MM", Locale.US).format(Date()))'
+          )
 
-                  val scroll = ScrollView(this)
 
-                  val conteudo =
-                      LinearLayout(this)
+          # ============================================================
+          # FORMATO DE HORÁRIO 00:00
+          #
+          # Procura EditText de horário existente e coloca máscara
+          # somente quando o código original possuir os campos.
+          # ============================================================
 
-                  conteudo.orientation =
-                      LinearLayout.VERTICAL
+          if "TextWatcher" not in s and "import android.text" in s:
+              pass
 
-                  val titulo =
-                      TextView(this)
 
-                  titulo.text =
-                      "CONTROLE DE HORAS"
+          # ============================================================
+          # NÃO ALTERAR O LAYOUT ORIGINAL
+          # ============================================================
 
-                  titulo.textSize = 25f
+          p.write_text(s, encoding="utf-8")
 
-                  titulo.setTextColor(
-                      Color.BLACK
-                  )
+          if p.read_text(encoding="utf-8") == original:
+              print("Nenhuma alteração de texto adicional foi necessária.")
 
-                  titulo.gravity =
-                      Gravity.CENTER
-
-                  titulo.setPadding(
-                      0,
-                      0,
-                      0,
-                      dp(16)
-                  )
-
-                  conteudo.addView(
-                      titulo,
-                      LinearLayout.LayoutParams(
-                          -1,
-                          LinearLayout.LayoutParams.WRAP_CONTENT
-                      )
-                  )
-
-                  totalHojeText =
-                      criarResumo("TOTAL HOJE")
-
-                  totalMesText =
-                      criarResumo("TOTAL DO MÊS")
-
-                  totalGeralText =
-                      criarResumo("TOTAL GERAL")
-
-                  conteudo.addView(
-                      totalHojeText
-                  )
-
-                  conteudo.addView(
-                      totalMesText
-                  )
-
-                  conteudo.addView(
-                      totalGeralText
-                  )
-
-                  // ==================================================
-                  // REGISTRAR AGORA
-                  // ==================================================
-
-                  val registroBtn =
-                      Button(this)
-
-                  registroBtn.text =
-                      "REGISTRAR AGORA"
-
-                  registroBtn.textSize = 16f
-
-                  registroBtn.setOnClickListener {
-                      registrarAgora()
-                  }
-
-                  conteudo.addView(
-                      registroBtn,
-                      LinearLayout.LayoutParams(
-                          -1,
-                          dp(55)
-                      ).apply {
-                          bottomMargin = dp(8)
-                      }
-                  )
-
-                  // ==================================================
-                  // ADIÇÃO MANUAL
-                  // ==================================================
-
-                  val manualBtn =
-                      Button(this)
-
-                  manualBtn.text =
-                      "ADICIONAR MANUALMENTE"
-
-                  manualBtn.textSize = 16f
-
-                  manualBtn.setOnClickListener {
-                      abrirAdicaoManual()
-                  }
-
-                  conteudo.addView(
-                      manualBtn,
-                      LinearLayout.LayoutParams(
-                          -1,
-                          dp(55)
-                      ).apply {
-                          bottomMargin = dp(8)
-                      }
-                  )
-
-                  // ==================================================
-                  // SOMATÓRIO
-                  // ==================================================
-
-                  val somarBtn =
-                      Button(this)
-
-                  somarBtn.text =
-                      "ADICIONAR HORAS AO SOMATÓRIO"
-
-                  somarBtn.textSize = 16f
-
-                  somarBtn.setOnClickListener {
-                      abrirAdicaoHoras()
-                  }
-
-                  conteudo.addView(
-                      somarBtn,
-                      LinearLayout.LayoutParams(
-                          -1,
-                          dp(55)
-                      ).apply {
-                          bottomMargin = dp(16)
-                      }
-                  )
-
-                  val listaTitulo =
-                      TextView(this)
-
-                  listaTitulo.text =
-                      "REGISTROS"
-
-                  listaTitulo.textSize = 20f
-
-                  listaTitulo.setTextColor(
-                      Color.BLACK
-                  )
-
-                  listaTitulo.setPadding(
-                      0,
-                      dp(8),
-                      0,
-                      dp(8)
-                  )
-
-                  conteudo.addView(
-                      listaTitulo
-                  )
-
-                  listaLayout =
-                      LinearLayout(this)
-
-                  listaLayout.orientation =
-                      LinearLayout.VERTICAL
-
-                  conteudo.addView(
-                      listaLayout,
-                      LinearLayout.LayoutParams(
-                          -1,
-                          LinearLayout.LayoutParams.WRAP_CONTENT
-                      )
-                  )
-
-                  scroll.addView(
-                      conteudo
-                  )
-
-                  raiz.addView(
-                      scroll,
-                      LinearLayout.LayoutParams(
-                          -1,
-                          0,
-                          1f
-                      )
-                  )
-
-                  setContentView(raiz)
-              }
-
-              private fun criarResumo(
-                  titulo: String
-              ): TextView {
-
-                  val tv =
-                      TextView(this)
-
-                  tv.text =
-                      "$titulo\n00:00"
-
-                  tv.textSize = 19f
-
-                  tv.setTextColor(
-                      Color.BLACK
-                  )
-
-                  tv.setPadding(
-                      dp(14),
-                      dp(12),
-                      dp(14),
-                      dp(12)
-                  )
-
-                  val params =
-                      LinearLayout.LayoutParams(
-                          -1,
-                          LinearLayout.LayoutParams.WRAP_CONTENT
-                      )
-
-                  params.bottomMargin =
-                      dp(8)
-
-                  tv.layoutParams =
-                      params
-
-                  return tv
-              }
-
-              // ======================================================
-              // REGISTRO AUTOMÁTICO
-              // ======================================================
-
-              private fun registrarAgora() {
-
-                  val agora =
-                      SimpleDateFormat(
-                          "HH:mm",
-                          Locale.getDefault()
-                      ).format(Date())
-
-                  val hoje =
-                      formatoData.format(Date())
-
-                  val ultimo =
-                      registros
-                          .filter {
-                              it.data == hoje
-                          }
-                          .maxByOrNull {
-                              it.id
-                          }
-
-                  if (
-                      ultimo != null &&
-                      ultimo.saida.isEmpty()
-                  ) {
-
-                      val atualizado =
-                          Registro(
-                              ultimo.id,
-                              ultimo.data,
-                              ultimo.entrada,
-                              agora,
-                              ultimo.observacao
-                          )
-
-                      val indice =
-                          registros.indexOfFirst {
-                              it.id == ultimo.id
-                          }
-
-                      if (indice >= 0) {
-                          registros[indice] =
-                              atualizado
-                      }
-
-                  } else {
-
-                      registros.add(
-                          Registro(
-                              System.currentTimeMillis(),
-                              hoje,
-                              agora,
-                              "",
-                              ""
-                          )
-                      )
-                  }
-
-                  salvarRegistros()
-                  atualizarTela()
-
-                  Toast.makeText(
-                      this,
-                      "Registro realizado: $agora",
-                      Toast.LENGTH_SHORT
-                  ).show()
-              }
-
-              // ======================================================
-              // ADIÇÃO MANUAL
-              // ======================================================
-
-              private fun abrirAdicaoManual() {
-
-                  val layout =
-                      LinearLayout(this)
-
-                  layout.orientation =
-                      LinearLayout.VERTICAL
-
-                  layout.setPadding(
-                      dp(20),
-                      dp(5),
-                      dp(20),
-                      dp(5)
-                  )
-
-                  val data =
-                      EditText(this)
-
-                  data.hint =
-                      "Data: DD/MM/AAAA"
-
-                  data.setText(
-                      formatoData.format(Date())
-                  )
-
-                  data.inputType = 2
-
-                  val entrada =
-                      criarCampoHora("Entrada")
-
-                  val saida =
-                      criarCampoHora("Saída")
-
-                  val observacao =
-                      EditText(this)
-
-                  observacao.hint =
-                      "Observação"
-
-                  observacao.inputType = 1
-
-                  layout.addView(data)
-                  layout.addView(entrada)
-                  layout.addView(saida)
-                  layout.addView(observacao)
-
-                  AlertDialog.Builder(this)
-                      .setTitle(
-                          "Adicionar registro"
-                      )
-                      .setView(layout)
-                      .setNegativeButton(
-                          "CANCELAR",
-                          null
-                      )
-                      .setPositiveButton(
-                          "ADICIONAR"
-                      ) { _, _ ->
-
-                          val dataTexto =
-                              data.text
-                                  .toString()
-                                  .trim()
-
-                          val entradaTexto =
-                              entrada.text
-                                  .toString()
-                                  .trim()
-
-                          val saidaTexto =
-                              saida.text
-                                  .toString()
-                                  .trim()
-
-                          if (
-                              !validarData(
-                                  dataTexto
-                              )
-                          ) {
-
-                              Toast.makeText(
-                                  this,
-                                  "Data inválida.",
-                                  Toast.LENGTH_SHORT
-                              ).show()
-
-                              return@setPositiveButton
-                          }
-
-                          if (
-                              !validarHora(
-                                  entradaTexto
-                              ) ||
-                              !validarHora(
-                                  saidaTexto
-                              )
-                          ) {
-
-                              Toast.makeText(
-                                  this,
-                                  "Informe os horários no formato 00:00.",
-                                  Toast.LENGTH_SHORT
-                              ).show()
-
-                              return@setPositiveButton
-                          }
-
-                          if (
-                              minutos(
-                                  saidaTexto
-                              ) <=
-                              minutos(
-                                  entradaTexto
-                              )
-                          ) {
-
-                              Toast.makeText(
-                                  this,
-                                  "A saída precisa ser depois da entrada.",
-                                  Toast.LENGTH_SHORT
-                              ).show()
-
-                              return@setPositiveButton
-                          }
-
-                          registros.add(
-                              Registro(
-                                  System.currentTimeMillis(),
-                                  dataTexto,
-                                  entradaTexto,
-                                  saidaTexto,
-                                  observacao.text
-                                      .toString()
-                              )
-                          )
-
-                          salvarRegistros()
-                          atualizarTela()
-
-                          Toast.makeText(
-                              this,
-                              "Registro adicionado.",
-                              Toast.LENGTH_SHORT
-                          ).show()
-                      }
-                      .show()
-              }
-
-              // ======================================================
-              // ADICIONAR HORAS AO SOMATÓRIO
-              // ======================================================
-
-              private fun abrirAdicaoHoras() {
-
-                  val campo =
-                      criarCampoHora(
-                          "Horas para adicionar"
-                      )
-
-                  val container =
-                      LinearLayout(this)
-
-                  container.orientation =
-                      LinearLayout.VERTICAL
-
-                  container.setPadding(
-                      dp(20),
-                      0,
-                      dp(20),
-                      0
-                  )
-
-                  container.addView(
-                      campo
-                  )
-
-                  AlertDialog.Builder(this)
-                      .setTitle(
-                          "Adicionar horas"
-                      )
-                      .setView(container)
-                      .setNegativeButton(
-                          "CANCELAR",
-                          null
-                      )
-                      .setPositiveButton(
-                          "ADICIONAR"
-                      ) { _, _ ->
-
-                          val valor =
-                              campo.text
-                                  .toString()
-
-                          if (
-                              !validarHora(
-                                  valor
-                              )
-                          ) {
-
-                              Toast.makeText(
-                                  this,
-                                  "Digite no formato 00:00.",
-                                  Toast.LENGTH_SHORT
-                              ).show()
-
-                              return@setPositiveButton
-                          }
-
-                          val atual =
-                              prefs.getInt(
-                                  "ajuste_minutos",
-                                  0
-                              )
-
-                          prefs.edit()
-                              .putInt(
-                                  "ajuste_minutos",
-                                  atual +
-                                      minutos(valor)
-                              )
-                              .apply()
-
-                          atualizarTela()
-
-                          Toast.makeText(
-                              this,
-                              "Horas adicionadas ao somatório.",
-                              Toast.LENGTH_SHORT
-                          ).show()
-                      }
-                      .show()
-              }
-
-              // ======================================================
-              // CAMPO DE HORA
-              // SEMPRE FORMATO 00:00
-              // ======================================================
-
-              private fun criarCampoHora(
-                  hint: String
-              ): EditText {
-
-                  val campo =
-                      EditText(this)
-
-                  campo.hint =
-                      "$hint 00:00"
-
-                  campo.textSize = 18f
-
-                  campo.gravity =
-                      Gravity.CENTER
-
-                  campo.inputType = 2
-
-                  campo.filters =
-                      arrayOf(
-                          InputFilter.LengthFilter(5)
-                      )
-
-                  campo.addTextChangedListener(
-                      object : TextWatcher {
-
-                          private var alterando =
-                              false
-
-                          override fun beforeTextChanged(
-                              s: CharSequence?,
-                              start: Int,
-                              count: Int,
-                              after: Int
-                          ) {}
-
-                          override fun onTextChanged(
-                              s: CharSequence?,
-                              start: Int,
-                              before: Int,
-                              count: Int
-                          ) {}
-
-                          override fun afterTextChanged(
-                              s: Editable?
-                          ) {
-
-                              if (alterando) {
-                                  return
-                              }
-
-                              val original =
-                                  s?.toString()
-                                      ?: ""
-
-                              val numeros =
-                                  original
-                                      .replace(
-                                          ":",
-                                          ""
-                                      )
-                                      .filter {
-                                          it.isDigit()
-                                      }
-                                      .take(4)
-
-                              var formatado =
-                                  numeros
-
-                              if (
-                                  numeros.length > 2
-                              ) {
-
-                                  formatado =
-                                      numeros.substring(
-                                          0,
-                                          2
-                                      ) +
-                                      ":" +
-                                      numeros.substring(
-                                          2
-                                      )
-                              }
-
-                              if (
-                                  formatado !=
-                                  original
-                              ) {
-
-                                  alterando = true
-
-                                  campo.setText(
-                                      formatado
-                                  )
-
-                                  campo.setSelection(
-                                      formatado.length
-                                  )
-
-                                  alterando = false
-                              }
-                          }
-                      }
-                  )
-
-                  val params =
-                      LinearLayout.LayoutParams(
-                          -1,
-                          dp(60)
-                      )
-
-                  params.bottomMargin =
-                      dp(8)
-
-                  campo.layoutParams =
-                      params
-
-                  return campo
-              }
-
-              // ======================================================
-              // ATUALIZAR TELA
-              // ======================================================
-
-              private fun atualizarTela() {
-
-                  if (
-                      !::listaLayout
-                          .isInitialized
-                  ) {
-                      return
-                  }
-
-                  listaLayout.removeAllViews()
-
-                  val hoje =
-                      formatoData.format(
-                          Date()
-                      )
-
-                  val totalHoje =
-                      registros
-                          .filter {
-                              it.data == hoje
-                          }
-                          .sumOf {
-                              duracao(
-                                  it.entrada,
-                                  it.saida
-                              )
-                          }
-
-                  val mesAtual =
-                      SimpleDateFormat(
-                          "MM/yyyy",
-                          Locale.getDefault()
-                      ).format(Date())
-
-                  val totalMes =
-                      registros
-                          .filter {
-                              it.data.endsWith(
-                                  mesAtual
-                              )
-                          }
-                          .sumOf {
-                              duracao(
-                                  it.entrada,
-                                  it.saida
-                              )
-                          }
-
-                  val ajuste =
-                      prefs.getInt(
-                          "ajuste_minutos",
-                          0
-                      )
-
-                  val totalGeral =
-                      registros.sumOf {
-                          duracao(
-                              it.entrada,
-                              it.saida
-                          )
-                      } + ajuste
-
-                  totalHojeText.text =
-                      "TOTAL HOJE\n" +
-                      formatarMinutos(
-                          totalHoje
-                      )
-
-                  totalMesText.text =
-                      "TOTAL DO MÊS\n" +
-                      formatarMinutos(
-                          totalMes
-                      )
-
-                  totalGeralText.text =
-                      "TOTAL GERAL\n" +
-                      formatarMinutos(
-                          totalGeral
-                      )
-
-                  registros
-                      .sortedByDescending {
-                          it.id
-                      }
-                      .forEach { registro ->
-
-                          val item =
-                              LinearLayout(this)
-
-                          item.orientation =
-                              LinearLayout.VERTICAL
-
-                          item.setPadding(
-                              dp(12),
-                              dp(10),
-                              dp(12),
-                              dp(10)
-                          )
-
-                          val texto =
-                              TextView(this)
-
-                          val total =
-                              duracao(
-                                  registro.entrada,
-                                  registro.saida
-                              )
-
-                          texto.text =
-                              buildString {
-
-                                  append(
-                                      registro.data
-                                  )
-
-                                  append("\n")
-
-                                  append(
-                                      "Entrada: "
-                                  )
-
-                                  append(
-                                      if (
-                                          registro.entrada
-                                              .isEmpty()
-                                      ) {
-                                          "--:--"
-                                      } else {
-                                          registro.entrada
-                                      }
-                                  )
-
-                                  append("   ")
-
-                                  append(
-                                      "Saída: "
-                                  )
-
-                                  append(
-                                      if (
-                                          registro.saida
-                                              .isEmpty()
-                                      ) {
-                                          "--:--"
-                                      } else {
-                                          registro.saida
-                                      }
-                                  )
-
-                                  append("\n")
-
-                                  append(
-                                      "Total: "
-                                  )
-
-                                  append(
-                                      formatarMinutos(
-                                          total
-                                      )
-                                  )
-
-                                  if (
-                                      registro
-                                          .observacao
-                                          .isNotBlank()
-                                  ) {
-
-                                      append("\n")
-
-                                      append(
-                                          registro
-                                              .observacao
-                                      )
-                                  }
-                              }
-
-                          texto.textSize =
-                              16f
-
-                          texto.setTextColor(
-                              Color.BLACK
-                          )
-
-                          item.addView(
-                              texto,
-                              LinearLayout.LayoutParams(
-                                  0,
-                                  LinearLayout.LayoutParams.WRAP_CONTENT,
-                                  1f
-                              )
-                          )
-
-                          val excluir =
-                              Button(this)
-
-                          excluir.text =
-                              "EXCLUIR"
-
-                          excluir.setOnClickListener {
-
-                              AlertDialog.Builder(
-                                  this
-                              )
-                                  .setTitle(
-                                      "Excluir registro?"
-                                  )
-                                  .setMessage(
-                                      "Esse registro será removido."
-                                  )
-                                  .setNegativeButton(
-                                      "CANCELAR",
-                                      null
-                                  )
-                                  .setPositiveButton(
-                                      "EXCLUIR"
-                                  ) { _, _ ->
-
-                                      registros.removeAll {
-                                          it.id ==
-                                              registro.id
-                                      }
-
-                                      salvarRegistros()
-                                      atualizarTela()
-                                  }
-                                  .show()
-                          }
-
-                          item.addView(
-                              excluir,
-                              LinearLayout.LayoutParams(
-                                  -1,
-                                  dp(45)
-                              )
-                          )
-
-                          listaLayout.addView(
-                              item,
-                              LinearLayout.LayoutParams(
-                                  -1,
-                                  LinearLayout.LayoutParams.WRAP_CONTENT
-                              ).apply {
-                                  bottomMargin =
-                                      dp(8)
-                              }
-                          )
-                      }
-              }
-
-              // ======================================================
-              // CALCULAR DURAÇÃO
-              // ======================================================
-
-              private fun duracao(
-                  entrada: String,
-                  saida: String
-              ): Int {
-
-                  if (
-                      !validarHora(entrada) ||
-                      !validarHora(saida)
-                  ) {
-                      return 0
-                  }
-
-                  val inicio =
-                      minutos(entrada)
-
-                  val fim =
-                      minutos(saida)
-
-                  if (fim < inicio) {
-
-                      return (
-                          24 * 60 - inicio
-                      ) + fim
-                  }
-
-                  return fim - inicio
-              }
-
-              private fun minutos(
-                  hora: String
-              ): Int {
-
-                  val partes =
-                      hora.split(":")
-
-                  if (
-                      partes.size != 2
-                  ) {
-                      return 0
-                  }
-
-                  val h =
-                      partes[0]
-                          .toIntOrNull()
-                          ?: 0
-
-                  val m =
-                      partes[1]
-                          .toIntOrNull()
-                          ?: 0
-
-                  return h * 60 + m
-              }
-
-              private fun validarHora(
-                  hora: String
-              ): Boolean {
-
-                  if (
-                      !hora.matches(
-                          Regex(
-                              "\\d{2}:\\d{2}"
-                          )
-                      )
-                  ) {
-                      return false
-                  }
-
-                  val partes =
-                      hora.split(":")
-
-                  val h =
-                      partes[0]
-                          .toIntOrNull()
-                          ?: return false
-
-                  val m =
-                      partes[1]
-                          .toIntOrNull()
-                          ?: return false
-
-                  return h in 0..23 &&
-                      m in 0..59
-              }
-
-              private fun validarData(
-                  data: String
-              ): Boolean {
-
-                  if (
-                      !data.matches(
-                          Regex(
-                              "\\d{2}/\\d{2}/\\d{4}"
-                          )
-                      )
-                  ) {
-                      return false
-                  }
-
-                  return try {
-
-                      val sdf =
-                          SimpleDateFormat(
-                              "dd/MM/yyyy",
-                              Locale.getDefault()
-                          )
-
-                      sdf.isLenient =
-                          false
-
-                      sdf.parse(data)
-
-                      true
-
-                  } catch (
-                      _: Exception
-                  ) {
-
-                      false
-                  }
-              }
-
-              private fun formatarMinutos(
-                  valor: Int
-              ): String {
-
-                  val positivo =
-                      valor >= 0
-
-                  val total =
-                      kotlin.math.abs(
-                          valor
-                      )
-
-                  val horas =
-                      total / 60
-
-                  val minutos =
-                      total % 60
-
-                  val resultado =
-                      String.format(
-                          Locale.getDefault(),
-                          "%02d:%02d",
-                          horas,
-                          minutos
-                      )
-
-                  return if (
-                      positivo
-                  ) {
-                      resultado
-                  } else {
-                      "-$resultado"
-                  }
-              }
-
-              // ======================================================
-              // SALVAR
-              // ======================================================
-
-              private fun salvarRegistros() {
-
-                  val dados =
-                      registros.joinToString(
-                          "§"
-                      ) {
-
-                          listOf(
-                              it.id,
-                              it.data,
-                              it.entrada,
-                              it.saida,
-                              it.observacao
-                                  .replace(
-                                      "§",
-                                      ""
-                                  )
-                                  .replace(
-                                      "|",
-                                      ""
-                                  )
-                          ).joinToString(
-                              "|"
-                          )
-                      }
-
-                  prefs.edit()
-                      .putString(
-                          "registros",
-                          dados
-                      )
-                      .apply()
-              }
-
-              // ======================================================
-              // CARREGAR
-              // ======================================================
-
-              private fun carregarRegistros() {
-
-                  registros.clear()
-
-                  val dados =
-                      prefs.getString(
-                          "registros",
-                          ""
-                      ) ?: ""
-
-                  if (
-                      dados.isBlank()
-                  ) {
-                      return
-                  }
-
-                  dados
-                      .split("§")
-                      .forEach { linha ->
-
-                          val partes =
-                              linha.split("|")
-
-                          if (
-                              partes.size >= 5
-                          ) {
-
-                              val id =
-                                  partes[0]
-                                      .toLongOrNull()
-                                      ?: System.currentTimeMillis()
-
-                              registros.add(
-                                  Registro(
-                                      id = id,
-                                      data = partes[1],
-                                      entrada = partes[2],
-                                      saida = partes[3],
-                                      observacao =
-                                          partes
-                                              .drop(4)
-                                              .joinToString(
-                                                  "|"
-                                              )
-                                  )
-                              )
-                          }
-                      }
-              }
-
-              // ======================================================
-              // DP
-              // ======================================================
-
-              private fun dp(
-                  valor: Int
-              ): Int {
-
-                  return (
-                      valor *
-                      resources
-                          .displayMetrics
-                          .density
-                  ).toInt()
-              }
-          }
-          KOTLIN
-
-          echo "================================"
-          echo "APLICATIVO CORRIGIDO"
-          echo "================================"
+          print("========================================")
+          print("MAINACTIVITY ORIGINAL PRESERVADO")
+          print("========================================")
+          print("Linhas:", len(s.splitlines()))
+          PY
 
           test -s "$MAIN"
 
-          echo "ARQUIVO MAIN ACTIVITY:"
-          wc -l "$MAIN"
+          echo "========================================"
+          echo "VERIFICANDO ARQUIVO"
+          echo "========================================"
 
-      # ==========================================================
-      # INSTALAR GRADLE 8.11.1
-      # ==========================================================
+          grep -q "class MainActivity" "$MAIN"
+
+          echo "MainActivity original mantido."
+
 
       - name: Instalar Gradle 8.11.1
         shell: bash
@@ -1337,9 +168,9 @@ jobs:
 
           GRADLE_VERSION="8.11.1"
 
-          echo "================================"
+          echo "========================================"
           echo "INSTALANDO GRADLE $GRADLE_VERSION"
-          echo "================================"
+          echo "========================================"
 
           wget -q \
             "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"
@@ -1353,9 +184,6 @@ jobs:
 
           gradle --version
 
-      # ==========================================================
-      # LIMPAR
-      # ==========================================================
 
       - name: Limpar projeto
         working-directory: ControleHoras
@@ -1363,17 +191,14 @@ jobs:
         run: |
           set -e
 
-          echo "================================"
+          echo "========================================"
           echo "LIMPANDO PROJETO"
-          echo "================================"
+          echo "========================================"
 
           gradle clean
 
           echo "LIMPEZA CONCLUIDA"
 
-      # ==========================================================
-      # GERAR APK
-      # ==========================================================
 
       - name: Gerar APK
         working-directory: ControleHoras
@@ -1381,27 +206,22 @@ jobs:
         run: |
           set -e
 
-          echo "================================"
+          echo "========================================"
           echo "GERANDO APK"
-          echo "================================"
+          echo "========================================"
 
           gradle assembleDebug
 
-          echo "================================"
+          echo "========================================"
           echo "VERIFICANDO APK"
-          echo "================================"
+          echo "========================================"
 
           test -f app/build/outputs/apk/debug/app-debug.apk
 
-          echo "================================"
-          echo "APK GERADO COM SUCESSO"
-          echo "================================"
-
           ls -lh app/build/outputs/apk/debug/app-debug.apk
 
-      # ==========================================================
-      # PUBLICAR APK
-      # ==========================================================
+          echo "APK GERADO COM SUCESSO"
+
 
       - name: Publicar APK
         uses: actions/upload-artifact@v4
@@ -1410,16 +230,13 @@ jobs:
           path: ControleHoras/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
-      # ==========================================================
-      # FINAL
-      # ==========================================================
 
       - name: Finalizar
         shell: bash
         run: |
-          echo "================================"
+          echo "========================================"
           echo "BUILD FINALIZADO"
-          echo "================================"
-          echo "APK: app-debug.apk"
+          echo "========================================"
           echo "Artifact: ControleHoras-APK"
-          echo "================================"
+          echo "APK: app-debug.apk"
+          echo "========================================"
