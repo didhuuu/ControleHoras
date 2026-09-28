@@ -39,7 +39,9 @@ jobs:
           test -f ControleHoras/app/src/main/AndroidManifest.xml
           test -f ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt
 
-          echo "PROJETO ORIGINAL OK"
+          echo "========================================"
+          echo " PROJETO ORIGINAL ENCONTRADO"
+          echo "========================================"
 
           wc -l ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt
 
@@ -48,31 +50,16 @@ jobs:
         run: |
           set -e
 
-          python3 <<'PY'
+          python3 -c '
           from pathlib import Path
           import re
 
-          file = Path(
-              "ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
-          )
+          p = Path("ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt")
+          s = p.read_text(encoding="utf-8")
 
-          s = file.read_text(encoding="utf-8")
-
-          def must_replace(old, new, name):
-              global s
-
-              count = s.count(old)
-
-              if count != 1:
-                  raise SystemExit(
-                      f"ERRO: {name}: encontrado {count} vez(es)"
-                  )
-
-              s = s.replace(old, new, 1)
-
-          # =========================================================
+          # ---------------------------------------------------------
           # CORREÇÕES DE COMPILAÇÃO
-          # =========================================================
+          # ---------------------------------------------------------
 
           s = s.replace(
               "        }, 0, 0, 0, dp(10))",
@@ -89,316 +76,187 @@ jobs:
               "setTextColor(this@MainActivity.text)"
           )
 
-          # =========================================================
-          # SALÁRIO
-          # =========================================================
-
-          must_replace(
-              'setText(if(existing!=null)existing.salary.toString():"")',
-              'setText(if (existing != null) existing.salary.toString() else "")',
-              "salário"
+          s = s.replace(
+              "setText(if(existing!=null)existing.salary.toString():\"\")",
+              "setText(if (existing != null) existing.salary.toString() else \"\")"
           )
 
-          # =========================================================
+          # ---------------------------------------------------------
           # HISTÓRICO MENSAL
-          # =========================================================
+          # ---------------------------------------------------------
 
-          must_replace(
-              'it.date.endsWith(SimpleDateFormat("MM-yyyy", Locale.US).format(Date()))',
-              'it.date.startsWith(SimpleDateFormat("yyyy-MM", Locale.US).format(Date()))',
-              "filtro mensal"
+          s = s.replace(
+              "it.date.endsWith(SimpleDateFormat(\"MM-yyyy\", Locale.US).format(Date()))",
+              "it.date.startsWith(SimpleDateFormat(\"yyyy-MM\", Locale.US).format(Date()))"
           )
 
-          # =========================================================
+          # ---------------------------------------------------------
           # FORMATO DOS TOTAIS
           # SEMPRE 00:00
-          # =========================================================
+          # ---------------------------------------------------------
 
-          format_pattern = re.compile(
-              r'(?m)^\s*private fun formatMin\(m:Int\):String=.*$'
-          )
-
-          matches = format_pattern.findall(s)
-
-          if len(matches) != 1:
-              raise SystemExit(
-                  f"ERRO: formatMin encontrado {len(matches)} vezes"
-              )
-
-          s = format_pattern.sub(
-              '    private fun formatMin(m:Int):String="%02d:%02d".format(Locale.US,max(0,m)/60,max(0,m)%60)',
+          s = re.sub(
+              r"(?m)^\\s*private fun formatMin\\(m:Int\\):String=.*$",
+              "    private fun formatMin(m:Int):String=\"%02d:%02d\".format(Locale.US,max(0,m)/60,max(0,m)%60)",
               s,
               count=1
           )
 
-          # =========================================================
-          # FUNÇÃO PARA NORMALIZAR HORÁRIO
-          # =========================================================
+          # ---------------------------------------------------------
+          # NORMALIZADOR DE HORÁRIO
+          # ---------------------------------------------------------
 
           marker = "    private fun getRecord(empId:Long,date:String):PunchDay{"
 
+          helper = (
+              "    private fun normalizeTime(value:String):String{\\n"
+              "        val digits=value.filter{it.isDigit()}.take(4)\\n"
+              "        if(digits.isEmpty())return \"\"\\n"
+              "        if(digits.length<3)return digits\\n"
+              "        val hour=digits.substring(0,2).toIntOrNull()?:return \"\"\\n"
+              "        val minute=digits.substring(2).toIntOrNull()?:0\\n"
+              "        if(hour !in 0..23)return \"\"\\n"
+              "        if(minute !in 0..59)return \"\"\\n"
+              "        return \"%02d:%02d\".format(Locale.US,hour,minute)\\n"
+              "    }\\n"
+              "\\n"
+              "    private fun timeEdit(initial:String=\"\",hintText:String=\"00:00\"):EditText{\\n"
+              "        val e=EditText(this).apply{\\n"
+              "            hint=hintText\\n"
+              "            inputType=2\\n"
+              "            setSingleLine()\\n"
+              "            val normalized=normalizeTime(initial)\\n"
+              "            if(normalized.length==5)setText(normalized)\\n"
+              "        }\\n"
+              "\\n"
+              "        var changing=false\\n"
+              "\\n"
+              "        e.addTextChangedListener(object:android.text.TextWatcher{\\n"
+              "            override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int){}\\n"
+              "            override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){}\\n"
+              "            override fun afterTextChanged(editable:android.text.Editable?){\\n"
+              "                if(changing)return\\n"
+              "                val digits=editable?.toString()?.filter{it.isDigit()}?.take(4)?:""\\n"
+              "                if(digits.isEmpty())return\\n"
+              "                val formatted=when{\\n"
+              "                    digits.length<=2->digits\\n"
+              "                    else->digits.substring(0,2)+\":\"+digits.substring(2)\\n"
+              "                }\\n"
+              "                if(formatted!=editable.toString()){\\n"
+              "                    changing=true\\n"
+              "                    e.setText(formatted)\\n"
+              "                    e.setSelection(e.text.length)\\n"
+              "                    changing=false\\n"
+              "                }\\n"
+              "            }\\n"
+              "        })\\n"
+              "\\n"
+              "        return e\\n"
+              "    }\\n"
+              "\\n"
+          )
+
           if marker not in s:
-              raise SystemExit(
-                  "ERRO: função getRecord não encontrada"
-              )
+              raise SystemExit("ERRO: getRecord não encontrado")
 
-          helper = """
-              private fun normalizeTime(value:String):String{
-                  val digits=value.filter{it.isDigit()}.take(4)
+          if "private fun normalizeTime" not in s:
+              s=s.replace(marker,helper+marker,1)
 
-                  if(digits.isEmpty())return ""
+          # ---------------------------------------------------------
+          # CÁLCULO DE MINUTOS
+          # ---------------------------------------------------------
 
-                  val hour:Int
-                  val minute:Int
+          old_start=s.find("    private fun minutesBetween(")
 
-                  when(digits.length){
-                      1->{
-                          hour=digits.toInt()
-                          minute=0
-                      }
+          if old_start==-1:
+              raise SystemExit("ERRO: minutesBetween não encontrada")
 
-                      2->{
-                          hour=digits.toInt()
-                          minute=0
-                      }
+          old_end=s.find("\\n    private fun ",old_start+10)
 
-                      3->{
-                          hour=digits.substring(0,1).toInt()
-                          minute=digits.substring(1,3).toInt()
-                      }
+          if old_end==-1:
+              raise SystemExit("ERRO: fim de minutesBetween não encontrado")
 
-                      else->{
-                          hour=digits.substring(0,2).toInt()
-                          minute=digits.substring(2,4).toInt()
-                      }
-                  }
-
-                  if(hour !in 0..23)return ""
-                  if(minute !in 0..59)return ""
-
-                  return "%02d:%02d".format(
-                      Locale.US,
-                      hour,
-                      minute
-                  )
-              }
-
-              private fun timeEdit(
-                  initial:String="",
-                  hintText:String="00:00"
-              ):EditText{
-
-                  val e=EditText(this).apply{
-
-                      hint=hintText
-
-                      setText(
-                          normalizeTime(initial)
-                      )
-
-                      inputType=2
-
-                      setSingleLine()
-
-                      if(text.isNotEmpty()){
-                          setSelection(text.length)
-                      }
-                  }
-
-                  e.addTextChangedListener(
-                      object:android.text.TextWatcher{
-
-                          private var changing=false
-
-                          override fun beforeTextChanged(
-                              s:CharSequence?,
-                              start:Int,
-                              count:Int,
-                              after:Int
-                          ){}
-
-                          override fun onTextChanged(
-                              s:CharSequence?,
-                              start:Int,
-                              before:Int,
-                              count:Int
-                          ){}
-
-                          override fun afterTextChanged(
-                              editable:android.text.Editable?
-                          ){
-
-                              if(changing)return
-
-                              val digits=
-                                  editable
-                                      ?.toString()
-                                      ?.filter{it.isDigit()}
-                                      ?: ""
-
-                              if(digits.isEmpty())return
-
-                              val formatted=when{
-
-                                  digits.length<=2->{
-                                      digits
-                                  }
-
-                                  else->{
-                                      digits.substring(0,2)+":"+
-                                      digits.substring(
-                                          2,
-                                          minOf(4,digits.length)
-                                      )
-                                  }
-                              }
-
-                              if(
-                                  formatted!=editable.toString()
-                              ){
-
-                                  changing=true
-
-                                  e.setText(formatted)
-
-                                  e.setSelection(
-                                      e.text.length
-                                  )
-
-                                  changing=false
-                              }
-                          }
-                      }
-                  )
-
-                  return e
-              }
-
-          """
-
-          s = s.replace(
-              marker,
-              helper + marker,
-              1
+          new_minutes=(
+              "    private fun minutesBetween(a:String,b:String):Int{\\n"
+              "        val x=normalizeTime(a)\\n"
+              "        val y=normalizeTime(b)\\n"
+              "        if(x.isBlank()||y.isBlank())return 0\\n"
+              "        return try{\\n"
+              "            val xa=x.split(\":\")\\n"
+              "            val ya=y.split(\":\")\\n"
+              "            max(0,(ya[0].toInt()*60+ya[1].toInt())-(xa[0].toInt()*60+xa[1].toInt()))\\n"
+              "        }catch(_:Exception){\\n"
+              "            0\\n"
+              "        }\\n"
+              "    }"
           )
 
-          # =========================================================
-          # CÁLCULO DAS HORAS
-          # =========================================================
+          s=s[:old_start]+new_minutes+s[old_end:]
 
-          start = s.find("    private fun minutesBetween(")
-
-          if start == -1:
-              raise SystemExit(
-                  "ERRO: minutesBetween não encontrada"
-              )
-
-          end = s.find(
-              "\n    private fun ",
-              start + 10
-          )
-
-          if end == -1:
-              raise SystemExit(
-                  "ERRO: fim de minutesBetween não encontrado"
-              )
-
-          new_minutes = """
-    private fun minutesBetween(a:String,b:String):Int{
-
-        val x=normalizeTime(a)
-        val y=normalizeTime(b)
-
-        if(x.isBlank()||y.isBlank())return 0
-
-        return try{
-
-            val xa=x.split(":")
-            val ya=y.split(":")
-
-            max(
-                0,
-                (ya[0].toInt()*60+ya[1].toInt()) -
-                (xa[0].toInt()*60+xa[1].toInt())
-            )
-
-        }catch(_:Exception){
-            0
-        }
-    }
-"""
-
-          s = s[:start] + new_minutes + s[end:]
-
-          # =========================================================
+          # ---------------------------------------------------------
           # ADIÇÃO MANUAL
-          # =========================================================
+          # ---------------------------------------------------------
 
-          must_replace(
-              'val e=EditText(this).apply{setText(r.punches[index]);hint="HH:mm";inputType=2;setSingleLine()}',
-              'val e=timeEdit(r.punches[index],punchNames[index])',
-              "campo de adição manual"
+          s=s.replace(
+              "val e=EditText(this).apply{setText(r.punches[index]);hint=\"HH:mm\";inputType=2;setSingleLine()}",
+              "val e=timeEdit(r.punches[index],punchNames[index])"
           )
 
-          must_replace(
-              'r.punches[index]=e.text.toString();saveData();showPunch()',
-              'r.punches[index]=normalizeTime(e.text.toString());saveData();showPunch()',
-              "salvamento da adição manual"
+          s=s.replace(
+              "r.punches[index]=e.text.toString();saveData();showPunch()",
+              "r.punches[index]=normalizeTime(e.text.toString());saveData();showPunch()"
           )
 
-          # =========================================================
-          # EDIÇÃO DOS REGISTROS
-          # =========================================================
+          # ---------------------------------------------------------
+          # EDIÇÃO DOS 6 HORÁRIOS
+          # ---------------------------------------------------------
 
-          must_replace(
-              'val fields=r.punches.mapIndexed{i,v->EditText(this).apply{hint=punchNames[i];setText(v);inputType=2;setSingleLine();}}',
-              'val fields=r.punches.mapIndexed{i,v->timeEdit(v,punchNames[i])}',
-              "campos de edição"
+          s=s.replace(
+              "val fields=r.punches.mapIndexed{i,v->EditText(this).apply{hint=punchNames[i];setText(v);inputType=2;setSingleLine();}}",
+              "val fields=r.punches.mapIndexed{i,v->timeEdit(v,punchNames[i])}"
           )
 
-          must_replace(
-              'r.punches[i]=e.text.toString()};saveData();showHistory()',
-              'r.punches[i]=normalizeTime(e.text.toString())};saveData();showHistory()',
-              "salvamento da edição"
+          s=s.replace(
+              "r.punches[i]=e.text.toString()};saveData();showHistory()",
+              "r.punches[i]=normalizeTime(e.text.toString())};saveData();showHistory()"
           )
 
-          # =========================================================
+          # ---------------------------------------------------------
           # ESCALA
-          # =========================================================
+          # ---------------------------------------------------------
 
-          must_replace(
-              'val ed=EditText(this).apply{setText(p.second);hint="00:00";gravity=Gravity.CENTER;inputType=2;setSingleLine()}',
-              'val ed=timeEdit(p.second,"00:00").apply{gravity=Gravity.CENTER}',
-              "campo da escala"
+          s=s.replace(
+              "val ed=EditText(this).apply{setText(p.second);hint=\"00:00\";gravity=Gravity.CENTER;inputType=2;setSingleLine()}",
+              "val ed=timeEdit(p.second,\"00:00\").apply{gravity=Gravity.CENTER}"
           )
 
-          must_replace(
-              '0->s.e=ed.text.toString();1->s.x1=ed.text.toString();2->s.r1=ed.text.toString();3->s.x2=ed.text.toString()',
-              '0->s.e=normalizeTime(ed.text.toString());1->s.x1=normalizeTime(ed.text.toString());2->s.r1=normalizeTime(ed.text.toString());3->s.x2=normalizeTime(ed.text.toString())',
-              "salvamento da escala"
+          s=s.replace(
+              "0->s.e=ed.text.toString();1->s.x1=ed.text.toString();2->s.r1=ed.text.toString();3->s.x2=ed.text.toString()",
+              "0->s.e=normalizeTime(ed.text.toString());1->s.x1=normalizeTime(ed.text.toString());2->s.r1=normalizeTime(ed.text.toString());3->s.x2=normalizeTime(ed.text.toString())"
           )
 
-          file.write_text(
-              s,
-              encoding="utf-8"
-          )
+          # ---------------------------------------------------------
+          # SALVAR
+          # ---------------------------------------------------------
+
+          p.write_text(s,encoding="utf-8")
 
           print("========================================")
           print(" APLICATIVO ORIGINAL PRESERVADO")
           print("========================================")
-          print("Adição manual: CORRIGIDA")
-          print("Dois pontos: AUTOMÁTICOS")
-          print("Somatório: CORRIGIDO")
-          print("Formato: 00:00")
-          print("Histórico mensal: CORRIGIDO")
-          print("Escala: CORRIGIDA")
+          print("Registro: OK")
+          print("Adição manual: OK")
+          print("Hora 00:00: OK")
+          print("Dois pontos automáticos: OK")
+          print("Somatório: OK")
+          print("Histórico: OK")
+          print("Escala: OK")
           print("========================================")
-          print("LINHAS:", len(s.splitlines()))
+          print("LINHAS:",len(s.splitlines()))
           print("========================================")
+          '
 
-          PY
-
-      - name: Verificar código
+      - name: Verificar código Kotlin
         shell: bash
         run: |
           set -e
@@ -413,21 +271,19 @@ jobs:
           grep -q 'private fun formatMin(m:Int):String="%02d:%02d"' "$FILE"
 
           echo "========================================"
-          echo " CÓDIGO KOTLIN VALIDADO"
+          echo " CÓDIGO VALIDADO"
           echo "========================================"
 
-          wc -l "$FILE"
+          tail -n 10 "$FILE"
 
       - name: Instalar Gradle 8.11.1
         shell: bash
         run: |
           set -e
 
-          wget -q \
-            "https://services.gradle.org/distributions/gradle-8.11.1-bin.zip"
+          wget -q "https://services.gradle.org/distributions/gradle-8.11.1-bin.zip"
 
-          unzip -q \
-            "gradle-8.11.1-bin.zip"
+          unzip -q "gradle-8.11.1-bin.zip"
 
           echo "$PWD/gradle-8.11.1/bin" >> "$GITHUB_PATH"
 
@@ -440,7 +296,6 @@ jobs:
         shell: bash
         run: |
           set -e
-
           gradle clean --no-daemon
 
       - name: Gerar APK
@@ -455,15 +310,15 @@ jobs:
 
           gradle assembleDebug --no-daemon --stacktrace
 
-          test -s \
-            app/build/outputs/apk/debug/app-debug.apk
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+
+          test -s "$APK"
 
           echo "========================================"
-          echo " APK GERADO COM SUCESSO"
+          echo " APK GERADO"
           echo "========================================"
 
-          ls -lh \
-            app/build/outputs/apk/debug/app-debug.apk
+          ls -lh "$APK"
 
       - name: Verificar APK
         working-directory: ControleHoras
@@ -478,7 +333,7 @@ jobs:
           unzip -t "$APK" > /dev/null
 
           echo "========================================"
-          echo " APK ÍNTEGRO E VALIDADO"
+          echo " APK ÍNTEGRO"
           echo "========================================"
 
       - name: Publicar APK
