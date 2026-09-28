@@ -5,12 +5,9 @@ on:
   push:
     branches:
       - main
-    paths-ignore:
-      - 'ControleHoras.apk'
-      - 'signing/**'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -32,7 +29,12 @@ jobs:
         run: |
           set -e
 
+          echo "======================================"
+          echo " EXTRAINDO PROJETO ORIGINAL"
+          echo "======================================"
+
           rm -rf ControleHoras
+
           unzip -o ControleHoras.zip
 
           test -f ControleHoras/settings.gradle.kts
@@ -41,16 +43,13 @@ jobs:
           test -f ControleHoras/app/src/main/AndroidManifest.xml
           test -f ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt
 
-          echo "PROJETO ORIGINAL OK"
+          echo "PROJETO ORIGINAL ENCONTRADO"
+          wc -l ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt
 
-      - name: Corrigir aplicativo original
+      - name: Corrigir aplicativo sem alterar o layout original
         shell: bash
         run: |
           set -e
-
-          MAIN="ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
-
-          test -s "$MAIN"
 
           python3 - <<'PY'
           from pathlib import Path
@@ -61,28 +60,28 @@ jobs:
 
           s = p.read_text(encoding="utf-8")
 
-          def replace_once(old, new, label):
-              global s
-
-              if old not in s:
-                  raise SystemExit(
-                      f"ERRO: trecho não encontrado: {label}"
-                  )
-
-              s = s.replace(old, new, 1)
-
           # ============================================================
-          # CORREÇÕES DE COMPILAÇÃO
+          # 1. CORREÇÕES DE COMPILAÇÃO DO PROJETO ORIGINAL
           # ============================================================
 
           s = s.replace(
               "        }, 0, 0, 0, dp(10))",
-              "        }, LinearLayout.LayoutParams(-1, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(10) })"
+              """        }, LinearLayout.LayoutParams(
+              -1,
+              LinearLayout.LayoutParams.WRAP_CONTENT
+          ).apply {
+              bottomMargin = dp(10)
+          })"""
           )
 
           s = s.replace(
               "        }, 0, 0, 0, dp(12))",
-              "        }, LinearLayout.LayoutParams(-1, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(12) })"
+              """        }, LinearLayout.LayoutParams(
+              -1,
+              LinearLayout.LayoutParams.WRAP_CONTENT
+          ).apply {
+              bottomMargin = dp(12)
+          })"""
           )
 
           s = s.replace(
@@ -95,8 +94,18 @@ jobs:
               'setText(if (existing != null) existing.salary.toString() else "")'
           )
 
+          s = s.replace(
+              'if(existing!=null)existing.salary.toString():""',
+              'if (existing != null) existing.salary.toString() else ""'
+          )
+
+          s = s.replace(
+              'if (existing != null) existing.salary.toString():""',
+              'if (existing != null) existing.salary.toString() else ""'
+          )
+
           # ============================================================
-          # CORREÇÃO DO HISTÓRICO / SOMATÓRIO
+          # 2. CORRIGIR FILTRO DO HISTÓRICO / SOMATÓRIO
           # ============================================================
 
           s = s.replace(
@@ -105,361 +114,297 @@ jobs:
           )
 
           # ============================================================
-          # FUNÇÃO PARA NORMALIZAR HORÁRIO
-          #
-          # Aceita:
-          # 0800
-          # 08:00
-          # 800
-          # 930
-          #
-          # E grava sempre:
-          # 08:00
-          # 09:30
+          # 3. GARANTIR FORMATO 00:00 NOS TOTAIS
           # ============================================================
 
-          marker = '    private fun getRecord(empId:Long,date:String):PunchDay{'
+          old_format = '''private fun formatMin(m:Int):String = "${m/60}:%02d".format(m%60)'''
 
-          helper = """    private fun normalizeTime(value: String): String {
-          val digits = value.filter { it.isDigit() }.take(4)
-
-          if (digits.length < 4) {
-              return ""
-          }
-
-          val hour =
-              digits.substring(0, 2).toIntOrNull()
-                  ?: return ""
-
-          val minute =
-              digits.substring(2, 4).toIntOrNull()
-                  ?: return ""
-
-          if (hour !in 0..23 || minute !in 0..59) {
-              return ""
-          }
-
-          return "%02d:%02d".format(
-              Locale.US,
-              hour,
-              minute
-          )
-      }
-
-      private fun timeEdit(
-          initial: String = "",
-          hintText: String = "00:00"
-      ): EditText {
-
-          val e = EditText(this).apply {
-
-              hint = hintText
-
-              setText(
-                  normalizeTime(initial)
+          new_format = '''private fun formatMin(m: Int): String {
+              val total = max(0, m)
+              return "%02d:%02d".format(
+                  Locale.US,
+                  total / 60,
+                  total % 60
               )
+          }'''
 
-              if (text.isNotEmpty()) {
-                  setSelection(text.length)
+          if old_format in s:
+              s = s.replace(old_format, new_format)
+
+          # Também corrige versões com espaços diferentes.
+          old_format2 = '''private fun formatMin(m: Int): String = "${m / 60}:%02d".format(m % 60)'''
+
+          if old_format2 in s:
+              s = s.replace(old_format2, new_format)
+
+          # ============================================================
+          # 4. FUNÇÃO DE NORMALIZAÇÃO DE HORÁRIO
+          #
+          # Aceita:
+          # 0800  -> 08:00
+          # 800   -> 08:00
+          # 930   -> 09:30
+          # 09:30 -> 09:30
+          # ============================================================
+
+          helper = '''
+          private fun normalizeTime(value: String): String {
+              val digits = value.filter { it.isDigit() }
+
+              if (digits.isEmpty()) {
+                  return ""
               }
 
-              inputType = 2
-              setSingleLine()
+              val hour: Int
+              val minute: Int
+
+              when (digits.length) {
+                  1 -> {
+                      hour = digits.toInt()
+                      minute = 0
+                  }
+
+                  2 -> {
+                      hour = digits.toInt()
+                      minute = 0
+                  }
+
+                  3 -> {
+                      hour = digits.substring(0, 1).toInt()
+                      minute = digits.substring(1).toInt()
+                  }
+
+                  else -> {
+                      hour = digits.substring(0, 2).toInt()
+                      minute = digits.substring(2, 4).toInt()
+                  }
+              }
+
+              if (hour !in 0..23 || minute !in 0..59) {
+                  return ""
+              }
+
+              return "%02d:%02d".format(
+                  Locale.US,
+                  hour,
+                  minute
+              )
           }
 
-          var changing = false
+          private fun timeEdit(
+              initial: String = "",
+              hintText: String = "00:00"
+          ): EditText {
+              val e = EditText(this).apply {
+                  hint = hintText
+                  setText(normalizeTime(initial))
 
-          e.addTextChangedListener(
-              object : android.text.TextWatcher {
+                  inputType = 2
+                  setSingleLine()
+
+                  if (text.isNotEmpty()) {
+                      setSelection(text.length)
+                  }
+              }
+
+              e.addTextChangedListener(object : android.text.TextWatcher {
+
+                  private var changing = false
 
                   override fun beforeTextChanged(
                       s: CharSequence?,
                       start: Int,
                       count: Int,
                       after: Int
-                  ) = Unit
+                  ) {
+                  }
 
                   override fun onTextChanged(
                       s: CharSequence?,
                       start: Int,
                       before: Int,
                       count: Int
-                  ) = Unit
-
-                  override fun afterTextChanged(
-                      s: android.text.Editable?
                   ) {
+                  }
 
+                  override fun afterTextChanged(editable: android.text.Editable?) {
                       if (changing) {
                           return
                       }
 
-                      val digits =
-                          s?.toString()
-                              ?.filter { it.isDigit() }
-                              ?.take(4)
-                              .orEmpty()
+                      val digits = editable
+                          ?.toString()
+                          ?.filter { it.isDigit() }
+                          ?: ""
 
-                      val formatted =
-                          when {
+                      if (digits.isEmpty()) {
+                          return
+                      }
 
-                              digits.isEmpty() ->
-                                  ""
-
-                              digits.length == 1 ->
-                                  digits
-
-                              digits.length == 2 ->
-                                  digits + ":"
-
-                              digits.length == 3 -> {
-
-                                  val firstTwo =
-                                      digits.substring(
-                                          0,
-                                          2
-                                      ).toIntOrNull() ?: 0
-
-                                  if (firstTwo in 0..23) {
-
-                                      digits.substring(
-                                          0,
-                                          2
-                                      ) +
-                                      ":" +
-                                      digits.substring(2)
-
-                                  } else {
-
-                                      "0" +
-                                      digits.substring(
-                                          0,
-                                          1
-                                      ) +
-                                      ":" +
-                                      digits.substring(1)
-                                  }
-                              }
-
-                              else ->
-                                  digits.substring(
-                                      0,
-                                      2
-                                  ) +
-                                  ":" +
-                                  digits.substring(
-                                      2,
-                                      4
-                                  )
+                      val formatted = when {
+                          digits.length <= 2 -> {
+                              digits
                           }
 
-                      if (formatted != s?.toString()) {
+                          digits.length == 3 -> {
+                              digits.substring(0, 1) +
+                                  ":" +
+                                  digits.substring(1)
+                          }
 
+                          else -> {
+                              digits.substring(0, 2) +
+                                  ":" +
+                                  digits.substring(2, 4)
+                          }
+                      }
+
+                      if (formatted != editable.toString()) {
                           changing = true
-
                           e.setText(formatted)
-
-                          e.setSelection(
-                              formatted.length
-                          )
-
+                          e.setSelection(e.text.length)
                           changing = false
                       }
                   }
+              })
+
+              return e
+          }
+          '''
+
+          # Insere os helpers antes de minutesBetween.
+          if "private fun normalizeTime(" not in s:
+              marker = "private fun minutesBetween("
+              pos = s.find(marker)
+
+              if pos != -1:
+                  s = s[:pos] + helper + "\n" + s[pos:]
+
+          # ============================================================
+          # 5. CORRIGIR minutesBetween PARA ACEITAR HORÁRIOS NORMALIZADOS
+          # ============================================================
+
+          start = s.find("private fun minutesBetween(")
+
+          if start != -1:
+              end = s.find("\n}", start)
+
+              if end != -1:
+                  old_function = s[start:end + 2]
+
+                  new_function = '''private fun minutesBetween(a: String, b: String): Int {
+              val startTime = normalizeTime(a)
+              val endTime = normalizeTime(b)
+
+              if (startTime.isBlank() || endTime.isBlank()) {
+                  return 0
               }
-          )
 
-          return e
-      }
+              return try {
+                  val x = startTime.split(":")
+                  val y = endTime.split(":")
 
-"""
+                  val startMinutes =
+                      x[0].toInt() * 60 + x[1].toInt()
 
-          replace_once(
-              marker,
-              helper + marker,
-              "funções de horário"
-          )
+                  val endMinutes =
+                      y[0].toInt() * 60 + y[1].toInt()
+
+                  var result = endMinutes - startMinutes
+
+                  if (result < 0) {
+                      result += 24 * 60
+                  }
+
+                  max(0, result)
+
+              } catch (_: Exception) {
+                  0
+              }
+          }'''
+
+                  s = s.replace(old_function, new_function, 1)
 
           # ============================================================
-          # ESCALA
+          # 6. ADIÇÃO MANUAL DE HORÁRIO
           # ============================================================
 
-          replace_once(
-              'val ed=EditText(this).apply{setText(p.second);hint="00:00";gravity=Gravity.CENTER;inputType=2;setSingleLine()}',
-              'val ed=timeEdit(p.second,"00:00").apply{gravity=Gravity.CENTER}',
-              "campo de horário da escala"
-          )
+          old_edit_punch = '''val e=EditText(this).apply{setText(r.punches[index]);hint="HH:mm";inputType=2;setSingleLine()}'''
+
+          new_edit_punch = '''val e = timeEdit(r.punches[index], punchNames[index])'''
+
+          s = s.replace(old_edit_punch, new_edit_punch)
 
           # ============================================================
-          # EDIÇÃO MANUAL DE UMA BATIDA
+          # 7. EDIÇÃO DOS 6 HORÁRIOS DO REGISTRO
           # ============================================================
 
-          replace_once(
-              'val e=EditText(this).apply{setText(r.punches[index]);hint="HH:mm";inputType=2;setSingleLine()}',
-              'val e=timeEdit(r.punches[index],"00:00")',
-              "edição manual de batida"
-          )
+          old_fields = '''val fields=r.punches.mapIndexed{i,v->EditText(this).apply{hint=punchNames[i];setText(v);inputType=2;setSingleLine();}}'''
 
-          replace_once(
+          new_fields = '''val fields = r.punches.mapIndexed { i, v ->
+              timeEdit(v, punchNames[i])
+          }'''
+
+          s = s.replace(old_fields, new_fields)
+
+          # ============================================================
+          # 8. ESCALA
+          # ============================================================
+
+          old_scale = '''val ed=EditText(this).apply{setText(p.second);hint="00:00";gravity=Gravity.CENTER;inputType=2;setSingleLine()}'''
+
+          new_scale = '''val ed = timeEdit(p.second, "00:00").apply {
+              gravity = Gravity.CENTER
+          }'''
+
+          s = s.replace(old_scale, new_scale)
+
+          # ============================================================
+          # 9. GARANTIR NORMALIZAÇÃO AO SALVAR OS HORÁRIOS
+          # ============================================================
+
+          s = s.replace(
               'r.punches[index]=e.text.toString();saveData();showPunch()',
-              'r.punches[index]=normalizeTime(e.text.toString());saveData();showPunch()',
-              "gravação da batida manual"
+              'r.punches[index]=normalizeTime(e.text.toString());saveData();showPunch()'
+          )
+
+          s = s.replace(
+              'r.punches[i]=e.text.toString()};saveData();showHistory()',
+              'r.punches[i]=normalizeTime(e.text.toString())};saveData();showHistory()'
           )
 
           # ============================================================
-          # EDIÇÃO DOS 6 HORÁRIOS
+          # SALVAR
           # ============================================================
 
-          replace_once(
-              'val fields=r.punches.mapIndexed{i,v->EditText(this).apply{hint=punchNames[i];setText(v);inputType=2;setSingleLine();}}',
-              'val fields=r.punches.mapIndexed{i,v->timeEdit(v,punchNames[i])}',
-              "seis campos de edição manual"
-          )
-
-          replace_once(
-              'fields.forEachIndexed{i,e->r.punches[i]=e.text.toString()};saveData();showHistory()',
-              'fields.forEachIndexed{i,e->r.punches[i]=normalizeTime(e.text.toString())};saveData();showHistory()',
-              "gravação dos seis horários"
-          )
-
-          # ============================================================
-          # SALVAMENTO DA ESCALA
-          # ============================================================
-
-          replace_once(
-              '0->s.e=ed.text.toString();1->s.x1=ed.text.toString();2->s.r1=ed.text.toString();3->s.x2=ed.text.toString()',
-              '0->s.e=normalizeTime(ed.text.toString());1->s.x1=normalizeTime(ed.text.toString());2->s.r1=normalizeTime(ed.text.toString());3->s.x2=normalizeTime(ed.text.toString())',
-              "gravação da escala"
-          )
-
-          # ============================================================
-          # CÁLCULO DE HORAS
-          # ============================================================
-
-          old_minutes = """    private fun minutesBetween(a:String,b:String):Int{
-          if(a.isBlank()||b.isBlank())return 0
-          return try{val x=a.split(":");val y=b.split(":");max(0,(y[0].toInt()*60+y[1].toInt())-(x[0].toInt()*60+x[1].toInt()))}catch(_:Exception){0}
-      }"""
-
-          new_minutes = """    private fun minutesBetween(a:String,b:String):Int{
-
-          val x = normalizeTime(a)
-          val y = normalizeTime(b)
-
-          if (x.isBlank() || y.isBlank()) {
-              return 0
-          }
-
-          return try {
-
-              val xa = x.split(":")
-              val ya = y.split(":")
-
-              max(
-                  0,
-                  (ya[0].toInt() * 60 + ya[1].toInt()) -
-                  (xa[0].toInt() * 60 + xa[1].toInt())
-              )
-
-          } catch (_: Exception) {
-
-              0
-          }
-      }"""
-
-          replace_once(
-              old_minutes,
-              new_minutes,
-              "cálculo de minutos"
-          )
-
-          p.write_text(
-              s,
-              encoding="utf-8"
-          )
+          p.write_text(s, encoding="utf-8")
 
           print("======================================")
-          print("CORREÇÕES APLICADAS")
+          print(" CORREÇÕES APLICADAS")
           print("======================================")
-          print("UI ORIGINAL PRESERVADA")
-          print("ADIÇÃO MANUAL CORRIGIDA")
-          print("HORÁRIO HH:mm CORRIGIDO")
-          print("DOIS PONTOS AUTOMÁTICOS")
-          print("SOMATÓRIO CORRIGIDO")
-          print("HISTÓRICO CORRIGIDO")
-          print("ESCALA CORRIGIDA")
-          print("======================================")
+          print("Linhas finais:", len(s.splitlines()))
 
           PY
 
-          test -s "$MAIN"
-
-          grep -n "normalizeTime" "$MAIN"
-          grep -n "timeEdit" "$MAIN"
-          grep -n "startsWith(SimpleDateFormat(\"yyyy-MM\"" "$MAIN"
-          grep -n "minutesBetween" "$MAIN"
-
-      - name: Criar assinatura estável
+      - name: Verificar Kotlin corrigido
         shell: bash
         run: |
           set -e
 
-          mkdir -p signing
+          FILE="ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
 
-          KEYSTORE="signing/controlehoras-debug.jks"
-          STOREPASS="ControleHoras2026!"
-          ALIAS="controlehoras"
+          test -f "$FILE"
 
-          if [ ! -f "$KEYSTORE" ]; then
+          echo "VERIFICANDO MainActivity.kt"
 
-            keytool -genkeypair \
-              -alias "$ALIAS" \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -keystore "$KEYSTORE" \
-              -storetype JKS \
-              -storepass "$STOREPASS" \
-              -keypass "$STOREPASS" \
-              -dname "CN=ControleHoras, OU=DIDHUUU, O=DIDHUUU, L=Campinas, ST=SP, C=BR"
+          grep -q "private fun normalizeTime" "$FILE"
+          grep -q "private fun timeEdit" "$FILE"
+          grep -q "private fun minutesBetween" "$FILE"
 
-          fi
+          echo "FUNÇÕES DE HORÁRIO ENCONTRADAS"
 
-          cat >> ControleHoras/app/build.gradle.kts <<'KOTLIN'
-
-          android {
-
-              signingConfigs {
-
-                  create("controleHorasCi") {
-
-                      storeFile =
-                          file("../../signing/controlehoras-debug.jks")
-
-                      storePassword =
-                          "ControleHoras2026!"
-
-                      keyAlias =
-                          "controlehoras"
-
-                      keyPassword =
-                          "ControleHoras2026!"
-                  }
-              }
-
-              buildTypes {
-
-                  getByName("debug") {
-
-                      signingConfig =
-                          signingConfigs.getByName(
-                              "controleHorasCi"
-                          )
-                  }
-              }
-          }
-
-          KOTLIN
+          echo "TRECHO DAS FUNÇÕES:"
+          grep -n -E "normalizeTime|timeEdit|minutesBetween|formatMin" "$FILE" | head -30
 
       - name: Instalar Gradle 8.11.1
         shell: bash
@@ -474,12 +419,9 @@ jobs:
           unzip -q \
             "gradle-${GRADLE_VERSION}-bin.zip"
 
-          echo \
-            "$PWD/gradle-${GRADLE_VERSION}/bin" \
-            >> "$GITHUB_PATH"
+          echo "$PWD/gradle-${GRADLE_VERSION}/bin" >> "$GITHUB_PATH"
 
-          export \
-            PATH="$PWD/gradle-${GRADLE_VERSION}/bin:$PATH"
+          export PATH="$PWD/gradle-${GRADLE_VERSION}/bin:$PATH"
 
           gradle --version
 
@@ -491,27 +433,40 @@ jobs:
 
           gradle clean
 
-      - name: Gerar APK corrigido
+      - name: Gerar APK
         working-directory: ControleHoras
         shell: bash
         run: |
           set -e
 
-          gradle assembleDebug
+          echo "======================================"
+          echo " GERANDO APK"
+          echo "======================================"
+
+          gradle assembleDebug --stacktrace
 
           APK="app/build/outputs/apk/debug/app-debug.apk"
 
           test -f "$APK"
 
-          test \
-            "$(stat -c%s "$APK")" \
-            -gt 100000
-
-          echo "======================================"
-          echo "APK GERADO"
-          echo "======================================"
-
+          echo "APK GERADO COM SUCESSO"
           ls -lh "$APK"
+
+      - name: Verificar APK
+        working-directory: ControleHoras
+        shell: bash
+        run: |
+          set -e
+
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+
+          test -f "$APK"
+
+          echo "VERIFICAÇÃO DO APK"
+          file "$APK"
+          unzip -t "$APK" > /dev/null
+
+          echo "APK ZIP ÍNTEGRO"
 
       - name: Publicar APK
         uses: actions/upload-artifact@v4
@@ -520,49 +475,9 @@ jobs:
           path: ControleHoras/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
-      - name: Salvar APK no repositório
-        shell: bash
-        run: |
-          set -e
-
-          cp \
-            ControleHoras/app/build/outputs/apk/debug/app-debug.apk \
-            ControleHoras.apk
-
-          git config \
-            user.name \
-            "github-actions[bot]"
-
-          git config \
-            user.email \
-            "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add \
-            ControleHoras.apk \
-            signing/controlehoras-debug.jks
-
-          if git diff --cached --quiet; then
-
-            echo "APK já está atualizado"
-
-          else
-
-            git commit \
-              -m "Atualizar APK ControleHoras [skip ci]"
-
-            git push || \
-              echo "AVISO: push não realizado; artifact continua disponível."
-
-          fi
-
-          ls -lh ControleHoras.apk
-
       - name: Finalizar
         shell: bash
         run: |
           echo "======================================"
-          echo "BUILD FINALIZADO"
+          echo " BUILD FINALIZADO COM SUCESSO"
           echo "======================================"
-
-          ls -lh \
-            ControleHoras/app/build/outputs/apk/debug/app-debug.apk
