@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Baixar projeto
         uses: actions/checkout@v4
 
@@ -30,7 +31,10 @@ jobs:
 
           rm -rf ControleHoras
 
+          echo "Extraindo ControleHoras.zip..."
           unzip -o ControleHoras.zip
+
+          echo "Verificando estrutura..."
 
           test -f ControleHoras/settings.gradle.kts
           test -f ControleHoras/build.gradle.kts
@@ -48,44 +52,124 @@ jobs:
           python3 -c '
           from pathlib import Path
 
-          p = Path("ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt")
+          p = Path(
+              "ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
+          )
+
           s = p.read_text(encoding="utf-8")
 
-          # Corrigir setTextColor(text)
+          print("Aplicando correções no MainActivity.kt durante o Build...")
+
+          # ============================================================
+          # 1. CORRIGIR OS DOIS addView COM PARÂMETROS INVÁLIDOS
+          # ============================================================
+
+          old = "        }, 0, 0, 0, dp(10))"
+
+          new = """        },
+            LinearLayout.LayoutParams(
+                -1,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = dp(10)
+            }
+        )"""
+
+          count = s.count(old)
+
+          if count > 0:
+              s = s.replace(old, new)
+              print(f"OK: addView com margem 10 corrigido ({count} ocorrência(s)).")
+          else:
+              print("AVISO: addView com margem 10 não encontrado.")
+
+          old = "        }, 0, 0, 0, dp(12))"
+
+          new = """        },
+            LinearLayout.LayoutParams(
+                -1,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = dp(12)
+            }
+        )"""
+
+          count = s.count(old)
+
+          if count > 0:
+              s = s.replace(old, new)
+              print(f"OK: addView com margem 12 corrigido ({count} ocorrência(s)).")
+          else:
+              print("AVISO: addView com margem 12 não encontrado.")
+
+          # ============================================================
+          # 2. CORRIGIR setTextColor(text)
+          # ============================================================
+
+          count = s.count("setTextColor(text)")
+
           s = s.replace(
               "setTextColor(text)",
               "setTextColor(this@MainActivity.text)"
           )
 
-          # Corrigir expressão inválida do salário
-          s = s.replace(
-              "setText(if(existing!=null)existing.salary.toString():\"\")",
-              "setText(if (existing != null) existing.salary.toString() else \"\")"
+          print(
+              f"OK: setTextColor(text) corrigido ({count} ocorrência(s))."
           )
 
-          s = s.replace(
-              "if(existing!=null)existing.salary.toString():\"\"",
-              "if (existing != null) existing.salary.toString() else \"\""
-          )
+          # ============================================================
+          # 3. CORRIGIR EXPRESSÃO DO SALÁRIO
+          # ============================================================
 
-          s = s.replace(
-              "if(existing != null) existing.salary.toString():\"\"",
-              "if (existing != null) existing.salary.toString() else \"\""
-          )
+          replacements = [
+              (
+                  'setText(if(existing!=null)existing.salary.toString():"")',
+                  'setText(if (existing != null) existing.salary.toString() else "")'
+              ),
+              (
+                  'if(existing!=null)existing.salary.toString():""',
+                  'if (existing != null) existing.salary.toString() else ""'
+              ),
+              (
+                  'if(existing != null) existing.salary.toString():""',
+                  'if (existing != null) existing.salary.toString() else ""'
+              )
+          ]
+
+          for old, new in replacements:
+              if old in s:
+                  s = s.replace(old, new)
+                  print("OK: expressão inválida do salário corrigida.")
+
+          # ============================================================
+          # SALVAR ARQUIVO CORRIGIDO TEMPORARIAMENTE NO BUILD
+          # ============================================================
 
           p.write_text(s, encoding="utf-8")
 
-          print("Correções simples aplicadas.")
+          print("")
+          print("======================================")
+          print("VERIFICANDO CORREÇÕES")
+          print("======================================")
+
+          invalid = [
+              "setTextColor(text)",
+              "setText(if(existing!=null)existing.salary.toString():"")",
+              "if(existing!=null)existing.salary.toString():""",
+              "if(existing != null) existing.salary.toString():""",
+              "        }, 0, 0, 0, dp(10))",
+              "        }, 0, 0, 0, dp(12))"
+          ]
+
+          for item in invalid:
+              if item in s:
+                  print("ERRO: trecho inválido ainda encontrado:")
+                  print(item)
+                  raise SystemExit(1)
+
+          print("Todas as correções foram aplicadas.")
+          print("MainActivity.kt será compilado com a correção durante o Build.")
           '
-
-          echo "Verificando código corrigido..."
-
-          if grep -q 'setTextColor(text)' ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt; then
-            echo "ERRO: setTextColor(text) ainda existe."
-            exit 1
-          fi
-
-          echo "Verificação concluída."
 
       - name: Configurar AndroidX
         working-directory: ControleHoras
@@ -93,49 +177,5 @@ jobs:
         run: |
           set -e
 
-          grep -q '^android.useAndroidX=true' gradle.properties || echo 'android.useAndroidX=true' >> gradle.properties
-          grep -q '^android.enableJetifier=true' gradle.properties || echo 'android.enableJetifier=true' >> gradle.properties
-
-      - name: Preparar Gradle
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -e
-
-          gradle wrapper --gradle-version 8.11.1
-
-          chmod +x gradlew
-
-          ./gradlew --version
-
-      - name: Compilar APK
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -e
-
-          ./gradlew clean assembleDebug --no-daemon --stacktrace
-
-      - name: Conferir APK
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -e
-
-          echo "APKs encontrados:"
-
-          find app/build/outputs/apk/debug \
-            -type f \
-            -name "*.apk" \
-            -print
-
-          test -s app/build/outputs/apk/debug/app-debug.apk
-
-          echo "APK gerado com sucesso."
-
-      - name: Publicar APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: ControleHoras-APK
-          path: ControleHoras/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+          grep -q '^android.useAndroidX=true' gradle.properties \
+            || echo 'android.useAndroidX=true' >> gradle
