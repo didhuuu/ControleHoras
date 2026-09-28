@@ -17,7 +17,7 @@ jobs:
       - name: Baixar projeto
         uses: actions/checkout@v4
 
-      - name: Configurar Java
+      - name: Configurar Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -27,18 +27,24 @@ jobs:
         shell: bash
         run: |
           rm -rf ControleHoras
-          unzip -o ControleHoras.zip
+          unzip -o ControleHoras.zip || test $? -eq 1
 
-          test -f ControleHoras/settings.gradle
-          test -f ControleHoras/app/build.gradle
+          echo "Verificando projeto..."
+
+          test -f ControleHoras/settings.gradle.kts
+          test -f ControleHoras/build.gradle.kts
+          test -f ControleHoras/app/build.gradle.kts
+          test -f ControleHoras/app/src/main/AndroidManifest.xml
           test -f ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt
+
+          echo "Projeto encontrado corretamente."
 
       - name: Configurar AndroidX
         working-directory: ControleHoras
         shell: bash
         run: |
-          echo "android.useAndroidX=true" > gradle.properties
-          echo "android.enableJetifier=true" >> gradle.properties
+          grep -q '^android.useAndroidX=true' gradle.properties || echo 'android.useAndroidX=true' >> gradle.properties
+          grep -q '^android.enableJetifier=true' gradle.properties || echo 'android.enableJetifier=true' >> gradle.properties
 
       - name: Preparar Gradle
         working-directory: ControleHoras
@@ -58,7 +64,7 @@ jobs:
         shell: bash
         run: |
           find app/build/outputs/apk/debug -type f -name "*.apk" -print
-          test -f app/build/outputs/apk/debug/app-debug.apk
+          test -s app/build/outputs/apk/debug/app-debug.apk
 
       - name: Publicar APK
         uses: actions/upload-artifact@v4
