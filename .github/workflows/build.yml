@@ -18,15 +18,13 @@ jobs:
       # ============================================================
       # 1 - BAIXAR PROJETO
       # ============================================================
-
       - name: Baixar projeto
         uses: actions/checkout@v4
 
 
       # ============================================================
-      # 2 - CONFIGURAR JAVA 17
+      # 2 - CONFIGURAR JAVA
       # ============================================================
-
       - name: Configurar Java 17
         uses: actions/setup-java@v5
         with:
@@ -37,7 +35,6 @@ jobs:
       # ============================================================
       # 3 - EXTRAIR PROJETO
       # ============================================================
-
       - name: Extrair projeto
         shell: bash
         run: |
@@ -65,9 +62,8 @@ jobs:
 
 
       # ============================================================
-      # 4 - CORRIGIR APLICATIVO
+      # 4 - CORRIGIR CÓDIGO DO APLICATIVO
       # ============================================================
-
       - name: Corrigir aplicativo durante o Build
         shell: bash
         run: |
@@ -82,43 +78,26 @@ jobs:
 
           s = p.read_text(encoding="utf-8")
 
-          print("Aplicando correções...")
+          print("Aplicando correções no MainActivity.kt...")
 
-
-          # ========================================================
-          # CORREÇÃO 1 - addView dp(10)
-          # ========================================================
-
+          # Correção de LayoutParams
           s = s.replace(
               "        }, 0, 0, 0, dp(10))",
               "        }, LinearLayout.LayoutParams(-1, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(10) })"
           )
-
-
-          # ========================================================
-          # CORREÇÃO 2 - addView dp(12)
-          # ========================================================
 
           s = s.replace(
               "        }, 0, 0, 0, dp(12))",
               "        }, LinearLayout.LayoutParams(-1, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(12) })"
           )
 
-
-          # ========================================================
-          # CORREÇÃO 3 - CORES
-          # ========================================================
-
+          # Correção de setTextColor
           s = s.replace(
               "setTextColor(text)",
               "setTextColor(this@MainActivity.text)"
           )
 
-
-          # ========================================================
-          # CORREÇÃO 4 - SALÁRIO
-          # ========================================================
-
+          # Correções da condição do salário
           s = s.replace(
               'setText(if(existing!=null)existing.salary.toString():"")',
               'setText(if (existing != null) existing.salary.toString() else "")'
@@ -134,42 +113,31 @@ jobs:
               'if (existing != null) existing.salary.toString() else ""'
           )
 
-
-          # ========================================================
-          # CORREÇÃO 5 - SOMATÓRIO DO HISTÓRICO
-          # ========================================================
-
+          # Correção do filtro histórico por mês
           s = s.replace(
               'it.date.endsWith(SimpleDateFormat("MM-yyyy", Locale.US).format(Date()))',
               'it.date.startsWith(SimpleDateFormat("yyyy-MM", Locale.US).format(Date()))'
           )
 
-
-          # ========================================================
-          # SALVAR ARQUIVO CORRIGIDO
-          # ========================================================
-
           p.write_text(s, encoding="utf-8")
 
           print("Correções aplicadas com sucesso.")
-
           PY
 
 
       # ============================================================
-      # 5 - INSTALAR GRADLE
+      # 5 - INSTALAR GRADLE 8.11.1
       # ============================================================
-
       - name: Instalar Gradle
         shell: bash
         run: |
           set -e
 
           echo "========================================"
-          echo "INSTALANDO GRADLE"
+          echo "INSTALANDO GRADLE 8.11.1"
           echo "========================================"
 
-          GRADLE_VERSION="8.10.2"
+          GRADLE_VERSION="8.11.1"
 
           wget -q \
             "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"
@@ -181,13 +149,14 @@ jobs:
 
           export PATH="$PWD/gradle-${GRADLE_VERSION}/bin:$PATH"
 
+          echo ""
+          echo "Versão do Gradle instalada:"
           gradle --version
 
 
       # ============================================================
-      # 6 - LIMPAR BUILD ANTERIOR
+      # 6 - LIMPAR PROJETO
       # ============================================================
-
       - name: Limpar projeto
         working-directory: ControleHoras
         shell: bash
@@ -198,70 +167,4 @@ jobs:
           echo "LIMPANDO PROJETO"
           echo "========================================"
 
-          gradle clean --no-daemon
-
-          echo "Limpeza concluída."
-
-
-      # ============================================================
-      # 7 - GERAR APK DEBUG
-      # ============================================================
-
-      - name: Gerar APK
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -e
-
-          echo "========================================"
-          echo "GERANDO APK"
-          echo "========================================"
-
-          gradle assembleDebug \
-            --no-daemon \
-            --stacktrace
-
-          echo ""
-          echo "========================================"
-          echo "VERIFICANDO APK"
-          echo "========================================"
-
-          test -f app/build/outputs/apk/debug/app-debug.apk
-
-          echo ""
-          echo "APK GERADO COM SUCESSO!"
-          echo ""
-
-          ls -lh app/build/outputs/apk/debug/app-debug.apk
-
-
-      # ============================================================
-      # 8 - PUBLICAR APK NO GITHUB
-      # ============================================================
-
-      - name: Publicar APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: ControleHoras-APK
-          path: ControleHoras/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-
-
-      # ============================================================
-      # 9 - MOSTRAR RESULTADO
-      # ============================================================
-
-      - name: Finalizar
-        shell: bash
-        run: |
-          echo ""
-          echo "========================================"
-          echo "BUILD FINALIZADO"
-          echo "========================================"
-          echo ""
-          echo "APK:"
-          ls -lh ControleHoras/app/build/outputs/apk/debug/app-debug.apk
-          echo ""
-          echo "Arquivo publicado como Artifact:"
-          echo "ControleHoras-APK"
-          echo ""
+          gradle clean --no
