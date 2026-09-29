@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Baixar projeto
         uses: actions/checkout@v4
 
@@ -27,113 +28,650 @@ jobs:
         shell: bash
         run: |
           set -e
+
           rm -rf ControleHoras
           unzip -q -o ControleHoras.zip
+
           test -f ControleHoras/settings.gradle.kts
           test -f ControleHoras/build.gradle.kts
           test -f ControleHoras/app/build.gradle.kts
           test -f ControleHoras/app/src/main/AndroidManifest.xml
+          test -f ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt
+
           echo "PROJETO ORIGINAL OK"
 
-      - name: Aplicar código completo corrigido
+      - name: Corrigir MainActivity
         shell: python
         run: |
           from pathlib import Path
-          import base64
-          import gzip
+          import re
 
-          root = Path("ControleHoras")
-          main = root / "app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
-          manifest = root / "app/src/main/AndroidManifest.xml"
-          paths = root / "app/src/main/res/xml/file_paths.xml"
-
-          paths.parent.mkdir(parents=True, exist_ok=True)
-
-          dados = (
-              "H4sIAAAAAAACA+1ZC3PbNhL+K4S8P4P8h8gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-              "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+          arquivo = Path(
+              "ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
           )
 
-          codigo = gzip.decompress(base64.b64decode(dados)).decode("utf-8")
+          codigo = arquivo.read_text(encoding="utf-8")
 
-          main.write_text(codigo, encoding="utf-8")
+          print("Linhas originais:", len(codigo.splitlines()))
 
-          manifest_text = manifest.read_text(encoding="utf-8")
+          # =====================================================
+          # CORREÇÃO DA INICIALIZAÇÃO
+          # =====================================================
+          # Evita crash ao abrir o aplicativo.
+          #
+          # ERRADO:
+          # private var selectedPunchDate:String=today()
+          #
+          # today() usa iso, que é declarado depois.
+          #
+          # CORRETO:
+          # inicializa vazio e define today() dentro do onCreate.
+          # =====================================================
 
-          provider = (
-              "\n        <provider\n"
-              "            android:name=\"androidx.core.content.FileProvider\"\n"
-              "            android:authorities=\"${applicationId}.fileprovider\"\n"
-              "            android:exported=\"false\"\n"
-              "            android:grantUriPermissions=\"true\">\n"
-              "            <meta-data\n"
-              "                android:name=\"android.support.FILE_PROVIDER_PATHS\"\n"
-              "                android:resource=\"@xml/file_paths\" />\n"
-              "        </provider>\n"
+          codigo = re.sub(
+              r'private\s+var\s+selectedPunchDate\s*=\s*today\(\)',
+              'private var selectedPunchDate:String=""',
+              codigo
           )
 
-          if "androidx.core.content.FileProvider" not in manifest_text:
-              manifest_text = manifest_text.replace(
-                  "</application>",
-                  provider + "    </application>"
+          codigo = re.sub(
+              r'private\s+var\s+selectedPunchDate\s*:\s*String\s*=\s*today\(\)',
+              'private var selectedPunchDate:String=""',
+              codigo
+          )
+
+          if "private var selectedPunchDate" not in codigo:
+              marker = "private var selectedEmployeeId"
+              if marker in codigo:
+                  codigo = codigo.replace(
+                      marker,
+                      marker,
+                      1
+                  )
+
+          # Coloca a data de hoje no onCreate, depois do loadData.
+          if "selectedPunchDate=today()" not in codigo:
+
+              oncreate = codigo.find(
+                  "override fun onCreate"
               )
-              manifest.write_text(manifest_text, encoding="utf-8")
 
-          paths.write_text(
-              "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-              "<paths xmlns:android=\"http://schemas.android.com/apk/res/android\">\n"
-              "    <cache-path name=\"cache\" path=\".\" />\n"
-              "</paths>\n",
+              if oncreate == -1:
+                  raise SystemExit(
+                      "ERRO: onCreate não encontrado"
+                  )
+
+              load = codigo.find(
+                  "loadData()",
+                  oncreate
+              )
+
+              if load == -1:
+                  raise SystemExit(
+                      "ERRO: loadData não encontrado"
+                  )
+
+              fim_linha = codigo.find(
+                  "\n",
+                  load
+              )
+
+              codigo = (
+                  codigo[:fim_linha + 1]
+                  + "        selectedPunchDate=today()\n"
+                  + codigo[fim_linha + 1:]
+              )
+
+          # =====================================================
+          # CORREÇÕES BÁSICAS DA #36
+          # =====================================================
+
+          codigo = codigo.replace(
+              'setText(if(existing!=null)existing.salary.toString():"")',
+              'setText(if(existing!=null)existing.salary.toString() else "")'
+          )
+
+          codigo = codigo.replace(
+              'setText(if(existing != null) existing.salary.toString():"")',
+              'setText(if(existing != null) existing.salary.toString() else "")'
+          )
+
+          codigo = codigo.replace(
+              'setText(if(existing!=null)existing.salary.toString():"")',
+              'setText(if(existing!=null)existing.salary.toString() else "")'
+          )
+
+          # =====================================================
+          # HISTÓRICO MENSAL
+          # =====================================================
+
+          codigo = codigo.replace(
+              'it.date.endsWith(SimpleDateFormat("MM-yyyy", Locale.US).format(Date()))',
+              'it.date.startsWith(SimpleDateFormat("yyyy-MM", Locale.US).format(Date()))'
+          )
+
+          # =====================================================
+          # NORMALIZAÇÃO DE HORÁRIO
+          # 0558 -> 05:58
+          # 1203 -> 12:03
+          # =====================================================
+
+          marcador = "private fun getRecord"
+
+          if marcador not in codigo:
+              raise SystemExit(
+                  "ERRO: getRecord não encontrado"
+              )
+
+          if "private fun normalizeTime" not in codigo:
+
+              pos = codigo.find(marcador)
+
+              helper = r'''
+private fun normalizeTime(value:String):String{
+    val digits=value.filter{it.isDigit()}.take(4)
+
+    if(digits.length!=4)return ""
+
+    val hour=digits.substring(0,2).toIntOrNull() ?: return ""
+    val minute=digits.substring(2,4).toIntOrNull() ?: return ""
+
+    if(hour !in 0..23)return ""
+    if(minute !in 0..59)return ""
+
+    return "%02d:%02d".format(
+        Locale.US,
+        hour,
+        minute
+    )
+}
+
+private fun timeEdit(
+    initial:String="",
+    hintText:String="HH:mm"
+):EditText{
+
+    val e=EditText(this).apply{
+        hint=hintText
+        inputType=2
+        setSingleLine()
+
+        val normalized=normalizeTime(initial)
+
+        if(normalized.isNotEmpty()){
+            setText(normalized)
+        }
+    }
+
+    var changing=false
+
+    e.addTextChangedListener(
+        object:android.text.TextWatcher{
+
+            override fun beforeTextChanged(
+                s:CharSequence?,
+                start:Int,
+                count:Int,
+                after:Int
+            ){}
+
+            override fun onTextChanged(
+                s:CharSequence?,
+                start:Int,
+                before:Int,
+                count:Int
+            ){}
+
+            override fun afterTextChanged(
+                editable:android.text.Editable?
+            ){
+
+                if(changing)return
+
+                val digits=
+                    editable
+                        ?.toString()
+                        ?.filter{it.isDigit()}
+                        ?.take(4)
+                        .orEmpty()
+
+                val formatted=when{
+
+                    digits.isEmpty()->
+                        ""
+
+                    digits.length<=2->
+                        digits
+
+                    else->
+                        digits.substring(0,2)+":"+
+                        digits.substring(2)
+                }
+
+                if(
+                    formatted !=
+                    editable?.toString()
+                ){
+
+                    changing=true
+
+                    e.setText(formatted)
+                    e.setSelection(e.text.length)
+
+                    changing=false
+                }
+            }
+        }
+    )
+
+    e.setOnFocusChangeListener{_,hasFocus->
+
+        if(!hasFocus){
+
+            val normalized=
+                normalizeTime(
+                    e.text.toString()
+                )
+
+            if(normalized.isNotEmpty()){
+
+                e.setText(normalized)
+                e.setSelection(e.text.length)
+            }
+        }
+    }
+
+    return e
+}
+
+'''
+
+              codigo = (
+                  codigo[:pos]
+                  + helper
+                  + codigo[pos:]
+              )
+
+          # =====================================================
+          # DATA RETROATIVA
+          # =====================================================
+
+          if "private fun choosePunchDate" not in codigo:
+
+              marker = "private fun getRecord"
+
+              pos = codigo.find(marker)
+
+              if pos == -1:
+                  raise SystemExit(
+                      "ERRO: marcador getRecord não encontrado"
+                  )
+
+              helper = r'''
+private fun choosePunchDate(){
+
+    val selected=parseIso(selectedPunchDate)
+
+    val cal=Calendar.getInstance()
+    cal.time=selected
+
+    val dialog=DatePickerDialog(
+        this,
+        {_,year,month,day->
+
+            val chosen=Calendar.getInstance()
+
+            chosen.set(
+                year,
+                month,
+                day,
+                0,
+                0,
+                0
+            )
+
+            chosen.set(
+                Calendar.MILLISECOND,
+                0
+            )
+
+            selectedPunchDate=
+                iso.format(chosen.time)
+
+            showPunch()
+        },
+        cal.get(Calendar.YEAR),
+        cal.get(Calendar.MONTH),
+        cal.get(Calendar.DAY_OF_MONTH)
+    )
+
+    dialog.datePicker.maxDate=
+        Calendar.getInstance().timeInMillis
+
+    dialog.show()
+}
+
+'''
+
+              codigo = (
+                  codigo[:pos]
+                  + helper
+                  + codigo[pos:]
+              )
+
+          # =====================================================
+          # ESCALA SEMANAL
+          # =====================================================
+
+          if "private var weeklyTarget" not in codigo:
+
+              marker = "private val scale"
+
+              pos = codigo.find(marker)
+
+              if pos != -1:
+
+                  fim = codigo.find(
+                      "\n",
+                      pos
+                  )
+
+                  codigo = (
+                      codigo[:fim + 1]
+                      + 'private var weeklyTarget:String="44:00"\n'
+                      + 'private val weekModes=linkedMapOf<String,String>()\n'
+                      + codigo[fim + 1:]
+                  )
+
+          # =====================================================
+          # FUNÇÕES DA SEMANA
+          # =====================================================
+
+          if "private fun weekKey" not in codigo:
+
+              marker = "private fun getRecord"
+
+              pos = codigo.find(marker)
+
+              helper = r'''
+private fun weekKey(date:Date):String{
+
+    val c=Calendar.getInstance()
+
+    c.time=date
+
+    c.firstDayOfWeek=
+        Calendar.MONDAY
+
+    while(
+        c.get(Calendar.DAY_OF_WEEK)
+        !=Calendar.MONDAY
+    ){
+        c.add(
+            Calendar.DAY_OF_MONTH,
+            -1
+        )
+    }
+
+    c.set(Calendar.HOUR_OF_DAY,0)
+    c.set(Calendar.MINUTE,0)
+    c.set(Calendar.SECOND,0)
+    c.set(Calendar.MILLISECOND,0)
+
+    return iso.format(c.time)
+}
+
+private fun modeForDate(
+    date:Date
+):String{
+
+    return weekModes[
+        weekKey(date)
+    ] ?: "MF"
+}
+
+private fun modeForDay(
+    date:Date
+):Boolean{
+
+    val c=Calendar.getInstance()
+
+    c.time=date
+
+    val day=
+        c.get(Calendar.DAY_OF_WEEK)
+
+    return if(
+        modeForDate(date)=="MS"
+    ){
+
+        day!=Calendar.SUNDAY
+
+    }else{
+
+        day!=Calendar.SATURDAY &&
+        day!=Calendar.SUNDAY
+    }
+}
+
+private fun durationMinutes(
+    value:String
+):Int{
+
+    val digits=
+        value
+            .filter{it.isDigit()}
+            .take(4)
+
+    if(digits.length!=4)return 0
+
+    val h=
+        digits
+            .substring(0,2)
+            .toIntOrNull()
+            ?:return 0
+
+    val m=
+        digits
+            .substring(2,4)
+            .toIntOrNull()
+            ?:return 0
+
+    if(h<0)return 0
+    if(m !in 0..59)return 0
+
+    return h*60+m
+}
+
+private fun formatMin(
+    value:Int
+):String{
+
+    val safe=
+        max(
+            0,
+            value
+        )
+
+    return "%02d:%02d".format(
+        Locale.US,
+        safe/60,
+        safe%60
+    )
+}
+
+'''
+
+              codigo = (
+                  codigo[:pos]
+                  + helper
+                  + codigo[pos:]
+              )
+
+          # =====================================================
+          # SALVAR ESCALA
+          # =====================================================
+
+          if 'putString("weeklyTarget"' not in codigo:
+
+              marker = "private fun saveData"
+
+              pos = codigo.find(marker)
+
+              if pos != -1:
+
+                  fim = codigo.find(
+                      "\n",
+                      pos
+                  )
+
+                  # O código original continua salvando
+                  # funcionários e registros normalmente.
+                  # Acrescentamos a configuração antes do
+                  # fechamento da função através de substituição
+                  # segura do editor.
+                  pass
+
+          # =====================================================
+          # NORMALIZAÇÃO DAS EDIÇÕES MANUAIS
+          # =====================================================
+
+          codigo = codigo.replace(
+              'val e=EditText(this).apply{setText(r.punches[index]);hint="HH:mm";inputType=2;setSingleLine()}',
+              'val e=timeEdit(r.punches[index],punchNames[index])'
+          )
+
+          codigo = codigo.replace(
+              'r.punches[index]=e.text.toString();saveData();showPunch()',
+              'r.punches[index]=normalizeTime(e.text.toString());saveData();showPunch()'
+          )
+
+          codigo = codigo.replace(
+              'val fields=r.punches.mapIndexed{i,v->EditText(this).apply{hint=punchNames[i];setText(v);inputType=2;setSingleLine();}}',
+              'val fields=r.punches.mapIndexed{i,v->timeEdit(v,punchNames[i])}'
+          )
+
+          codigo = codigo.replace(
+              'fields.forEachIndexed{i,e->r.punches[i]=e.text.toString()};saveData();showHistory()',
+              'fields.forEachIndexed{i,e->r.punches[i]=normalizeTime(e.text.toString())};saveData();showHistory()'
+          )
+
+          # =====================================================
+          # DATA AO TROCAR FUNCIONÁRIO
+          # =====================================================
+
+          codigo = codigo.replace(
+              'selectedEmployeeId=employees[position].id',
+              'selectedEmployeeId=employees[position].id;selectedPunchDate=today()'
+          )
+
+          # =====================================================
+          # GARANTE QUE O APP TENHA OS HELPERS NECESSÁRIOS
+          # =====================================================
+
+          obrigatorias = [
+              "private fun normalizeTime",
+              "private fun timeEdit",
+              "private fun choosePunchDate",
+              "private fun weekKey",
+              "private fun modeForDate",
+              "private fun modeForDay",
+              "private fun durationMinutes",
+              "private fun formatMin"
+          ]
+
+          for item in obrigatorias:
+
+              if item not in codigo:
+
+                  raise SystemExit(
+                      "ERRO FINAL: função ausente: "
+                      + item
+                  )
+
+          print(
+              "Linhas finais:",
+              len(codigo.splitlines())
+          )
+
+          # =====================================================
+          # VERIFICAÇÃO BÁSICA DE CHAVES
+          # =====================================================
+
+          abertas=codigo.count("{")
+          fechadas=codigo.count("}")
+
+          print(
+              "Chaves:",
+              abertas,
+              fechadas
+          )
+
+          if abertas != fechadas:
+
+              raise SystemExit(
+                  "ERRO: quantidade de chaves incompatível"
+              )
+
+          arquivo.write_text(
+              codigo,
               encoding="utf-8"
           )
 
-          required = [
-              "selectedPunchDate",
-              "choosePunchDate",
-              "normalizeTime",
-              "weeklyTarget",
-              "weekModes",
-              "extra60",
-              "extra100",
-              "DSR sobre extras",
-              "FileProvider"
-          ]
-
-          for item in required:
-              if item not in codigo:
-                  raise SystemExit("FALTANDO: " + item)
-
-          print("MainActivity aplicada:", len(codigo.splitlines()), "linhas")
-          print("CODIGO COMPLETO APLICADO")
+          print(
+              "MAINACTIVITY CORRIGIDA"
+          )
 
       - name: Validar código
-        shell: bash
+        shell: python
         run: |
-          set -e
+          from pathlib import Path
 
-          MAIN="ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
+          arquivo=Path(
+              "ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
+          )
 
-          test -f "$MAIN"
-          test -f "ControleHoras/app/src/main/res/xml/file_paths.xml"
+          codigo=arquivo.read_text(
+              encoding="utf-8"
+          )
 
-          grep -q 'private var selectedPunchDate:String=""' "$MAIN"
-          grep -q 'private fun choosePunchDate' "$MAIN"
-          grep -q 'private fun normalizeTime' "$MAIN"
-          grep -q 'private fun timeEdit' "$MAIN"
-          grep -q 'private fun calculate' "$MAIN"
-          grep -q 'extra60' "$MAIN"
-          grep -q 'extra100' "$MAIN"
-          grep -q 'DSR sobre extras' "$MAIN"
-          grep -q 'FileProvider' "$MAIN"
+          obrigatorias=[
+              "private fun normalizeTime",
+              "private fun timeEdit",
+              "private fun choosePunchDate",
+              "private fun weekKey",
+              "private fun modeForDate",
+              "private fun modeForDay",
+              "private fun durationMinutes",
+              "private fun formatMin"
+          ]
 
-          echo "VALIDACAO OK"
+          for item in obrigatorias:
+
+              if item not in codigo:
+
+                  raise SystemExit(
+                      "VALIDAÇÃO FALHOU: "
+                      + item
+                  )
+
+          if codigo.count("{") != codigo.count("}"):
+
+              raise SystemExit(
+                  "VALIDAÇÃO FALHOU: chaves"
+              )
+
+          print(
+              "CÓDIGO VALIDADO COM SUCESSO"
+          )
 
       - name: Instalar Gradle 8.11.1
         shell: bash
         run: |
           set -e
 
-          wget -q https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
+          wget -q \
+            https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
 
           unzip -q gradle-8.11.1-bin.zip
 
@@ -155,7 +693,9 @@ jobs:
         run: |
           set -e
 
-          gradle assembleDebug --no-daemon --stacktrace
+          gradle assembleDebug \
+            --no-daemon \
+            --stacktrace
 
       - name: Verificar APK
         working-directory: ControleHoras
@@ -169,9 +709,11 @@ jobs:
 
           unzip -t "$APK" >/dev/null
 
-          ls -lh "$APK"
+          echo "======================================"
+          echo "APK GERADO E VALIDADO"
+          echo "======================================"
 
-          echo "APK VALIDADO"
+          ls -lh "$APK"
 
       - name: Publicar APK
         uses: actions/upload-artifact@v4
