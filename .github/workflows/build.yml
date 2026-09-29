@@ -62,7 +62,7 @@ jobs:
           print("Linhas originais:", len(codigo.splitlines()))
 
           # ======================================================
-          # 1 - SALÁRIO
+          # 1 - CORRIGIR SALÁRIO
           # ======================================================
 
           codigo = codigo.replace(
@@ -78,7 +78,7 @@ jobs:
           print("OK - salário")
 
           # ======================================================
-          # 2 - setTextColor
+          # 2 - CORRIGIR COR
           # ======================================================
 
           codigo = codigo.replace(
@@ -89,7 +89,7 @@ jobs:
           print("OK - cores")
 
           # ======================================================
-          # 3 - HISTÓRICO MENSAL
+          # 3 - CORRIGIR HISTÓRICO MENSAL
           # ======================================================
 
           codigo = codigo.replace(
@@ -100,7 +100,58 @@ jobs:
           print("OK - histórico")
 
           # ======================================================
-          # 4 - NORMALIZAÇÃO DE HORÁRIO
+          # 4 - CORRIGIR addView() COM MARGEM
+          # ======================================================
+          #
+          # O código original possui chamadas incompatíveis com
+          # a API atual do Android, equivalentes a:
+          #
+          # addView(view, 0, 0, 0, dp(10))
+          #
+          # e:
+          #
+          # addView(view, 0, 0, 0, dp(12))
+          #
+          # Essas chamadas fazem o Kotlin acusar:
+          # "None of the following candidates is applicable"
+          #
+          # Transformamos em addView(view, LayoutParams).
+          # ======================================================
+
+          padrao_addview_10 = re.compile(
+              r',\s*0\s*,\s*0\s*,\s*0\s*,\s*dp\(10\)\)'
+          )
+
+          codigo, quantidade10 = padrao_addview_10.subn(
+              ', LinearLayout.LayoutParams(-1, -2).apply{bottomMargin=dp(10)})',
+              codigo
+          )
+
+          padrao_addview_12 = re.compile(
+              r',\s*0\s*,\s*0\s*,\s*0\s*,\s*dp\(12\)\)'
+          )
+
+          codigo, quantidade12 = padrao_addview_12.subn(
+              ', LinearLayout.LayoutParams(-1, -2).apply{bottomMargin=dp(12)})',
+              codigo
+          )
+
+          print("OK - addView dp(10):", quantidade10)
+          print("OK - addView dp(12):", quantidade12)
+
+          # Também corrige a forma antiga caso apareça com espaços.
+          codigo = codigo.replace(
+              "}, 0, 0, 0, dp(10))",
+              "}, LinearLayout.LayoutParams(-1, -2).apply{bottomMargin=dp(10)})"
+          )
+
+          codigo = codigo.replace(
+              "}, 0, 0, 0, dp(12))",
+              "}, LinearLayout.LayoutParams(-1, -2).apply{bottomMargin=dp(12)})"
+          )
+
+          # ======================================================
+          # 5 - NORMALIZAÇÃO DE HORÁRIO
           # ======================================================
 
           if "private fun normalizeTime(" not in codigo:
@@ -114,45 +165,33 @@ jobs:
                       "ERRO: getRecord não encontrado."
                   )
 
-              helper = "\n".join([
+              helper_lines = [
                   "    private fun normalizeTime(value:String):String{",
                   "        val digits=value.filter{it.isDigit()}.take(4)",
-                  "",
                   "        if(digits.length!=4)return \"\"",
-                  "",
                   "        val hour=digits.substring(0,2).toIntOrNull()?:return \"\"",
                   "        val minute=digits.substring(2,4).toIntOrNull()?:return \"\"",
-                  "",
                   "        if(hour !in 0..23)return \"\"",
                   "        if(minute !in 0..59)return \"\"",
-                  "",
                   "        return \"%02d:%02d\".format(Locale.US,hour,minute)",
                   "    }",
                   "",
                   "    private fun timeEdit(initial:String=\"\",hintText:String=\"00:00\"):EditText{",
-                  "",
                   "        val e=EditText(this).apply{",
                   "            hint=hintText",
                   "            inputType=2",
                   "            setSingleLine()",
-                  "",
                   "            val normalized=normalizeTime(initial)",
-                  "",
-                  "            if(normalized.isNotEmpty()){",
-                  "                setText(normalized)",
-                  "            }",
+                  "            if(normalized.isNotEmpty())setText(normalized)",
                   "        }",
                   "",
                   "        var changing=false",
                   "",
                   "        e.addTextChangedListener(object:android.text.TextWatcher{",
-                  "",
                   "            override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int){}",
-                  "",
                   "            override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){}",
                   "",
                   "            override fun afterTextChanged(editable:android.text.Editable?){",
-                  "",
                   "                if(changing)return",
                   "",
                   "                val digits=editable?.toString()?.filter{it.isDigit()}?.take(4).orEmpty()",
@@ -173,11 +212,8 @@ jobs:
                   "        })",
                   "",
                   "        e.setOnFocusChangeListener{_,hasFocus->",
-                  "",
                   "            if(!hasFocus){",
-                  "",
                   "                val normalized=normalizeTime(e.text.toString())",
-                  "",
                   "                if(normalized.isNotEmpty()){",
                   "                    e.setText(normalized)",
                   "                    e.setSelection(e.text.length)",
@@ -188,7 +224,9 @@ jobs:
                   "        return e",
                   "    }",
                   ""
-              ])
+              ]
+
+              helper = "\n".join(helper_lines)
 
               codigo = codigo.replace(
                   marcador,
@@ -202,7 +240,7 @@ jobs:
               print("OK - funções de horário já existem")
 
           # ======================================================
-          # 5 - EDIÇÃO MANUAL
+          # 6 - EDIÇÃO MANUAL DO PONTO
           # ======================================================
 
           padrao = re.compile(
@@ -219,10 +257,7 @@ jobs:
               count=1
           )
 
-          print(
-              "OK - edição manual:",
-              quantidade
-          )
+          print("OK - edição manual:", quantidade)
 
           codigo = codigo.replace(
               'r.punches[index]=e.text.toString();saveData();showPunch()',
@@ -230,7 +265,7 @@ jobs:
           )
 
           # ======================================================
-          # 6 - EDIÇÃO DO REGISTRO COMPLETO
+          # 7 - EDIÇÃO DO REGISTRO COMPLETO
           # ======================================================
 
           padrao = re.compile(
@@ -248,10 +283,7 @@ jobs:
               count=1
           )
 
-          print(
-              "OK - edição histórico:",
-              quantidade
-          )
+          print("OK - edição histórico:", quantidade)
 
           codigo = codigo.replace(
               'fields.forEachIndexed{i,e->r.punches[i]=e.text.toString()};saveData();showHistory()',
@@ -259,7 +291,7 @@ jobs:
           )
 
           # ======================================================
-          # 7 - ESCALA
+          # 8 - ESCALA
           # ======================================================
 
           padrao = re.compile(
@@ -277,10 +309,7 @@ jobs:
               count=1
           )
 
-          print(
-              "OK - escala:",
-              quantidade
-          )
+          print("OK - escala:", quantidade)
 
           codigo = codigo.replace(
               '0->s.e=ed.text.toString();1->s.x1=ed.text.toString();2->s.r1=ed.text.toString();3->s.x2=ed.text.toString()',
@@ -288,7 +317,7 @@ jobs:
           )
 
           # ======================================================
-          # 8 - MINUTES BETWEEN
+          # 9 - MINUTES BETWEEN
           # ======================================================
 
           inicio = codigo.find(
@@ -312,14 +341,12 @@ jobs:
 
           minutes_lines = [
               "    private fun minutesBetween(a:String,b:String):Int{",
-              "",
               "        val x=normalizeTime(a)",
               "        val y=normalizeTime(b)",
               "",
               "        if(x.isBlank()||y.isBlank())return 0",
               "",
               "        return try{",
-              "",
               "            val xa=x.split(\":\")",
               "            val ya=y.split(\":\")",
               "",
@@ -327,7 +354,6 @@ jobs:
               "            val fim=ya[0].toInt()*60+ya[1].toInt()",
               "",
               "            max(0,fim-inicio)",
-              "",
               "        }catch(_:Exception){",
               "            0",
               "        }",
@@ -346,7 +372,7 @@ jobs:
           print("OK - minutesBetween")
 
           # ======================================================
-          # 9 - FORMATMIN
+          # 10 - FORMATMIN
           # ======================================================
 
           inicio = codigo.find(
@@ -380,7 +406,7 @@ jobs:
           print("OK - formatMin")
 
           # ======================================================
-          # 10 - VALIDAÇÕES
+          # 11 - VALIDAÇÕES
           # ======================================================
 
           obrigatorias = [
@@ -402,8 +428,7 @@ jobs:
           for funcao in obrigatorias:
               if funcao not in codigo:
                   raise SystemExit(
-                      "ERRO FINAL: função ausente: "
-                      + funcao
+                      "ERRO FINAL: função ausente: " + funcao
                   )
 
           abertas = codigo.count("{")
@@ -420,12 +445,6 @@ jobs:
               raise SystemExit(
                   f"ERRO: chaves incompatíveis {abertas}/{fechadas}"
               )
-
-          if "private fun normalizeTime" not in codigo:
-              raise SystemExit("ERRO: normalizeTime")
-
-          if "private fun timeEdit" not in codigo:
-              raise SystemExit("ERRO: timeEdit")
 
           if "%02d:%02d" not in codigo:
               raise SystemExit("ERRO: formato 00:00")
@@ -459,9 +478,7 @@ jobs:
 
           for item in obrigatorias:
               if item not in codigo:
-                  raise SystemExit(
-                      "ERRO: " + item
-                  )
+                  raise SystemExit("ERRO: " + item)
 
           abertas = codigo.count("{")
           fechadas = codigo.count("}")
@@ -470,9 +487,7 @@ jobs:
           print("Chaves:", abertas, fechadas)
 
           if abertas != fechadas:
-              raise SystemExit(
-                  "ERRO DE CHAVES"
-              )
+              raise SystemExit("ERRO DE CHAVES")
 
           print("CÓDIGO VALIDADO")
 
@@ -481,8 +496,7 @@ jobs:
         run: |
           set -e
 
-          wget -q \
-            https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
+          wget -q https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
 
           unzip -q gradle-8.11.1-bin.zip
 
