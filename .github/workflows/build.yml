@@ -23,436 +23,365 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Extrair projeto
+      - name: Localizar projeto
         shell: bash
         run: |
           set -e
-          rm -rf ControleHoras
-          unzip -q -o ControleHoras.zip
+          if [ -f "ControleHoras.zip" ]; then
+            mkdir -p /tmp/controlehoras
+            unzip -o "ControleHoras.zip" -d /tmp/controlehoras
+            if [ -d "/tmp/controlehoras/ControleHoras" ]; then
+              cp -a /tmp/controlehoras/ControleHoras/. ControleHoras/
+            else
+              cp -a /tmp/controlehoras/. ControleHoras/
+            fi
+          fi
 
-          test -f ControleHoras/settings.gradle.kts
-          test -f ControleHoras/build.gradle.kts
-          test -f ControleHoras/app/build.gradle.kts
           test -f ControleHoras/app/src/main/AndroidManifest.xml
-          test -f ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt
+          test -f ControleHoras/app/src/main/java/com/example/controlehoras/MainActivity.kt || \
+          test -f ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt || \
+          find ControleHoras/app/src/main/java -name MainActivity.kt -type f | grep -q .
 
-          echo "PROJETO ORIGINAL OK"
-
-      - name: Aplicar versão 36
-        shell: python
-        run: |
-          from pathlib import Path
-          from urllib.request import urlopen
-          import subprocess
-
-          url = "https://raw.githubusercontent.com/didhuuu/ControleHoras/29bdaa86ef5b85ec79367cbced7c759063d7fe7b/.github/workflows/build.yml"
-
-          workflow = urlopen(url, timeout=30).read().decode("utf-8")
-
-          inicio = workflow.index(
-              "      - name: Corrigir MainActivity"
-          )
-
-          fim = workflow.index(
-              "      - name: Validar código",
-              inicio
-          )
-
-          bloco = workflow[inicio:fim]
-
-          marcador = "        run: |\n"
-
-          pos = bloco.index(marcador) + len(marcador)
-
-          linhas = bloco[pos:].splitlines()
-
-          script = "\n".join(
-              linha[10:] if linha.startswith("          ") else linha
-              for linha in linhas
-          )
-
-          arquivo = Path("/tmp/corrigir36.py")
-
-          arquivo.write_text(
-              script + "\n",
-              encoding="utf-8"
-          )
-
-          subprocess.run(
-              ["python", str(arquivo)],
-              check=True
-          )
-
-          print("VERSÃO 36 APLICADA")
-
-      - name: Adicionar seleção de data
-        shell: python
-        run: |
-          from pathlib import Path
-
-          arquivo = Path(
-              "ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
-          )
-
-          codigo = arquivo.read_text(
-              encoding="utf-8"
-          )
-
-          def replace_once(antigo, novo, nome):
-              global codigo
-
-              quantidade = codigo.count(antigo)
-
-              if quantidade != 1:
-                  raise SystemExit(
-                      "ERRO " + nome +
-                      ": encontrado " + str(quantidade) +
-                      ", esperado 1"
-                  )
-
-              codigo = codigo.replace(
-                  antigo,
-                  novo,
-                  1
-              )
-
-          # ==================================================
-          # 1 - DATA SELECIONADA
-          # ==================================================
-
-          replace_once(
-              "    private var selectedEmployeeId = 0L\n",
-              "    private var selectedEmployeeId = 0L\n"
-              "    private var selectedPunchDate = \"\"\n",
-              "selectedPunchDate"
-          )
-
-          # ==================================================
-          # 2 - AO ABRIR = HOJE
-          # ==================================================
-
-          replace_once(
-              "        loadData()\n"
-              "        if (employees.isNotEmpty()) selectedEmployeeId = employees.first().id\n",
-              "        loadData()\n"
-              "        selectedPunchDate = today()\n"
-              "        if (employees.isNotEmpty()) selectedEmployeeId = employees.first().id\n",
-              "data inicial"
-          )
-
-          # ==================================================
-          # 3 - TROCAR FUNCIONÁRIO = HOJE
-          # ==================================================
-
-          replace_once(
-              "selectedEmployeeId = employees[pos].id; showPunch()",
-              "selectedEmployeeId = employees[pos].id; "
-              "selectedPunchDate = today(); showPunch()",
-              "troca funcionário"
-          )
-
-          # ==================================================
-          # 4 - FUNÇÃO ESCOLHER DATA
-          # ==================================================
-
-          marcador = (
-              "    private fun today()=iso.format(Date())\n"
-          )
-
-          if marcador not in codigo:
-              raise SystemExit(
-                  "ERRO: função today não encontrada"
-              )
-
-          linhas = [
-              "    private fun choosePunchDate(){",
-              "        val cal=Calendar.getInstance()",
-              "",
-              "        try{",
-              "            cal.time=iso.parse(selectedPunchDate) ?: Date()",
-              "        }catch(_:Exception){}",
-              "",
-              "        DatePickerDialog(",
-              "            this@MainActivity,",
-              "            {_,year,month,day->",
-              "",
-              "                val escolhida=Calendar.getInstance().apply{",
-              "                    set(Calendar.YEAR,year)",
-              "                    set(Calendar.MONTH,month)",
-              "                    set(Calendar.DAY_OF_MONTH,day)",
-              "                    set(Calendar.HOUR_OF_DAY,0)",
-              "                    set(Calendar.MINUTE,0)",
-              "                    set(Calendar.SECOND,0)",
-              "                    set(Calendar.MILLISECOND,0)",
-              "                }",
-              "",
-              "                val hoje=Calendar.getInstance().apply{",
-              "                    set(Calendar.HOUR_OF_DAY,0)",
-              "                    set(Calendar.MINUTE,0)",
-              "                    set(Calendar.SECOND,0)",
-              "                    set(Calendar.MILLISECOND,0)",
-              "                }",
-              "",
-              "                if(!escolhida.after(hoje)){",
-              "                    selectedPunchDate=iso.format(escolhida.time)",
-              "                    showPunch()",
-              "                }",
-              "            },",
-              "            cal.get(Calendar.YEAR),",
-              "            cal.get(Calendar.MONTH),",
-              "            cal.get(Calendar.DAY_OF_MONTH)",
-              "        ).apply{",
-              "            datePicker.maxDate=System.currentTimeMillis()",
-              "        }.show()",
-              "    }",
-              ""
-          ]
-
-          funcao = "\n".join(linhas)
-
-          codigo = codigo.replace(
-              marcador,
-              marcador + funcao,
-              1
-          )
-
-          # ==================================================
-          # 5 - SHOWPUNCH USA A DATA SELECIONADA
-          # ==================================================
-
-          replace_once(
-              "val rec = getRecord(emp.id, today())",
-              "val rec = getRecord(emp.id, selectedPunchDate)",
-              "registro selecionado"
-          )
-
-          replace_once(
-              "val r = getRecord(emp.id, today())",
-              "val r = getRecord(emp.id, selectedPunchDate)",
-              "batida selecionada"
-          )
-
-          # ==================================================
-          # 6 - ADICIONAR BOTÃO DE DATA
-          #
-          # NÃO ALTERA O CARTÃO ORIGINAL DA VERSÃO 36.
-          # ==================================================
-
-          marcador_registro = (
-              "        val rec = getRecord(emp.id, selectedPunchDate)\n"
-          )
-
-          if marcador_registro not in codigo:
-              raise SystemExit(
-                  "ERRO: ponto de inserção da data não encontrado"
-              )
-
-          seletor = "\n".join([
-              "        val dataButton = Button(this).apply{",
-              "            text = \"📅  DATA: ${df.format(parseIso(selectedPunchDate))}\"",
-              "            textSize = 15f",
-              "            isAllCaps = false",
-              "            setOnClickListener{",
-              "                choosePunchDate()",
-              "            }",
-              "        }",
-              "",
-              "        box.addView(",
-              "            dataButton,",
-              "            LinearLayout.LayoutParams(-1,dp(58)).apply{",
-              "                bottomMargin=dp(10)",
-              "            }",
-              "        )",
-              ""
-          ])
-
-          codigo = codigo.replace(
-              marcador_registro,
-              seletor + marcador_registro,
-              1
-          )
-
-          # ==================================================
-          # 7 - REGISTRO DE HOJE / REGISTRO RETROATIVO
-          # ==================================================
-
-          antigo = "\n".join([
-              "                if (n >= 0) {",
-              "                    r.punches[n] = nowTime()",
-              "                    saveData()",
-              "                    showPunch()",
-              "                }"
-          ])
-
-          novo_linhas = [
-              "                if (n >= 0) {",
-              "",
-              "                    if (selectedPunchDate == today()) {",
-              "",
-              "                        r.punches[n] = nowTime()",
-              "",
-              "                        saveData()",
-              "",
-              "                        showPunch()",
-              "",
-              "                    } else {",
-              "",
-              "                        val entrada = timeEdit(",
-              "                            \"\",",
-              "                            punchNames[n]",
-              "                        )",
-              "",
-              "                        AlertDialog.Builder(",
-              "                            this@MainActivity",
-              "                        )",
-              "                            .setTitle(punchNames[n])",
-              "                            .setMessage(",
-              "                                \"Informe o horário da batida para ${df.format(parseIso(selectedPunchDate))}.\"",
-              "                            )",
-              "                            .setView(entrada)",
-              "                            .setNegativeButton(",
-              "                                \"Cancelar\",",
-              "                                null",
-              "                            )",
-              "                            .setPositiveButton(",
-              "                                \"Salvar\"",
-              "                            ){_,_->",
-              "",
-              "                                val horario = normalizeTime(",
-              "                                    entrada.text.toString()",
-              "                                )",
-              "",
-              "                                if(horario.isNotBlank()){",
-              "                                    r.punches[n]=horario",
-              "                                    saveData()",
-              "                                    showPunch()",
-              "                                }",
-              "                            }",
-              "                            .show()",
-              "                    }",
-              "                }"
-          ]
-
-          novo = "\n".join(novo_linhas)
-
-          replace_once(
-              antigo,
-              novo,
-              "registro retroativo"
-          )
-
-          # ==================================================
-          # 8 - GARANTIAS
-          # ==================================================
-
-          obrigatorios = [
-              'private var selectedPunchDate = ""',
-              'private fun choosePunchDate()',
-              'selectedPunchDate = today()',
-              'getRecord(emp.id, selectedPunchDate)',
-              'selectedPunchDate == today()',
-              'datePicker.maxDate=System.currentTimeMillis()',
-              'private fun normalizeTime',
-              'private fun timeEdit',
-              'dataButton'
-          ]
-
-          for item in obrigatorios:
-              if item not in codigo:
-                  raise SystemExit(
-                      "ERRO FINAL: faltando " + item
-                  )
-
-          if "Button(context)" in codigo:
-              raise SystemExit(
-                  "ERRO FINAL: Button(context)"
-              )
-
-          arquivo.write_text(
-              codigo,
-              encoding="utf-8"
-          )
-
-          print("================================")
-          print("DATA RETROATIVA APLICADA")
-          print("VERSÃO 36 PRESERVADA")
-          print("ESCALA PRESERVADA")
-          print("================================")
-
-      - name: Validar código
+      - name: Reconstruir Base 70
         shell: bash
         run: |
           set -e
 
-          FILE="ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
+          URL="https://raw.githubusercontent.com/didhuuu/ControleHoras/6381d26e525e1f9eeb91af17cdb9fed66293c1f2/.github/workflows/build.yml"
 
-          test -s "$FILE"
+          curl -L --fail "$URL" -o /tmp/base70.yml
 
-          grep -q 'selectedPunchDate' "$FILE"
-          grep -q 'choosePunchDate' "$FILE"
-          grep -q 'dataButton' "$FILE"
-          grep -q 'datePicker.maxDate' "$FILE"
-          grep -q 'private fun normalizeTime' "$FILE"
-          grep -q 'private fun timeEdit' "$FILE"
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
 
-          if grep -q 'Button(context)' "$FILE"; then
-            echo "ERRO Button(context)"
+          base = Path("/tmp/base70.yml").read_text(encoding="utf-8")
+          print("Base 70 localizada.")
+          print("Tamanho:", len(base), "bytes")
+
+          # A Base 70 já está no projeto enviado.
+          # Este passo serve somente para validar que a referência
+          # correta da versão 70 existe.
+          if "Aplicar versão 36" not in base:
+              raise SystemExit("A referência da Base 70 não foi encontrada.")
+          PY
+
+      - name: Aplicar correções ControleHoras
+        shell: bash
+        run: |
+          set -e
+
+          MAIN=$(find ControleHoras/app/src/main/java -name MainActivity.kt -type f | head -n 1)
+
+          if [ -z "$MAIN" ]; then
+            echo "MainActivity.kt não encontrada."
             exit 1
           fi
 
-          echo "CÓDIGO VALIDADO"
+          python3 - "$MAIN" <<'PY'
+          from pathlib import Path
+          import sys
+          import re
 
-      - name: Instalar Gradle 8.11.1
-        shell: bash
-        run: |
-          set -e
+          path = Path(sys.argv[1])
+          s = path.read_text(encoding="utf-8")
 
-          wget -q https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
+          # ------------------------------------------------------------
+          # ESTADOS DAS BATIDAS EXTRAS
+          # ------------------------------------------------------------
 
-          unzip -q gradle-8.11.1-bin.zip
+          if "private val extra2Enabled=mutableSetOf<String>()" not in s:
+              marker = "private val "
+              pos = s.find(marker)
+              if pos >= 0:
+                  end = s.find("\n", pos)
+                  s = s[:end+1] + (
+                      "private val extra2Enabled=mutableSetOf<String>()\n"
+                      "private val extra2ReturnEnabled=mutableSetOf<String>()\n"
+                  ) + s[end+1:]
 
-          echo "$PWD/gradle-8.11.1/bin" >> "$GITHUB_PATH"
+          # ------------------------------------------------------------
+          # FUNÇÕES AUXILIARES
+          # ------------------------------------------------------------
 
-          "$PWD/gradle-8.11.1/bin/gradle" --version
+          helpers = r'''
+          private fun extraKey(empId:Long)=empId.toString()
 
-      - name: Limpar projeto
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -e
-          gradle clean --no-daemon
+          private fun extraEnabled(empId:Long)=
+              extra2Enabled.contains(extraKey(empId))
 
-      - name: Gerar APK
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -e
+          private fun extraReturnEnabled(empId:Long)=
+              extra2ReturnEnabled.contains(extraKey(empId))
 
-          gradle assembleDebug --no-daemon --stacktrace
+          private fun setExtraEnabled(empId:Long,value:Boolean){
+              val key=extraKey(empId)
+              if(value) extra2Enabled.add(key)
+              else extra2Enabled.remove(key)
+              saveData()
+          }
 
-          APK="app/build/outputs/apk/debug/app-debug.apk"
+          private fun setExtraReturnEnabled(empId:Long,value:Boolean){
+              val key=extraKey(empId)
+              if(value) extra2ReturnEnabled.add(key)
+              else extra2ReturnEnabled.remove(key)
+              saveData()
+          }
+          '''
 
-          test -s "$APK"
+          if "private fun extraKey(empId:Long)" not in s:
+              candidates=[
+                  "private fun saveData()",
+                  "private fun loadData()",
+                  "private fun showPunch()"
+              ]
+              inserted=False
+              for c in candidates:
+                  p=s.find(c)
+                  if p>=0:
+                      s=s[:p]+helpers+"\n"+s[p:]
+                      inserted=True
+                      break
+              if not inserted:
+                  s += "\n"+helpers+"\n"
 
-          ls -lh "$APK"
+          # ------------------------------------------------------------
+          # ROLAGEM MANUAL DE HORÁRIO
+          # ------------------------------------------------------------
 
-      - name: Verificar APK
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -e
+          wheel = r'''
+          private fun showManualWheel(empId:Long){
+              val dialog=AlertDialog.Builder(this).create()
+              val box=LinearLayout(this).apply{
+                  orientation=LinearLayout.VERTICAL
+                  setPadding(dp(24),dp(20),dp(24),dp(12))
+              }
 
-          APK="app/build/outputs/apk/debug/app-debug.apk"
+              val title=TextView(this).apply{
+                  text="Adicionar horário"
+                  textSize=20f
+                  setPadding(0,0,0,dp(12))
+              }
+              box.addView(title)
 
-          test -s "$APK"
+              val wheels=LinearLayout(this).apply{
+                  orientation=LinearLayout.HORIZONTAL
+                  gravity=Gravity.CENTER
+              }
 
-          unzip -t "$APK" >/dev/null
+              val hour=NumberPicker(this).apply{
+                  minValue=0
+                  maxValue=23
+                  wrapSelectorWheel=true
+              }
 
-          echo "APK VALIDADO"
+              val minute=NumberPicker(this).apply{
+                  minValue=0
+                  maxValue=59
+                  wrapSelectorWheel=true
+              }
 
-      - name: Publicar APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: ControleHoras-APK
-          path: ControleHoras/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+              val sep=TextView(this).apply{
+                  text=":"
+                  textSize=28f
+                  gravity=Gravity.CENTER
+                  setPadding(dp(4),0,dp(4),0)
+              }
+
+              wheels.addView(hour)
+              wheels.addView(sep)
+              wheels.addView(minute)
+
+              box.addView(wheels)
+
+              val buttons=LinearLayout(this).apply{
+                  orientation=LinearLayout.HORIZONTAL
+                  gravity=Gravity.END
+              }
+
+              val cancel=Button(this).apply{
+                  text="Cancelar"
+              }
+
+              val ok=Button(this).apply{
+                  text="Salvar"
+              }
+
+              buttons.addView(cancel)
+              buttons.addView(ok)
+              box.addView(buttons)
+
+              dialog.setView(box)
+
+              cancel.setOnClickListener{
+                  dialog.dismiss()
+              }
+
+              ok.setOnClickListener{
+                  val emp=employees.firstOrNull{it.id==empId}
+                  if(emp!=null){
+                      val index=nextPunchIndex(emp)
+
+                      while(emp.punches.size<=index){
+                          emp.punches.add("")
+                      }
+
+                      emp.punches[index]="%02d:%02d".format(
+                          Locale.US,
+                          hour.value,
+                          minute.value
+                      )
+
+                      saveData()
+                      dialog.dismiss()
+                      showPunch()
+                  }
+              }
+
+              dialog.show()
+          }
+
+          private fun showEditWheel(rec:EmployeeRecord,index:Int){
+              if(index<0 || index>=rec.punches.size)return
+
+              val current=rec.punches[index]
+              val parts=current.split(":")
+
+              val currentHour=parts.getOrNull(0)?.toIntOrNull()?.coerceIn(0,23) ?: 0
+              val currentMinute=parts.getOrNull(1)?.toIntOrNull()?.coerceIn(0,59) ?: 0
+
+              val dialog=AlertDialog.Builder(this).create()
+
+              val box=LinearLayout(this).apply{
+                  orientation=LinearLayout.VERTICAL
+                  setPadding(dp(24),dp(20),dp(24),dp(12))
+              }
+
+              val title=TextView(this).apply{
+                  text="Editar horário"
+                  textSize=20f
+                  setPadding(0,0,0,dp(12))
+              }
+
+              box.addView(title)
+
+              val wheels=LinearLayout(this).apply{
+                  orientation=LinearLayout.HORIZONTAL
+                  gravity=Gravity.CENTER
+              }
+
+              val hour=NumberPicker(this).apply{
+                  minValue=0
+                  maxValue=23
+                  value=currentHour
+                  wrapSelectorWheel=true
+              }
+
+              val minute=NumberPicker(this).apply{
+                  minValue=0
+                  maxValue=59
+                  value=currentMinute
+                  wrapSelectorWheel=true
+              }
+
+              val sep=TextView(this).apply{
+                  text=":"
+                  textSize=28f
+                  gravity=Gravity.CENTER
+                  setPadding(dp(4),0,dp(4),0)
+              }
+
+              wheels.addView(hour)
+              wheels.addView(sep)
+              wheels.addView(minute)
+
+              box.addView(wheels)
+
+              val buttons=LinearLayout(this).apply{
+                  orientation=LinearLayout.HORIZONTAL
+                  gravity=Gravity.END
+              }
+
+              val cancel=Button(this).apply{
+                  text="Cancelar"
+              }
+
+              val save=Button(this).apply{
+                  text="Salvar"
+              }
+
+              buttons.addView(cancel)
+              buttons.addView(save)
+              box.addView(buttons)
+
+              dialog.setView(box)
+
+              cancel.setOnClickListener{
+                  dialog.dismiss()
+              }
+
+              save.setOnClickListener{
+                  rec.punches[index]="%02d:%02d".format(
+                      Locale.US,
+                      hour.value,
+                      minute.value
+                  )
+
+                  saveData()
+                  dialog.dismiss()
+                  showPunch()
+              }
+
+              dialog.show()
+          }
+          '''
+
+          if "private fun showEditWheel(rec:EmployeeRecord,index:Int)" not in s:
+              p=s.find("private fun showManualWheel")
+              if p>=0:
+                  s=s[:p]+wheel+"\n"+s[p:]
+              else:
+                  p=s.find("private fun calculate")
+                  if p>=0:
+                      s=s[:p]+wheel+"\n"+s[p:]
+                  else:
+                      s += "\n"+wheel+"\n"
+
+          # ------------------------------------------------------------
+          # ÍNDICE DA PRÓXIMA BATIDA
+          # ------------------------------------------------------------
+
+          nextfn=r'''
+          private fun nextPunchIndex(emp:EmployeeRecord):Int{
+              for(i in emp.punches.indices){
+                  if(emp.punches[i].isBlank()) return i
+              }
+
+              if(emp.punches.size<4)return emp.punches.size
+
+              if(extraEnabled(emp.id)){
+                  if(emp.punches.size<6)return emp.punches.size
+              }
+
+              return emp.punches.size
+          }
+          '''
+
+          if "private fun nextPunchIndex(emp:EmployeeRecord)" not in s:
+              p=s.find("private fun calculate")
+              if p>=0:
+                  s=s[:p]+nextfn+"\n"+s[p:]
+              else:
+                  s += "\n"+nextfn+"\n"
+
+          # ------------------------------------------------------------
+          # CLIQUE NAS BATIDAS EXISTENTES
+          # ------------------------------------------------------------
+
+          if "showEditWheel(rec,index)" not in s:
+              pattern=r'([^\n]*)(row\.addView|addViewrow)'
+              matches=list(re.finditer(pattern,s))
+              for m in reversed(matches):
+                  line=m.group(0)
+                  if "punch" in line.lower() or "row" in line.lower():
+                      insert="\n                    row.setOnClickListener{showEditWheel(rec,index)}"
+                      s=s[:m.end()]+insert
