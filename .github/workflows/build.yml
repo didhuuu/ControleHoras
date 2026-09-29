@@ -40,6 +40,10 @@ jobs:
 
           echo "PROJETO ORIGINAL OK"
 
+      # ==========================================================
+      # CORREÇÕES PRINCIPAIS
+      # ==========================================================
+
       - name: Corrigir MainActivity
         shell: python
         run: |
@@ -53,9 +57,9 @@ jobs:
 
           print("Linhas originais:", len(codigo.splitlines()))
 
-          # =====================================================
+          # ------------------------------------------------------
           # CORREÇÕES BÁSICAS
-          # =====================================================
+          # ------------------------------------------------------
 
           codigo = codigo.replace(
               'setText(if(existing!=null)existing.salary.toString():"")',
@@ -87,16 +91,18 @@ jobs:
               "}, LinearLayout.LayoutParams(-1, -2).apply{bottomMargin=dp(12)})"
           )
 
-          # =====================================================
+          # ------------------------------------------------------
           # NORMALIZAÇÃO DE HORÁRIO
-          # =====================================================
+          # ------------------------------------------------------
 
           marcador = "    private fun getRecord(empId:Long,date:String):PunchDay{"
 
           if marcador not in codigo:
               raise SystemExit("ERRO: getRecord não encontrado")
 
-          helper = """
+          if "private fun normalizeTime" not in codigo:
+
+              helper = """
               private fun normalizeTime(value:String):String{
                   val digits=value.filter{it.isDigit()}.take(4)
 
@@ -108,7 +114,11 @@ jobs:
                   if(hour !in 0..23)return ""
                   if(minute !in 0..59)return ""
 
-                  return "%02d:%02d".format(Locale.US,hour,minute)
+                  return "%02d:%02d".format(
+                      Locale.US,
+                      hour,
+                      minute
+                  )
               }
 
               private fun timeEdit(
@@ -117,6 +127,7 @@ jobs:
               ):EditText{
 
                   val e=EditText(this).apply{
+
                       hint=hintText
                       inputType=2
                       setSingleLine()
@@ -161,7 +172,8 @@ jobs:
 
                               val formatted=when{
 
-                                  digits.isEmpty()->""
+                                  digits.isEmpty()->
+                                      ""
 
                                   digits.length<=2->
                                       digits
@@ -189,7 +201,9 @@ jobs:
                       if(!hasFocus){
 
                           val normalized=
-                              normalizeTime(e.text.toString())
+                              normalizeTime(
+                                  e.text.toString()
+                              )
 
                           if(normalized.isNotEmpty()){
 
@@ -202,19 +216,17 @@ jobs:
                   return e
               }
 
-          """
+              """
 
-          if "private fun normalizeTime" not in codigo:
-
-              codigo = codigo.replace(
+              codigo=codigo.replace(
                   marcador,
-                  helper + marcador,
+                  helper+marcador,
                   1
               )
 
-          # =====================================================
+          # ------------------------------------------------------
           # ESCALA SEMANAL
-          # =====================================================
+          # ------------------------------------------------------
 
           escala_marker = \
               "    private val scale = linkedMapOf<String, DayScale>()"
@@ -224,19 +236,19 @@ jobs:
 
           if "private var weeklyTarget" not in codigo:
 
-              codigo = codigo.replace(
+              codigo=codigo.replace(
                   escala_marker,
-                  escala_marker
-                  + "\n"
-                  + '    private var weeklyTarget:String="44:00"'
-                  + "\n"
-                  + "    private val weekModes=linkedMapOf<String,String>()",
+                  escala_marker+
+                  "\n"+
+                  '    private var weeklyTarget:String="44:00"'+
+                  "\n"+
+                  "    private val weekModes=linkedMapOf<String,String>()",
                   1
               )
 
-          # =====================================================
-          # FUNÇÕES SEMANAIS
-          # =====================================================
+          # ------------------------------------------------------
+          # FUNÇÕES DA SEMANA
+          # ------------------------------------------------------
 
           if "private fun weekKey" not in codigo:
 
@@ -264,6 +276,7 @@ jobs:
               }
 
               private fun modeForDate(date:Date):String{
+
                   return weekModes[
                       weekKey(date)
                   ] ?: "MF"
@@ -278,7 +291,9 @@ jobs:
                   val day=
                       c.get(Calendar.DAY_OF_WEEK)
 
-                  return if(modeForDate(date)=="MS"){
+                  return if(
+                      modeForDate(date)=="MS"
+                  ){
 
                       day!=Calendar.SUNDAY
 
@@ -332,17 +347,17 @@ jobs:
                   return "$inicio até $fim"
               }
 
-          """
+              """
 
-              codigo = codigo.replace(
+              codigo=codigo.replace(
                   marcador,
-                  helpers_semana + marcador,
+                  helpers_semana+marcador,
                   1
               )
 
-          # =====================================================
+          # ------------------------------------------------------
           # DURAÇÃO SEMANAL
-          # =====================================================
+          # ------------------------------------------------------
 
           if "private fun durationMinutes" not in codigo:
 
@@ -396,17 +411,17 @@ jobs:
                   }
               }
 
-          """
+              """
 
-              codigo = codigo.replace(
+              codigo=codigo.replace(
                   marcador,
-                  duration + marcador,
+                  duration+marcador,
                   1
               )
 
-          # =====================================================
-          # CARREGAR ESCALA SEMANAL
-          # =====================================================
+          # ------------------------------------------------------
+          # CARREGAR ESCALA
+          # ------------------------------------------------------
 
           if 'prefs.getString("weeklyTarget"' not in codigo:
 
@@ -419,8 +434,12 @@ jobs:
                       "ERRO: loadData não encontrada"
                   )
 
-              inicio_corpo=
-                  codigo.find("\n",inicio_load)+1
+              # CORREÇÃO IMPORTANTE:
+              # NÃO quebrar a atribuição Python em duas linhas.
+              inicio_corpo = codigo.find(
+                  "\n",
+                  inicio_load
+              ) + 1
 
               bloco_load = """
                   weeklyTarget=
@@ -463,19 +482,21 @@ jobs:
               """
 
               codigo=(
-                  codigo[:inicio_corpo]
-                  +bloco_load
-                  +codigo[inicio_corpo:]
+                  codigo[:inicio_corpo]+
+                  bloco_load+
+                  codigo[inicio_corpo:]
               )
 
-          # =====================================================
-          # SALVAR ESCALA SEMANAL
-          # =====================================================
+          # ------------------------------------------------------
+          # SALVAR ESCALA
+          # ------------------------------------------------------
 
           if 'putString("weeklyTarget"' not in codigo:
 
-              salvar=
-                  '        val e = prefs.edit().putString("records", ra.toString())'
+              salvar=(
+                  '        val e = prefs.edit().'
+                  'putString("records", ra.toString())'
+              )
 
               if salvar not in codigo:
 
@@ -511,9 +532,9 @@ jobs:
                   1
               )
 
-          # =====================================================
-          # EDIÇÃO MANUAL DOS HORÁRIOS
-          # =====================================================
+          # ------------------------------------------------------
+          # EDIÇÃO MANUAL
+          # ------------------------------------------------------
 
           codigo=codigo.replace(
               'val e=EditText(this).apply{setText(r.punches[index]);hint="HH:mm";inputType=2;setSingleLine()}',
@@ -539,9 +560,9 @@ jobs:
               1
           )
 
-          # =====================================================
+          # ------------------------------------------------------
           # ESCALA
-          # =====================================================
+          # ------------------------------------------------------
 
           inicio=codigo.find(
               "    private fun showScale() {"
@@ -726,7 +747,7 @@ jobs:
 
                   box.addView(
                       infoCard(
-                          "Padrão: Segunda a sexta = 08:48 por dia. " +
+                          "Padrão: Segunda a sexta = 08:48 por dia. "+
                           "Quando selecionar Segunda a sábado, serão 07:20 por dia."
                       )
                   )
@@ -734,14 +755,15 @@ jobs:
 
           """
 
-          codigo=
+          codigo=(
               codigo[:inicio]+
               escala+
               codigo[fim:]
+          )
 
-          # =====================================================
-          # CÁLCULO CORRETO DAS BATIDAS
-          # =====================================================
+          # ------------------------------------------------------
+          # CÁLCULO DAS BATIDAS
+          # ------------------------------------------------------
 
           inicio=codigo.find(
               "    private fun calculate(r:PunchDay):Calc{"
@@ -814,8 +836,11 @@ jobs:
                       if(
                           modeForDate(data)=="MS"
                       ){
+
                           6
+
                       }else{
+
                           5
                       }
 
@@ -838,14 +863,15 @@ jobs:
 
           """
 
-          codigo=
+          codigo=(
               codigo[:inicio]+
               calculo+
               codigo[fim:]
+          )
 
-          # =====================================================
-          # CÁLCULO DOS MINUTOS
-          # =====================================================
+          # ------------------------------------------------------
+          # MINUTOS
+          # ------------------------------------------------------
 
           inicio=codigo.find(
               "    private fun minutesBetween(a:String,b:String):Int{"
@@ -901,14 +927,15 @@ jobs:
 
           """
 
-          codigo=
+          codigo=(
               codigo[:inicio]+
               minutos+
               codigo[fim:]
+          )
 
-          # =====================================================
+          # ------------------------------------------------------
           # FORMATO HH:MM
-          # =====================================================
+          # ------------------------------------------------------
 
           inicio=codigo.find(
               "    private fun formatMin"
@@ -928,16 +955,14 @@ jobs:
               fim=len(codigo)
 
           codigo=(
-              codigo[:inicio]
-              +
-              '    private fun formatMin(m:Int):String="%02d:%02d".format(Locale.US,max(0,m)/60,max(0,m)%60)'
-              +
+              codigo[:inicio]+
+              '    private fun formatMin(m:Int):String="%02d:%02d".format(Locale.US,max(0,m)/60,max(0,m)%60)'+
               codigo[fim:]
           )
 
-          # =====================================================
-          # VALIDAÇÃO
-          # =====================================================
+          # ------------------------------------------------------
+          # VALIDAR PRIMEIRA PARTE
+          # ------------------------------------------------------
 
           obrigatorias=[
               "private fun normalizeTime",
@@ -956,7 +981,6 @@ jobs:
           for item in obrigatorias:
 
               if item not in codigo:
-
                   raise SystemExit(
                       "ERRO FINAL: "+item
                   )
@@ -964,21 +988,10 @@ jobs:
           abertas=codigo.count("{")
           fechadas=codigo.count("}")
 
-          print(
-              "Linhas finais:",
-              len(codigo.splitlines())
-          )
-
-          print(
-              "Chaves:",
-              abertas,
-              fechadas
-          )
-
           if abertas!=fechadas:
 
               raise SystemExit(
-                  "ERRO FINAL: chaves Kotlin incompatíveis"
+                  f"ERRO FINAL: chaves {abertas}/{fechadas}"
               )
 
           arquivo.write_text(
@@ -986,12 +999,11 @@ jobs:
               encoding="utf-8"
           )
 
-          print(
-              "MAINACTIVITY CORRIGIDA COM SUCESSO"
-          )
+          print("MAINACTIVITY CORRIGIDA")
+          print("Chaves:",abertas,fechadas)
 
       # ==========================================================
-      # NOVA CORREÇÃO — DATA RETROATIVA
+      # DATA RETROATIVA
       # ==========================================================
 
       - name: Adicionar seleção de data ao Ponto
@@ -1007,11 +1019,7 @@ jobs:
               encoding="utf-8"
           )
 
-          def replace_once(
-              antigo,
-              novo,
-              nome
-          ):
+          def replace_once(antigo,novo,nome):
 
               global codigo
 
@@ -1020,9 +1028,7 @@ jobs:
               if quantidade!=1:
 
                   raise SystemExit(
-                      f"ERRO {nome}: "
-                      f"esperado 1 ocorrência, "
-                      f"encontrado {quantidade}"
+                      f"ERRO {nome}: esperado 1 ocorrência, encontrado {quantidade}"
                   )
 
               codigo=codigo.replace(
@@ -1031,9 +1037,29 @@ jobs:
                   1
               )
 
-          # ======================================================
-          # VARIÁVEL DA DATA
-          # ======================================================
+          # ------------------------------------------------------
+          # IMPORT DO DATEPICKER
+          # ------------------------------------------------------
+
+          if "import android.app.DatePickerDialog" not in codigo:
+
+              primeira_import=codigo.find("\nimport ")
+
+              if primeira_import==-1:
+
+                  raise SystemExit(
+                      "ERRO DATA: imports não encontrados"
+                  )
+
+              codigo=(
+                  codigo[:primeira_import]+
+                  "\nimport android.app.DatePickerDialog"+
+                  codigo[primeira_import:]
+              )
+
+          # ------------------------------------------------------
+          # VARIÁVEL
+          # ------------------------------------------------------
 
           marcador=\
               "    private var selectedEmployeeId = 0L"
@@ -1041,24 +1067,22 @@ jobs:
           if marcador not in codigo:
 
               raise SystemExit(
-                  "ERRO: selectedEmployeeId não encontrado"
+                  "ERRO DATA: selectedEmployeeId não encontrado"
               )
 
           if "private var selectedPunchDate" not in codigo:
 
               codigo=codigo.replace(
                   marcador,
-                  marcador
-                  +
-                  "\n"
-                  +
+                  marcador+
+                  "\n"+
                   "    private var selectedPunchDate:String = today()",
                   1
               )
 
-          # ======================================================
+          # ------------------------------------------------------
           # FUNÇÕES DE DATA
-          # ======================================================
+          # ------------------------------------------------------
 
           marcador_data=\
               "    private fun getRecord(empId:Long,date:String):PunchDay{"
@@ -1066,12 +1090,12 @@ jobs:
           if marcador_data not in codigo:
 
               raise SystemExit(
-                  "ERRO: getRecord não encontrado"
+                  "ERRO DATA: getRecord não encontrado"
               )
 
           if "private fun choosePunchDate" not in codigo:
 
-              funcoes="""
+              funcoes_data="""
               private fun displayPunchDate(
                   value:String
               ):String{
@@ -1123,8 +1147,7 @@ jobs:
                               )
 
                               if(
-                                  escolhida.timeInMillis
-                                  >
+                                  escolhida.timeInMillis >
                                   System.currentTimeMillis()
                               ){
 
@@ -1144,15 +1167,9 @@ jobs:
 
                               showPunch()
                           },
-                          cal.get(
-                              Calendar.YEAR
-                          ),
-                          cal.get(
-                              Calendar.MONTH
-                          ),
-                          cal.get(
-                              Calendar.DAY_OF_MONTH
-                          )
+                          cal.get(Calendar.YEAR),
+                          cal.get(Calendar.MONTH),
+                          cal.get(Calendar.DAY_OF_MONTH)
                       )
 
                   dialog.datePicker.maxDate=
@@ -1165,18 +1182,18 @@ jobs:
                   dialog.show()
               }
 
-          """
+              """
 
               codigo=codigo.replace(
                   marcador_data,
-                  funcoes+
+                  funcoes_data+
                   marcador_data,
                   1
               )
 
-          # ======================================================
+          # ------------------------------------------------------
           # TROCAR FUNCIONÁRIO = HOJE
-          # ======================================================
+          # ------------------------------------------------------
 
           replace_once(
               'if (employees[pos].id != selectedEmployeeId) { selectedEmployeeId = employees[pos].id; showPunch() }',
@@ -1184,9 +1201,9 @@ jobs:
               "troca funcionário"
           )
 
-          # ======================================================
-          # DATA MOSTRADA NA TELA
-          # ======================================================
+          # ------------------------------------------------------
+          # DATA MOSTRADA
+          # ------------------------------------------------------
 
           replace_once(
               'text = "Hoje\\n${df.format(Date())}"',
@@ -1194,9 +1211,9 @@ jobs:
               "texto data"
           )
 
-          # ======================================================
-          # CARD DA DATA CLICÁVEL
-          # ======================================================
+          # ------------------------------------------------------
+          # CARD CLICÁVEL
+          # ------------------------------------------------------
 
           marcador_card=\
               "            addView(line)\n        }, LinearLayout.LayoutParams(-1, -2).apply{bottomMargin=dp(12)})"
@@ -1204,22 +1221,20 @@ jobs:
           if marcador_card not in codigo:
 
               raise SystemExit(
-                  "ERRO: cartão da data não encontrado"
+                  "ERRO DATA: cartão da data não encontrado"
               )
 
           codigo=codigo.replace(
               marcador_card,
-              "            line.setOnClickListener { choosePunchDate() }\n"
-              +
-              "            addView(line)\n"
-              +
+              "            line.setOnClickListener { choosePunchDate() }\n"+
+              "            addView(line)\n"+
               "        }, LinearLayout.LayoutParams(-1, -2).apply{bottomMargin=dp(12)})",
               1
           )
 
-          # ======================================================
-          # REGISTRO USA A DATA SELECIONADA
-          # ======================================================
+          # ------------------------------------------------------
+          # REGISTRO
+          # ------------------------------------------------------
 
           replace_once(
               "val rec = getRecord(emp.id, today())",
@@ -1233,12 +1248,9 @@ jobs:
               "gravação selecionada"
           )
 
-          # ======================================================
+          # ------------------------------------------------------
           # ABRIR APP = HOJE
-          # ======================================================
-
-          marcador_oncreate=\
-              "        loadData()"
+          # ------------------------------------------------------
 
           pos_oncreate=codigo.find(
               "override fun onCreate"
@@ -1247,43 +1259,43 @@ jobs:
           if pos_oncreate==-1:
 
               raise SystemExit(
-                  "ERRO: onCreate não encontrado"
+                  "ERRO DATA: onCreate não encontrado"
               )
 
-          fim_oncreate=codigo.find(
+          pos_load=codigo.find(
               "        loadData()",
               pos_oncreate
           )
 
-          if fim_oncreate==-1:
+          if pos_load==-1:
 
               raise SystemExit(
-                  "ERRO: loadData do onCreate não encontrado"
+                  "ERRO DATA: loadData não encontrado"
               )
 
           trecho=codigo[
               pos_oncreate:
-              fim_oncreate+len("        loadData()")
+              pos_load+len("        loadData()")
           ]
 
           if "selectedPunchDate=today()" not in trecho:
 
               codigo=codigo.replace(
                   "        loadData()",
-                  "        loadData()\n"
+                  "        loadData()\n"+
                   "        selectedPunchDate=today()",
                   1
               )
 
-          # ======================================================
-          # VALIDAÇÃO
-          # ======================================================
+          # ------------------------------------------------------
+          # VALIDAR DATA
+          # ------------------------------------------------------
 
           obrigatorias=[
               "private var selectedPunchDate",
               "private fun displayPunchDate",
               "private fun choosePunchDate",
-              'dialog.datePicker.maxDate',
+              "dialog.datePicker.maxDate",
               "selectedPunchDate=today()",
               "getRecord(emp.id, selectedPunchDate)"
           ]
@@ -1293,7 +1305,7 @@ jobs:
               if item not in codigo:
 
                   raise SystemExit(
-                      "ERRO DATA: faltou "+item
+                      "ERRO DATA FINAL: "+item
                   )
 
           abertas=codigo.count("{")
@@ -1302,7 +1314,7 @@ jobs:
           if abertas!=fechadas:
 
               raise SystemExit(
-                  f"ERRO DATA: chaves {abertas}/{fechadas}"
+                  f"ERRO DATA FINAL: chaves {abertas}/{fechadas}"
               )
 
           arquivo.write_text(
@@ -1310,21 +1322,20 @@ jobs:
               encoding="utf-8"
           )
 
-          print("================================")
+          print("========================================")
           print("DATA RETROATIVA APLICADA")
-          print("================================")
-          print("Data inicial: HOJE")
-          print("Datas anteriores: PERMITIDAS")
-          print("Data futura: BLOQUEADA")
-          print("Troca funcionário: VOLTA PARA HOJE")
-          print("Reabertura aplicativo: HOJE")
-          print("Registro usa data selecionada: OK")
-          print("Histórico por data preservado: OK")
+          print("========================================")
+          print("Abrir aplicativo = HOJE")
+          print("Data anterior = PERMITIDA")
+          print("Data futura = BLOQUEADA")
+          print("Trocar funcionário = HOJE")
+          print("Registro usa data escolhida = OK")
+          print("Histórico preservado = OK")
           print("Chaves:",abertas,fechadas)
-          print("================================")
+          print("========================================")
 
       # ==========================================================
-      # VALIDAR CÓDIGO
+      # VALIDAÇÃO FINAL
       # ==========================================================
 
       - name: Validar código
@@ -1370,13 +1381,13 @@ jobs:
                   "ERRO DE VALIDACAO: chaves incompatíveis"
               )
 
-          print("================================")
+          print("========================================")
           print("CÓDIGO VALIDADO")
           print("DATA RETROATIVA: OK")
           print("ESCALA: OK")
           print("HORÁRIOS: OK")
           print("CÁLCULO: OK")
-          print("================================")
+          print("========================================")
 
       # ==========================================================
       # GRADLE
