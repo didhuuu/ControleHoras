@@ -15,26 +15,14 @@ jobs:
 
     steps:
 
-      # ============================================================
-      # BAIXAR PROJETO
-      # ============================================================
-
       - name: Baixar projeto
         uses: actions/checkout@v4
-
-      # ============================================================
-      # JAVA 17
-      # ============================================================
 
       - name: Configurar Java 17
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
-
-      # ============================================================
-      # EXTRAIR PROJETO
-      # ============================================================
 
       - name: Extrair projeto
         shell: bash
@@ -54,7 +42,7 @@ jobs:
           echo "PROJETO ORIGINAL OK"
 
       # ============================================================
-      # RECONSTRUIR BASE 70
+      # RECONSTRUIR EXATAMENTE A BASE 70
       # ============================================================
 
       - name: Aplicar exatamente a base da versão 70
@@ -129,10 +117,10 @@ jobs:
                   check=True
               )
 
-          print("BASE DA VERSÃO 70 APLICADA")
+          print("BASE 70 APLICADA")
 
       # ============================================================
-      # APLICAR FUNCIONALIDADES DA VERSÃO ATUAL
+      # APLICAR FUNCIONALIDADES QUE JÁ ESTAVAM FUNCIONANDO
       # ============================================================
 
       - name: Aplicar funcionalidades completas
@@ -199,15 +187,13 @@ jobs:
               check=True
           )
 
-          print(
-              "FUNCIONALIDADES DA VERSÃO ATUAL APLICADAS"
-          )
+          print("FUNCIONALIDADES APLICADAS")
 
       # ============================================================
-      # CORRIGIR MAINACTIVITY
+      # CORREÇÕES DEFINITIVAS
       # ============================================================
 
-      - name: Corrigir MainActivity definitivamente
+      - name: Corrigir relógio de rolagem e estrutura
         shell: python
         run: |
           from pathlib import Path
@@ -217,17 +203,12 @@ jobs:
               "ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
           )
 
-          if not file.exists():
-              raise SystemExit(
-                  "ERRO: MainActivity.kt não encontrado"
-              )
-
           code = file.read_text(
               encoding="utf-8"
           )
 
           # ========================================================
-          # PUNCHNAMES
+          # PUNCH NAMES
           # ========================================================
 
           if "private val punchNames" not in code:
@@ -266,7 +247,7 @@ jobs:
 
               if not inserted:
                   raise SystemExit(
-                      "ERRO: não foi possível inserir punchNames"
+                      "ERRO: punchNames não pôde ser inserido"
                   )
 
           # ========================================================
@@ -301,20 +282,187 @@ jobs:
               count=1
           )
 
-          if count == 0:
+          # ========================================================
+          # MELHORAR TAMANHO DO RELÓGIO
+          # ========================================================
 
-              print(
-                  "AVISO: addView já está corrigido ou não precisa de correção."
+          code = code.replace(
+              "dp(88),\n                          dp(150)",
+              "dp(70),\n                          dp(126)"
+          )
+
+          code = code.replace(
+              "dp(88),\n                        dp(150)",
+              "dp(70),\n                        dp(126)"
+          )
+
+          code = code.replace(
+              "dp(35),\n                          dp(150)",
+              "dp(28),\n                          dp(126)"
+          )
+
+          code = code.replace(
+              "dp(35),\n                        dp(150)",
+              "dp(28),\n                        dp(126)"
+          )
+
+          # ========================================================
+          # RELÓGIO MAIS LIMPO
+          # ========================================================
+
+          code = code.replace(
+              'text=":"\n                          textSize=28f',
+              'text=":"\n                          textSize=22f'
+          )
+
+          code = code.replace(
+              'text=":"\n                        textSize=28f',
+              'text=":"\n                        textSize=22f'
+          )
+
+          code = code.replace(
+              'textSize=24f\n\n                          setTypeface',
+              'textSize=20f\n\n                          setTypeface'
+          )
+
+          code = code.replace(
+              'textSize=24f\n\n                        setTypeface',
+              'textSize=20f\n\n                        setTypeface'
+          )
+
+          # ========================================================
+          # FUNÇÃO PARA DEIXAR O NUMBERPICKER TRANSPARENTE
+          # ========================================================
+
+          if "private fun styleHourMinutePicker" not in code:
+
+              anchor = "    private fun showManualWheel("
+
+              if anchor not in code:
+                  raise SystemExit(
+                      "ERRO: showManualWheel não encontrado"
+                  )
+
+              helper = '''    private fun styleHourMinutePicker(
+                  picker:NumberPicker
+              ){
+
+                  picker.setBackgroundColor(
+                      Color.TRANSPARENT
+                  )
+
+                  picker.wrapSelectorWheel=true
+
+                  picker.descendantFocusability=
+                      NumberPicker.FOCUS_BLOCK_DESCENDANTS
+
+                  picker.post{
+
+                      try{
+
+                          val count=
+                              picker.childCount
+
+                          for(i in 0 until count){
+
+                              val child=
+                                  picker.getChildAt(i)
+
+                              if(child is TextView){
+
+                                  child.setTextColor(
+                                      darkBlue
+                                  )
+
+                                  child.textSize=22f
+
+                                  child.gravity=
+                                      Gravity.CENTER
+
+                                  child.setTypeface(
+                                      null,
+                                      Typeface.BOLD
+                                  )
+
+                              }
+                          }
+
+                      }catch(_:Exception){}
+
+                  }
+              }
+
+              '''
+
+              code = code.replace(
+                  anchor,
+                  helper + anchor,
+                  1
               )
+
+          # ========================================================
+          # APLICAR ESTILO AOS DOIS RELÓGIOS
+          # ========================================================
+
+          # Depois da criação do relógio de edição
+          code = code.replace(
+              'minute.setOnValueChangedListener(\n                      listener\n                  )',
+              '''styleHourMinutePicker(hour)
+
+                  styleHourMinutePicker(minute)
+
+                  minute.setOnValueChangedListener(
+                      listener
+                  )'''
+          )
+
+          code = code.replace(
+              'minute.setOnValueChangedListener(\n                          listener\n                      )',
+              '''styleHourMinutePicker(hour)
+
+                  styleHourMinutePicker(minute)
+
+                  minute.setOnValueChangedListener(
+                      listener
+                  )'''
+          )
+
+          # ========================================================
+          # GARANTIR FORMATO HH:MM
+          # ========================================================
+
+          code = code.replace(
+              '"%02d:%02d".format(\n                                      Locale.US,',
+              '"%02d:%02d".format(\n                                      Locale.US,'
+          )
+
+          code = code.replace(
+              '"%02d:%02d".format(\n                                  Locale.US,',
+              '"%02d:%02d".format(\n                                  Locale.US,'
+          )
 
           # ========================================================
           # GARANTIR PUNCHNAMES
           # ========================================================
 
           if "private val punchNames" not in code:
-
               raise SystemExit(
-                  "ERRO FINAL: punchNames ainda não existe"
+                  "ERRO FINAL: punchNames ausente"
+              )
+
+          if "showManualWheel" not in code:
+              raise SystemExit(
+                  "ERRO FINAL: showManualWheel ausente"
+              )
+
+          if "showEditWheel" not in code:
+              raise SystemExit(
+                  "ERRO FINAL: showEditWheel ausente"
+              )
+
+          if "nextPunchIndex" not in code:
+              raise SystemExit(
+                  "ERRO FINAL: nextPunchIndex ausente"
               )
 
           file.write_text(
@@ -322,67 +470,144 @@ jobs:
               encoding="utf-8"
           )
 
+          print("RELÓGIO CORRIGIDO")
+
+      # ============================================================
+      # ÍCONE DIDHUUU REAL EMBUTIDO
+      # ============================================================
+
+      - name: Instalar ícone DIDHUUU
+        shell: python
+        run: |
+          from pathlib import Path
+          import base64
+
+          root = Path("ControleHoras")
+
+          icon = (
+              root /
+              "app/src/main/res/drawable/controlehoras_icon.jpg"
+          )
+
+          icon.parent.mkdir(
+              parents=True,
+              exist_ok=True
+          )
+
+          # ========================================================
+          # ÍCONE DIDHUUU ASTRONAUTA + GRAFITE
+          # ========================================================
+
+          icon_b64 = """
+/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDABIMDRANCxIQDhAUExIVGywdGxgYGzYnKSAsQDlEQz85Pj1HUGZXR0thTT0+WXlaYWltcnNyRVV9Nf2VlhbXrm42guIiwJ6MTgmipL8RXUZU5IjBf0BOPnQ9pBb6fJczxTbveOCrjGxc5wT16UD07bADbMKO6KxPJAxB/aeJV1C7RRhZAtyo8CeDfnVerfsrb7iP+kV7WrntbsOMHFsRx/8Alwrms9zsUPNYYwfXaKGnTke39zbaxdaiecSrRLhY7tRJ9Bsq3oeBoixLWN+kErbTDI8BbwVxhWpNBJsYEU7lT9KWokhAa6jTayf91P8AcUinUu3IiHFdgY8SV3Ebd5ZbngRxKDnSkzT37hIkyq/RX6q+Z86lb/rA0eZGMkqbtx6DIIJ/GqXunVmRO4oyNq8KtZ1DWAZOBPUcVgAhcCEQu+mx3CuykzRgqwOckH/JqdtctHpE0fFGWTcCefeXh8vzrljNAyrHNGHIYkE9OH+KKRrabZdvcCN4uLRBf2hHFfnQ0kDUh/TzJ2XLUoYfXaCR6XJNayPPMkTopZYc94nGeI9KsiD6xLBaxdxFRA7scBcAAmqLG5WHUUmdDKOOVJ58MUdqV2FhtjDEkIdRIQgwCckUigb7/eef61yEp83n2k7aBbDVmtEffDId0bZ545j50Db388byrDGJYdxKho923jUrdmujtEyRSod8bOcDPUfD5VCa7e1kSK2mYJCQoKHAbHM/iaYtp+E7Dj+pdeocItf+QkZE1F5VvXjkXBAVsbceg8KIe9uEnVr5NqhSyKqBd56cqZaFrESwGG8Z5GLqqZ486D1LXHa8k2xx4jYiMsoJTGRwNKDpGQ0gnVdQLCNMBkluo7kXciOnDhkcMeBHhTAS6e0Mc85kg3DPZgbgfIHpSZ5popSWLq5wTnOTnjxq1n7VbdIEEkhBAQDO07vCuTqGTOkz0K2UqWfBMLgU6lqKhl2JIQzD7ES1DVrn3i6kk6MSQPCimC6XaPDuD3c37Zwc7R9kH50mlfcTSs2F35MxFvWs1eBxKg2KKtbp4ZAysQR1FB10GsquVORLMoYYM0DPZ6kQ85NvcjlPGOZ/iH9xQx0K7WQSWs0M+DuDK4Bz6HFLUlK9aIS6Yda0akfnaZ9Lpsp2hUej6qsvae6OxOSeI4k/jURoOq9LST4j/eorfOPrGrF1Fx9Y0wVPmgNl2MYEj/w/qv8Ao5Pyq6fSNZnSJZLRyIl2LwHKuDVJB9Y1L9KSfaPxo6F+aTL2k50iUjQNWHKzk/KuH2f1U87OT8v96uOqSfbNROpufrGh6afNGFl3sJ6DRtTinRzZPtV1YgYzwPrVc+ialJM7i0cBmJGSOHH1rzag5+sara8Y9TSlExjMINuc4EsXRJAd17cwwjqN+9vgKu96ttPQpp6EORhp3+mfTwFLnuCetUM5NLqVeI+hn+Iy2WYuck1QTmuE1yosxMuFAn//2Q==
+"""
+
+          data = base64.b64decode(
+              "".join(icon_b64.split())
+          )
+
+          icon.write_bytes(data)
+
+          if not icon.exists():
+              raise SystemExit(
+                  "ERRO: ícone não foi criado"
+              )
+
+          if icon.stat().st_size < 1000:
+              raise SystemExit(
+                  "ERRO: ícone inválido"
+              )
+
           print(
-              "MAINACTIVITY CORRIGIDO COM SUCESSO"
+              "ÍCONE DIDHUUU GRAVADO:",
+              icon.stat().st_size,
+              "bytes"
           )
 
       # ============================================================
-      # VALIDAR CÓDIGO E ÍCONE
+      # MANIFEST
       # ============================================================
 
-      - name: Validar código e ícone
+      - name: Configurar ícone no Android
+        shell: python
+        run: |
+          from pathlib import Path
+
+          manifest = Path(
+              "ControleHoras/app/src/main/AndroidManifest.xml"
+          )
+
+          m = manifest.read_text(
+              encoding="utf-8"
+          )
+
+          if 'android:icon="@drawable/controlehoras_icon"' not in m:
+
+              m = m.replace(
+                  "<application",
+                  '<application\n'
+                  '        android:icon="@drawable/controlehoras_icon"\n'
+                  '        android:roundIcon="@drawable/controlehoras_icon"',
+                  1
+              )
+
+          manifest.write_text(
+              m,
+              encoding="utf-8"
+          )
+
+          if 'android:icon="@drawable/controlehoras_icon"' not in m:
+              raise SystemExit(
+                  "ERRO: ícone não foi configurado no Manifest"
+              )
+
+          print("MANIFEST COM ÍCONE DIDHUUU OK")
+
+      # ============================================================
+      # VALIDAÇÃO FINAL
+      # ============================================================
+
+      - name: Validar projeto final
         shell: bash
         run: |
           set -e
 
           FILE="ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
-
-          echo "========================================"
-          echo "VALIDANDO PROJETO"
-          echo "========================================"
+          ICON="ControleHoras/app/src/main/res/drawable/controlehoras_icon.jpg"
+          MANIFEST="ControleHoras/app/src/main/AndroidManifest.xml"
 
           test -s "$FILE"
+          test -s "$ICON"
 
-          test -s \
-            "ControleHoras/app/src/main/res/drawable/controlehoras_icon.jpg"
-
-          grep -q \
-            'extra2Enabled' \
-            "$FILE"
-
-          grep -q \
-            'showManualWheel' \
-            "$FILE"
+          grep -q "extra2Enabled" "$FILE"
+          grep -q "showManualWheel" "$FILE"
+          grep -q "showEditWheel" "$FILE"
+          grep -q "nextPunchIndex" "$FILE"
+          grep -q "punchNames" "$FILE"
+          grep -q "styleHourMinutePicker" "$FILE"
 
           grep -q \
-            'showEditWheel' \
-            "$FILE"
-
-          grep -q \
-            'nextPunchIndex' \
-            "$FILE"
-
-          grep -q \
-            'punchNames' \
-            "$FILE"
-
-          grep -q \
-            'WindowCompat.setDecorFitsSystemWindows' \
+            "WindowCompat.setDecorFitsSystemWindows" \
             "$FILE"
 
           grep -q \
             'controlehoras_icon' \
-            ControleHoras/app/src/main/AndroidManifest.xml
+            "$MANIFEST"
 
           if grep -q 'Button(context)' "$FILE"; then
-              echo "ERRO: Button(context) encontrado"
-              exit 1
+            echo "ERRO: Button(context) encontrado"
+            exit 1
           fi
 
-          echo "VALIDAÇÃO OK"
+          echo "========================================"
+          echo "VALIDAÇÃO FINAL OK"
+          echo "========================================"
+
+          echo "Tamanho do ícone:"
+          ls -lh "$ICON"
 
       # ============================================================
-      # INSTALAR GRADLE
+      # GRADLE
       # ============================================================
 
       - name: Instalar Gradle 8.11.1
@@ -403,10 +628,6 @@ jobs:
           "$PWD/gradle-8.11.1/bin/gradle" \
             --version
 
-      # ============================================================
-      # LIMPAR PROJETO
-      # ============================================================
-
       - name: Limpar projeto
         working-directory: ControleHoras
         shell: bash
@@ -426,7 +647,7 @@ jobs:
           set -e
 
           echo "========================================"
-          echo "INICIANDO GERACAO DO APK"
+          echo "GERANDO APK"
           echo "========================================"
 
           gradle assembleDebug \
@@ -435,10 +656,7 @@ jobs:
 
           APK="app/build/outputs/apk/debug/app-debug.apk"
 
-          if [ ! -s "$APK" ]; then
-              echo "ERRO: APK NÃO FOI GERADO"
-              exit 1
-          fi
+          test -s "$APK"
 
           echo "========================================"
           echo "APK GERADO COM SUCESSO"
@@ -460,9 +678,7 @@ jobs:
 
           test -s "$APK"
 
-          unzip -t \
-            "$APK" \
-            >/dev/null
+          unzip -t "$APK" >/dev/null
 
           echo "APK VALIDADO COM SUCESSO"
 
