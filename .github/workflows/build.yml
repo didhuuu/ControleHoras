@@ -12,7 +12,6 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
 
       - name: Baixar projeto
@@ -30,7 +29,6 @@ jobs:
           set -e
 
           rm -rf ControleHoras
-
           unzip -q -o ControleHoras.zip
 
           test -f ControleHoras/settings.gradle.kts
@@ -41,55 +39,45 @@ jobs:
 
           echo "PROJETO ORIGINAL OK"
 
-      # ============================================================
-      # RECONSTRUIR EXATAMENTE A BASE 70
-      # ============================================================
-
       - name: Aplicar exatamente a base da versão 70
         shell: python
         run: |
           from pathlib import Path
           from urllib.request import urlopen
-          import subprocess
-          import tempfile
+          import subprocess, tempfile
 
-          url = (
-              "https://raw.githubusercontent.com/"
-              "didhuuu/ControleHoras/"
-              "6381d26e525e1f9eeb91af17cdb9fed66293c1f2/"
-              ".github/workflows/build.yml"
-          )
+          url="https://raw.githubusercontent.com/didhuuu/ControleHoras/6381d26e525e1f9eeb91af17cdb9fed66293c1f2/.github/workflows/build.yml"
 
-          workflow = urlopen(
+          workflow=urlopen(
               url,
               timeout=30
           ).read().decode("utf-8")
 
-          def extract_step(name, next_name):
+          def extract_step(name,next_name):
 
-              start = workflow.index(
+              start=workflow.index(
                   f"      - name: {name}"
               )
 
-              end = workflow.index(
+              end=workflow.index(
                   f"      - name: {next_name}",
                   start
               )
 
-              block = workflow[start:end]
+              block=workflow[start:end]
 
-              marker = "        run: |\n"
+              marker="        run: |\n"
 
-              pos = block.index(marker) + len(marker)
+              pos=block.index(marker)+len(marker)
 
-              lines = block[pos:].splitlines()
+              lines=block[pos:].splitlines()
 
               return "\n".join(
                   line[10:] if line.startswith("          ") else line
                   for line in lines
-              ) + "\n"
+              )+"\n"
 
-          scripts = [
+          scripts=[
               extract_step(
                   "Aplicar versão 36",
                   "Adicionar seleção de data"
@@ -100,12 +88,9 @@ jobs:
               )
           ]
 
-          for i, script in enumerate(scripts):
+          for i,script in enumerate(scripts):
 
-              p = (
-                  Path(tempfile.gettempdir()) /
-                  f"base70_{i}.py"
-              )
+              p=Path(tempfile.gettempdir())/f"base70_{i}.py"
 
               p.write_text(
                   script,
@@ -113,438 +98,1826 @@ jobs:
               )
 
               subprocess.run(
-                  ["python", str(p)],
+                  ["python",str(p)],
                   check=True
               )
 
-          print("BASE 70 APLICADA")
+          print("BASE DA VERSÃO 70 APLICADA")
 
-      # ============================================================
-      # APLICAR FUNCIONALIDADES QUE JÁ ESTAVAM FUNCIONANDO
-      # ============================================================
-
-      - name: Aplicar funcionalidades completas
-        shell: python
-        run: |
-          from pathlib import Path
-          from urllib.request import urlopen
-          import subprocess
-          import tempfile
-
-          url = (
-              "https://raw.githubusercontent.com/"
-              "didhuuu/ControleHoras/"
-              "894fb3f98dfda80c297f31474130324a094b6dc6/"
-              ".github/workflows/build.yml"
-          )
-
-          workflow = urlopen(
-              url,
-              timeout=30
-          ).read().decode("utf-8")
-
-          def extract_step(name, next_name):
-
-              start = workflow.index(
-                  f"      - name: {name}"
-              )
-
-              end = workflow.index(
-                  f"      - name: {next_name}",
-                  start
-              )
-
-              block = workflow[start:end]
-
-              marker = "        run: |\n"
-
-              pos = block.index(marker) + len(marker)
-
-              lines = block[pos:].splitlines()
-
-              return "\n".join(
-                  line[10:] if line.startswith("          ") else line
-                  for line in lines
-              ) + "\n"
-
-          script = extract_step(
-              "Aplicar correções finais da Base 70, edição por rolagem e ícone",
-              "Validar código e ícone"
-          )
-
-          p = (
-              Path(tempfile.gettempdir()) /
-              "funcionalidades.py"
-          )
-
-          p.write_text(
-              script,
-              encoding="utf-8"
-          )
-
-          subprocess.run(
-              ["python", str(p)],
-              check=True
-          )
-
-          print("FUNCIONALIDADES APLICADAS")
-
-      # ============================================================
-      # CORREÇÕES DEFINITIVAS
-      # ============================================================
-
-      - name: Corrigir relógio de rolagem e estrutura
-        shell: python
-        run: |
-          from pathlib import Path
-          import re
-
-          file = Path(
-              "ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
-          )
-
-          code = file.read_text(
-              encoding="utf-8"
-          )
-
-          # ========================================================
-          # PUNCH NAMES
-          # ========================================================
-
-          if "private val punchNames" not in code:
-
-              names = '''    private val punchNames=arrayOf<String>(
-                  "Entrada",
-                  "Saída",
-                  "Retorno",
-                  "Saída intervalo 2",
-                  "Retorno intervalo 2",
-                  "Saída"
-              )
-              '''
-
-              anchors = [
-                  '    private val extra2ReturnEnabled=mutableSetOf<String>()\n',
-                  '    private val extra2Enabled=mutableSetOf<String>()\n',
-                  '    private val weekModes=linkedMapOf<String,String>()\n',
-                  '    private val weekModes = linkedMapOf<String,String>()\n'
-              ]
-
-              inserted = False
-
-              for anchor in anchors:
-
-                  if anchor in code:
-
-                      code = code.replace(
-                          anchor,
-                          anchor + names,
-                          1
-                      )
-
-                      inserted = True
-                      break
-
-              if not inserted:
-                  raise SystemExit(
-                      "ERRO: punchNames não pôde ser inserido"
-                  )
-
-          # ========================================================
-          # CORRIGIR ADDVIEW
-          # ========================================================
-
-          pattern = (
-              r'\},\s*'
-              r'0,\s*'
-              r'0,\s*'
-              r'0,\s*'
-              r'dp\(10\)\s*'
-              r'\)\s*'
-              r'val dateCard\s*=\s*card\(\)'
-          )
-
-          replacement = '''},
-                      LinearLayout.LayoutParams(
-                          -1,
-                          -2
-                      ).apply{
-                          bottomMargin=dp(10)
-                      }
-                  )
-
-                  val dateCard=card()'''
-
-          code, count = re.subn(
-              pattern,
-              replacement,
-              code,
-              count=1
-          )
-
-          # ========================================================
-          # MELHORAR TAMANHO DO RELÓGIO
-          # ========================================================
-
-          code = code.replace(
-              "dp(88),\n                          dp(150)",
-              "dp(70),\n                          dp(126)"
-          )
-
-          code = code.replace(
-              "dp(88),\n                        dp(150)",
-              "dp(70),\n                        dp(126)"
-          )
-
-          code = code.replace(
-              "dp(35),\n                          dp(150)",
-              "dp(28),\n                          dp(126)"
-          )
-
-          code = code.replace(
-              "dp(35),\n                        dp(150)",
-              "dp(28),\n                        dp(126)"
-          )
-
-          # ========================================================
-          # RELÓGIO MAIS LIMPO
-          # ========================================================
-
-          code = code.replace(
-              'text=":"\n                          textSize=28f',
-              'text=":"\n                          textSize=22f'
-          )
-
-          code = code.replace(
-              'text=":"\n                        textSize=28f',
-              'text=":"\n                        textSize=22f'
-          )
-
-          code = code.replace(
-              'textSize=24f\n\n                          setTypeface',
-              'textSize=20f\n\n                          setTypeface'
-          )
-
-          code = code.replace(
-              'textSize=24f\n\n                        setTypeface',
-              'textSize=20f\n\n                        setTypeface'
-          )
-
-          # ========================================================
-          # FUNÇÃO PARA DEIXAR O NUMBERPICKER TRANSPARENTE
-          # ========================================================
-
-          if "private fun styleHourMinutePicker" not in code:
-
-              anchor = "    private fun showManualWheel("
-
-              if anchor not in code:
-                  raise SystemExit(
-                      "ERRO: showManualWheel não encontrado"
-                  )
-
-              helper = '''    private fun styleHourMinutePicker(
-                  picker:NumberPicker
-              ){
-
-                  picker.setBackgroundColor(
-                      Color.TRANSPARENT
-                  )
-
-                  picker.wrapSelectorWheel=true
-
-                  picker.descendantFocusability=
-                      NumberPicker.FOCUS_BLOCK_DESCENDANTS
-
-                  picker.post{
-
-                      try{
-
-                          val count=
-                              picker.childCount
-
-                          for(i in 0 until count){
-
-                              val child=
-                                  picker.getChildAt(i)
-
-                              if(child is TextView){
-
-                                  child.setTextColor(
-                                      darkBlue
-                                  )
-
-                                  child.textSize=22f
-
-                                  child.gravity=
-                                      Gravity.CENTER
-
-                                  child.setTypeface(
-                                      null,
-                                      Typeface.BOLD
-                                  )
-
-                              }
-                          }
-
-                      }catch(_:Exception){}
-
-                  }
-              }
-
-              '''
-
-              code = code.replace(
-                  anchor,
-                  helper + anchor,
-                  1
-              )
-
-          # ========================================================
-          # APLICAR ESTILO AOS DOIS RELÓGIOS
-          # ========================================================
-
-          # Depois da criação do relógio de edição
-          code = code.replace(
-              'minute.setOnValueChangedListener(\n                      listener\n                  )',
-              '''styleHourMinutePicker(hour)
-
-                  styleHourMinutePicker(minute)
-
-                  minute.setOnValueChangedListener(
-                      listener
-                  )'''
-          )
-
-          code = code.replace(
-              'minute.setOnValueChangedListener(\n                          listener\n                      )',
-              '''styleHourMinutePicker(hour)
-
-                  styleHourMinutePicker(minute)
-
-                  minute.setOnValueChangedListener(
-                      listener
-                  )'''
-          )
-
-          # ========================================================
-          # GARANTIR FORMATO HH:MM
-          # ========================================================
-
-          code = code.replace(
-              '"%02d:%02d".format(\n                                      Locale.US,',
-              '"%02d:%02d".format(\n                                      Locale.US,'
-          )
-
-          code = code.replace(
-              '"%02d:%02d".format(\n                                  Locale.US,',
-              '"%02d:%02d".format(\n                                  Locale.US,'
-          )
-
-          # ========================================================
-          # GARANTIR PUNCHNAMES
-          # ========================================================
-
-          if "private val punchNames" not in code:
-              raise SystemExit(
-                  "ERRO FINAL: punchNames ausente"
-              )
-
-          if "showManualWheel" not in code:
-              raise SystemExit(
-                  "ERRO FINAL: showManualWheel ausente"
-              )
-
-          if "showEditWheel" not in code:
-              raise SystemExit(
-                  "ERRO FINAL: showEditWheel ausente"
-              )
-
-          if "nextPunchIndex" not in code:
-              raise SystemExit(
-                  "ERRO FINAL: nextPunchIndex ausente"
-              )
-
-          file.write_text(
-              code,
-              encoding="utf-8"
-          )
-
-          print("RELÓGIO CORRIGIDO")
-
-      # ============================================================
-      # ÍCONE DIDHUUU REAL EMBUTIDO
-      # ============================================================
-
-      - name: Instalar ícone DIDHUUU
+      - name: Aplicar correções finais da Base 70, edição por rolagem e ícone
         shell: python
         run: |
           from pathlib import Path
           import base64
 
-          root = Path("ControleHoras")
+          root=Path('ControleHoras')
 
-          icon = (
-              root /
-              "app/src/main/res/drawable/controlehoras_icon.jpg"
+          src=root/'app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt'
+
+          manifest=root/'app/src/main/AndroidManifest.xml'
+
+          code=src.read_text(
+              encoding='utf-8'
           )
+
+          # Extra interval state
+          if 'private val extra2Enabled' not in code:
+
+              anchors=[
+                  '    private val weekModes=linkedMapOf<String,String>()\n',
+                  '    private val weekModes = linkedMapOf<String,String>()\n'
+              ]
+
+              for a in anchors:
+
+                  if a in code:
+
+                      code=code.replace(
+                          a,
+                          a+
+                          '    private val extra2Enabled=mutableSetOf<String>()\n'
+                          '    private val extra2ReturnEnabled=mutableSetOf<String>()\n',
+                          1
+                      )
+
+                      break
+
+              else:
+                  raise SystemExit(
+                      'ERRO: weekModes não encontrado'
+                  )
+
+          # Carregar intervalo 2
+          if 'prefs.getString("extra2Enabled"' not in code:
+
+              anchor='        scale.clear()\n'
+
+              if anchor not in code:
+                  raise SystemExit(
+                      'ERRO: scale.clear não encontrado'
+                  )
+
+              block='''        extra2Enabled.clear()
+                  extra2ReturnEnabled.clear()
+
+                  try{
+
+                      val ja=JSONArray(
+                          prefs.getString(
+                              "extra2Enabled",
+                              "[]"
+                          ) ?: "[]"
+                      )
+
+                      for(i in 0 until ja.length())
+                          extra2Enabled.add(
+                              ja.optString(i)
+                          )
+
+                      val jb=JSONArray(
+                          prefs.getString(
+                              "extra2ReturnEnabled",
+                              "[]"
+                          ) ?: "[]"
+                      )
+
+                      for(i in 0 until jb.length())
+                          extra2ReturnEnabled.add(
+                              jb.optString(i)
+                          )
+
+                  }catch(_:Exception){}
+
+          '''
+
+              code=code.replace(
+                  anchor,
+                  block+anchor,
+                  1
+              )
+
+              anchor='        e.apply()\n'
+
+              if anchor not in code:
+                  raise SystemExit(
+                      'ERRO: e.apply não encontrado'
+                  )
+
+              block='''        val extraJson=JSONArray()
+
+                  extra2Enabled.forEach{
+                      extraJson.put(it)
+                  }
+
+                  e.putString(
+                      "extra2Enabled",
+                      extraJson.toString()
+                  )
+
+                  val extraReturnJson=JSONArray()
+
+                  extra2ReturnEnabled.forEach{
+                      extraReturnJson.put(it)
+                  }
+
+                  e.putString(
+                      "extra2ReturnEnabled",
+                      extraReturnJson.toString()
+                  )
+
+          '''
+
+              code=code.replace(
+                  anchor,
+                  block+anchor,
+                  1
+              )
+
+          # Helpers
+          if 'private fun extraKey' not in code:
+
+              anchor='    private fun today()=iso.format(Date())\n'
+
+              if anchor not in code:
+                  raise SystemExit(
+                      'ERRO: today não encontrado'
+                  )
+
+              block='''    private fun extraKey(
+                  empId:Long,
+                  date:String
+              )=empId.toString()+"|"+date
+
+              private fun extraEnabled(
+                  empId:Long,
+                  date:String
+              )=extra2Enabled.contains(
+                  extraKey(empId,date)
+              )
+
+              private fun extraReturnEnabled(
+                  empId:Long,
+                  date:String
+              )=extra2ReturnEnabled.contains(
+                  extraKey(empId,date)
+              )
+
+              private fun setExtraEnabled(
+                  empId:Long,
+                  date:String,
+                  value:Boolean
+              ){
+
+                  val k=extraKey(empId,date)
+
+                  if(value)
+                      extra2Enabled.add(k)
+                  else{
+                      extra2Enabled.remove(k)
+                      extra2ReturnEnabled.remove(k)
+                  }
+
+                  saveData()
+              }
+
+              private fun setExtraReturnEnabled(
+                  empId:Long,
+                  date:String,
+                  value:Boolean
+              ){
+
+                  val k=extraKey(empId,date)
+
+                  if(
+                      value &&
+                      extra2Enabled.contains(k)
+                  )
+                      extra2ReturnEnabled.add(k)
+                  else
+                      extra2ReturnEnabled.remove(k)
+
+                  saveData()
+              }
+
+          '''
+
+              code=code.replace(
+                  anchor,
+                  block+anchor,
+                  1
+              )
+
+          # Ponto
+          start=code.find(
+              '    private fun showPunch()'
+          )
+
+          end=code.find(
+              '    private fun showHistory()',
+              start
+          )
+
+          if start<0 or end<0:
+              raise SystemExit(
+                  'ERRO: showPunch/showHistory não encontrados'
+              )
+
+          show='''    private fun showPunch(){
+
+                  val box=page("Bater Ponto")
+
+                  if(employees.isEmpty()){
+
+                      box.addView(
+                          infoCard(
+                              "Nenhum funcionário cadastrado.\\\\n" +
+                              "Cadastre o primeiro em Funcionários."
+                          )
+                      )
+
+                      return
+                  }
+
+                  val emp=
+                      employees.firstOrNull{
+                          it.id==selectedEmployeeId
+                      } ?:
+                      employees.first().also{
+                          selectedEmployeeId=it.id
+                      }
+
+                  box.addView(
+                      card().apply{
+
+                          val line=
+                              LinearLayout(context).apply{
+                                  orientation=
+                                      LinearLayout.VERTICAL
+
+                                  setPadding(
+                                      dp(16),
+                                      dp(12),
+                                      dp(16),
+                                      dp(12)
+                                  )
+                              }
+
+                          line.addView(
+                              label("Funcionário")
+                          )
+
+                          val spinner=Spinner(context)
+
+                          spinner.adapter=
+                              ArrayAdapter(
+                                  context,
+                                  android.R.layout.simple_spinner_dropdown_item,
+                                  employees.map{
+                                      it.name
+                                  }
+                              )
+
+                          spinner.setSelection(
+                              employees.indexOfFirst{
+                                  it.id==selectedEmployeeId
+                              }.coerceAtLeast(0)
+                          )
+
+                          spinner.onItemSelectedListener=
+                              object:
+                              AdapterView.OnItemSelectedListener{
+
+                                  override fun onNothingSelected(
+                                      p:AdapterView<*>?
+                                  ){}
+
+                                  override fun onItemSelected(
+                                      p:AdapterView<*>?,
+                                      v:View?,
+                                      pos:Int,
+                                      id:Long
+                                  ){
+
+                                      if(
+                                          employees[pos].id !=
+                                          selectedEmployeeId
+                                      ){
+
+                                          selectedEmployeeId=
+                                              employees[pos].id
+
+                                          selectedPunchDate=
+                                              today()
+
+                                          showPunch()
+                                      }
+                                  }
+                              }
+
+                          line.addView(spinner)
+
+                          line.addView(
+                              TextView(context).apply{
+                                  text=
+                                      "Salário mensal   "+
+                                      money.format(emp.salary)
+
+                                  textSize=14f
+
+                                  setTextColor(muted)
+
+                                  setPadding(
+                                      0,
+                                      dp(8),
+                                      0,
+                                      0
+                                  )
+                              }
+                          )
+
+                          addView(line)
+
+                      },
+                      0,
+                      0,
+                      0,
+                      dp(10)
+                  )
+
+                  val dateCard=card()
+
+                  val dateLine=
+                      LinearLayout(this).apply{
+
+                          orientation=
+                              LinearLayout.HORIZONTAL
+
+                          gravity=
+                              Gravity.CENTER_VERTICAL
+
+                          setPadding(
+                              dp(14),
+                              dp(8),
+                              dp(14),
+                              dp(8)
+                          )
+                      }
+
+                  dateLine.addView(
+                      TextView(this).apply{
+                          text="📅"
+                          textSize=25f
+                      },
+                      LinearLayout.LayoutParams(
+                          dp(45),
+                          dp(55)
+                      )
+                  )
+
+                  dateLine.addView(
+                      TextView(this).apply{
+
+                          text=
+                              "DATA\\\\n"+
+                              df.format(
+                                  parseIso(
+                                      selectedPunchDate
+                                  )
+                              )
+
+                          textSize=16f
+
+                          setTypeface(
+                              null,
+                              Typeface.BOLD
+                          )
+
+                          setTextColor(
+                              this@MainActivity.text
+                          )
+
+                      },
+                      LinearLayout.LayoutParams(
+                          0,
+                          dp(60),
+                          1f
+                      )
+                  )
+
+                  dateLine.addView(
+                      Button(this).apply{
+
+                          text="ALTERAR"
+
+                          isAllCaps=false
+
+                          setOnClickListener{
+                              choosePunchDate()
+                          }
+
+                      },
+                      LinearLayout.LayoutParams(
+                          dp(105),
+                          dp(52)
+                      )
+                  )
+
+                  dateCard.addView(dateLine)
+
+                  box.addView(
+                      dateCard,
+                      LinearLayout.LayoutParams(
+                          -1,
+                          dp(82)
+                      ).apply{
+                          bottomMargin=dp(8)
+                      }
+                  )
+
+                  box.addView(
+                      Button(this).apply{
+
+                          text="✎  REGISTRO MANUAL"
+
+                          isAllCaps=false
+
+                          textSize=14f
+
+                          setOnClickListener{
+                              showManualWheel(emp.id)
+                          }
+
+                      },
+                      LinearLayout.LayoutParams(
+                          -1,
+                          dp(54)
+                      ).apply{
+                          bottomMargin=dp(10)
+                      }
+                  )
+
+                  val rec=
+                      getRecord(
+                          emp.id,
+                          selectedPunchDate
+                      )
+
+                  val extra=
+                      extraEnabled(
+                          emp.id,
+                          selectedPunchDate
+                      )
+
+                  val next=
+                      nextPunchIndex(
+                          rec,
+                          extra
+                      )
+
+                  box.addView(
+                      Button(this).apply{
+
+                          text=
+                              if(next<0)
+                                  "PONTO DO DIA COMPLETO"
+                              else
+                                  "▶  REGISTRAR PRÓXIMA BATIDA\\\\n"+
+                                  punchNames[next]
+
+                          textSize=15f
+
+                          setTextColor(Color.WHITE)
+
+                          isAllCaps=false
+
+                          isEnabled=
+                              next>=0
+
+                          background(
+                              green,
+                              dp(12),
+                              dp(12),
+                              dp(12),
+                              dp(12)
+                          )
+
+                          setOnClickListener{
+                              registerPunch(
+                                  emp.id
+                              )
+                          }
+
+                      },
+                      LinearLayout.LayoutParams(
+                          -1,
+                          dp(72)
+                      ).apply{
+                          bottomMargin=dp(10)
+                      }
+                  )
+
+                  box.addView(
+                      TextView(this).apply{
+
+                          text="BATIDAS DO DIA"
+
+                          textSize=13f
+
+                          setTypeface(
+                              null,
+                              Typeface.BOLD
+                          )
+
+                          setTextColor(muted)
+
+                          setPadding(
+                              dp(4),
+                              dp(2),
+                              0,
+                              dp(6)
+                          )
+
+                      }
+                  )
+
+                  addPunchRow(
+                      box,
+                      rec,
+                      0,
+                      punchNames[0]
+                  )
+
+                  addPunchRow(
+                      box,
+                      rec,
+                      1,
+                      punchNames[1]
+                  )
+
+                  addPunchRow(
+                      box,
+                      rec,
+                      2,
+                      punchNames[2]
+                  )
+
+                  addPunchRow(
+                      box,
+                      rec,
+                      5,
+                      punchNames[5]
+                  )
+
+                  box.addView(
+                      TextView(this).apply{
+
+                          text="INTERVALO 2 (OPCIONAL)"
+
+                          textSize=13f
+
+                          setTypeface(
+                              null,
+                              Typeface.BOLD
+                          )
+
+                          setTextColor(muted)
+
+                          setPadding(
+                              dp(4),
+                              dp(8),
+                              0,
+                              dp(4)
+                          )
+
+                      }
+                  )
+
+                  addExtraSwitch(
+                      box,
+                      emp.id,
+                      selectedPunchDate,
+                      0,
+                      rec
+                  )
+
+                  addExtraSwitch(
+                      box,
+                      emp.id,
+                      selectedPunchDate,
+                      1,
+                      rec
+                  )
+
+                  val calc=calculate(rec)
+
+                  val cards=
+                      LinearLayout(this).apply{
+                          orientation=
+                              LinearLayout.HORIZONTAL
+                      }
+
+                  cards.addView(
+                      metricCard(
+                          "Horas trabalhadas",
+                          formatMin(calc.worked),
+                          blue
+                      ),
+                      LinearLayout.LayoutParams(
+                          0,
+                          dp(82),
+                          1f
+                      ).apply{
+                          rightMargin=dp(6)
+                      }
+                  )
+
+                  cards.addView(
+                      metricCard(
+                          "Horas extras",
+                          formatMin(
+                              calc.extra60+
+                              calc.extra100
+                          ),
+                          green
+                      ),
+                      LinearLayout.LayoutParams(
+                          0,
+                          dp(82),
+                          1f
+                      ).apply{
+                          leftMargin=dp(6)
+                      }
+                  )
+
+                  box.addView(cards)
+              }
+
+              private fun addPunchRow(
+                  box:LinearLayout,
+                  rec:PunchDay,
+                  index:Int,
+                  name:String
+              ){
+
+                  val row=
+                      LinearLayout(this).apply{
+
+                          orientation=
+                              LinearLayout.HORIZONTAL
+
+                          gravity=
+                              Gravity.CENTER_VERTICAL
+
+                          setPadding(
+                              dp(12),
+                              dp(4),
+                              dp(10),
+                              dp(4)
+                          )
+
+                          background(
+                              Color.WHITE,
+                              dp(12),
+                              dp(12),
+                              dp(12),
+                              dp(12)
+                          )
+
+                          elevation=
+                              dp(1).toFloat()
+                      }
+
+                  row.addView(
+                      TextView(this).apply{
+
+                          text=
+                              (index+1).toString()
+
+                          textSize=16f
+
+                          gravity=
+                              Gravity.CENTER
+
+                          setTypeface(
+                              null,
+                              Typeface.BOLD
+                          )
+
+                          background(
+                              0xFFEAF0F7.toInt(),
+                              30,
+                              30,
+                              30,
+                              30
+                          )
+
+                      },
+                      LinearLayout.LayoutParams(
+                          dp(42),
+                          dp(42)
+                      )
+                  )
+
+                  row.addView(
+                      TextView(this).apply{
+
+                          text=name
+
+                          textSize=15f
+
+                          setTextColor(
+                              this@MainActivity.text
+                          )
+
+                          setPadding(
+                              dp(12),
+                              0,
+                              0,
+                              0
+                          )
+
+                      },
+                      LinearLayout.LayoutParams(
+                          0,
+                          dp(52),
+                          1f
+                      )
+                  )
+
+                  row.addView(
+                      TextView(this).apply{
+
+                          text=
+                              rec.punches[index]
+                                  .ifBlank{
+                                      "--:--"
+                                  }
+
+                          textSize=15f
+
+                          setTextColor(
+                              if(
+                                  rec.punches[index]
+                                      .isBlank()
+                              )
+                                  muted
+                              else
+                                  darkBlue
+                          )
+
+                          setTypeface(
+                              null,
+                              Typeface.BOLD
+                          )
+
+                          gravity=
+                              Gravity.CENTER
+
+                      }
+                  )
+
+                  row.setOnClickListener{
+                      showEditWheel(
+                          rec,
+                          index
+                      )
+                  }
+
+                  box.addView(
+                      row,
+                      LinearLayout.LayoutParams(
+                          -1,
+                          dp(58)
+                      ).apply{
+                          bottomMargin=dp(7)
+                      }
+                  )
+              }
+
+              private fun addExtraSwitch(
+                  box:LinearLayout,
+                  empId:Long,
+                  date:String,
+                  which:Int,
+                  rec:PunchDay
+              ){
+
+                  val enabled=
+                      if(which==0)
+                          extraEnabled(
+                              empId,
+                              date
+                          )
+                      else
+                          extraReturnEnabled(
+                              empId,
+                              date
+                          )
+
+                  val index=
+                      if(which==0)3 else 4
+
+                  val title=
+                      if(which==0)
+                          "Saída intervalo 2"
+                      else
+                          "Retorno intervalo 2"
+
+                  val row=
+                      LinearLayout(this).apply{
+
+                          orientation=
+                              LinearLayout.HORIZONTAL
+
+                          gravity=
+                              Gravity.CENTER_VERTICAL
+
+                          setPadding(
+                              dp(12),
+                              dp(5),
+                              dp(10),
+                              dp(5)
+                          )
+
+                          background(
+                              Color.WHITE,
+                              dp(12),
+                              dp(12),
+                              dp(12),
+                              dp(12)
+                          )
+
+                          elevation=
+                              dp(1).toFloat()
+                      }
+
+                  row.addView(
+                      TextView(this).apply{
+
+                          text=
+                              (index+1).toString()
+
+                          textSize=16f
+
+                          gravity=
+                              Gravity.CENTER
+
+                          setTypeface(
+                              null,
+                              Typeface.BOLD
+                          )
+
+                          background(
+                              0xFFEAF0F7.toInt(),
+                              30,
+                              30,
+                              30,
+                              30
+                          )
+
+                      },
+                      LinearLayout.LayoutParams(
+                          dp(42),
+                          dp(42)
+                      )
+                  )
+
+                  row.addView(
+                      TextView(this).apply{
+
+                          text=title
+
+                          textSize=15f
+
+                          setTextColor(
+                              this@MainActivity.text
+                          )
+
+                          setPadding(
+                              dp(12),
+                              0,
+                              0,
+                              0
+                          )
+
+                      },
+                      LinearLayout.LayoutParams(
+                          0,
+                          dp(52),
+                          1f
+                      )
+                  )
+
+                  val sw=
+                      Switch(this).apply{
+
+                          isChecked=enabled
+
+                          text=
+                              if(isChecked)
+                                  "ATIVO"
+                              else
+                                  "ATIVAR"
+                      }
+
+                  if(which==1)
+                      sw.isEnabled=
+                          extraEnabled(
+                              empId,
+                              date
+                          )
+
+                  sw.setOnCheckedChangeListener{
+                      _,
+                      checked->
+
+                      if(which==0)
+                          setExtraEnabled(
+                              empId,
+                              date,
+                              checked
+                          )
+                      else
+                          setExtraReturnEnabled(
+                              empId,
+                              date,
+                              checked
+                          )
+
+                      showPunch()
+                  }
+
+                  row.addView(sw)
+
+                  box.addView(
+                      row,
+                      LinearLayout.LayoutParams(
+                          -1,
+                          dp(62)
+                      ).apply{
+                          bottomMargin=dp(7)
+                      }
+                  )
+
+                  if(enabled)
+                      addPunchRow(
+                          box,
+                          rec,
+                          index,
+                          title
+                      )
+              }
+
+              private fun nextPunchIndex(
+                  r:PunchDay,
+                  extra:Boolean
+              ):Int{
+
+                  if(
+                      r.punches[0].isBlank()
+                  )
+                      return 0
+
+                  if(
+                      r.punches[1].isBlank()
+                  )
+                      return 1
+
+                  if(
+                      r.punches[2].isBlank()
+                  )
+                      return 2
+
+                  if(
+                      extra &&
+                      r.punches[3].isBlank()
+                  )
+                      return 3
+
+                  if(
+                      extra &&
+                      extraReturnEnabled(
+                          r.employeeId,
+                          r.date
+                      ) &&
+                      r.punches[4].isBlank()
+                  )
+                      return 4
+
+                  if(
+                      r.punches[5].isBlank()
+                  )
+                      return 5
+
+                  return -1
+              }
+
+              private fun registerPunch(
+                  empId:Long
+              ){
+
+                  val r=
+                      getRecord(
+                          empId,
+                          selectedPunchDate
+                      )
+
+                  val n=
+                      nextPunchIndex(
+                          r,
+                          extraEnabled(
+                              empId,
+                              selectedPunchDate
+                          )
+                      )
+
+                  if(n<0)
+                      return
+
+                  if(
+                      selectedPunchDate==
+                      today()
+                  ){
+
+                      r.punches[n]=nowTime()
+
+                      saveData()
+
+                      showPunch()
+
+                      return
+                  }
+
+                  val e=
+                      timeEdit(
+                          "",
+                          punchNames[n]
+                      )
+
+                  AlertDialog.Builder(this)
+                      .setTitle(
+                          "Lançar ${punchNames[n]}"
+                      )
+                      .setMessage(
+                          df.format(
+                              parseIso(
+                                  selectedPunchDate
+                              )
+                          )
+                      )
+                      .setView(e)
+                      .setNegativeButton(
+                          "Cancelar",
+                          null
+                      )
+                      .setPositiveButton(
+                          "Salvar"
+                      ){_,_->
+
+                          val t=
+                              normalizeTime(
+                                  e.text.toString()
+                              )
+
+                          if(t.isNotBlank()){
+
+                              r.punches[n]=t
+
+                              saveData()
+
+                              showPunch()
+
+                          }else{
+
+                              Toast.makeText(
+                                  this,
+                                  "Horário inválido.",
+                                  Toast.LENGTH_LONG
+                              ).show()
+                          }
+
+                      }
+                      .show()
+              }
+
+              private fun showEditWheel(
+                  rec:PunchDay,
+                  index:Int
+              ){
+
+                  if(
+                      rec.punches[index].isBlank()
+                  ){
+
+                      Toast.makeText(
+                          this,
+                          "Esse registro ainda está vazio. Use REGISTRO MANUAL.",
+                          Toast.LENGTH_LONG
+                      ).show()
+
+                      return
+                  }
+
+                  val parts=
+                      rec.punches[index]
+                          .split(":")
+
+                  val currentHour=
+                      parts.getOrNull(0)
+                          ?.toIntOrNull()
+                          ?.coerceIn(0,23)
+                          ?:0
+
+                  val currentMinute=
+                      parts.getOrNull(1)
+                          ?.toIntOrNull()
+                          ?.coerceIn(0,59)
+                          ?:0
+
+                  val wrap=
+                      LinearLayout(this).apply{
+
+                          orientation=
+                              LinearLayout.VERTICAL
+
+                          gravity=
+                              Gravity.CENTER_HORIZONTAL
+
+                          setPadding(
+                              dp(10),
+                              0,
+                              dp(10),
+                              0
+                          )
+                      }
+
+                  wrap.addView(
+                      TextView(this).apply{
+
+                          text=
+                              "${punchNames[index]}\n"+
+                              df.format(
+                                  parseIso(rec.date)
+                              )
+
+                          gravity=
+                              Gravity.CENTER
+
+                          textSize=16f
+
+                          setTypeface(
+                              null,
+                              Typeface.BOLD
+                          )
+
+                          setTextColor(
+                              darkBlue
+                          )
+
+                          setPadding(
+                              0,
+                              dp(4),
+                              0,
+                              dp(8)
+                          )
+
+                      }
+                  )
+
+                  val wheels=
+                      LinearLayout(this).apply{
+
+                          orientation=
+                              LinearLayout.HORIZONTAL
+
+                          gravity=
+                              Gravity.CENTER
+                      }
+
+                  val hour=
+                      NumberPicker(this).apply{
+
+                          minValue=0
+                          maxValue=23
+
+                          value=
+                              currentHour
+
+                          wrapSelectorWheel=true
+
+                          descendantFocusability=
+                              NumberPicker
+                                  .FOCUS_BLOCK_DESCENDANTS
+                      }
+
+                  val minute=
+                      NumberPicker(this).apply{
+
+                          minValue=0
+                          maxValue=59
+
+                          value=
+                              currentMinute
+
+                          wrapSelectorWheel=true
+
+                          descendantFocusability=
+                              NumberPicker
+                                  .FOCUS_BLOCK_DESCENDANTS
+                      }
+
+                  styleWheel(hour)
+                  styleWheel(minute)
+
+                  val sep=
+                      TextView(this).apply{
+
+                          text=":"
+
+                          textSize=22f
+
+                          gravity=
+                              Gravity.CENTER
+                      }
+
+                  wheels.addView(
+                      hour,
+                      LinearLayout.LayoutParams(
+                          dp(72),
+                          dp(126)
+                      )
+                  )
+
+                  wheels.addView(
+                      sep,
+                      LinearLayout.LayoutParams(
+                          dp(28),
+                          dp(126)
+                      )
+                  )
+
+                  wheels.addView(
+                      minute,
+                      LinearLayout.LayoutParams(
+                          dp(72),
+                          dp(126)
+                      )
+                  )
+
+                  wrap.addView(wheels)
+
+                  val value=
+                      TextView(this).apply{
+
+                          text=
+                              "%02d:%02d".format(
+                                  Locale.US,
+                                  hour.value,
+                                  minute.value
+                              )
+
+                          textSize=24f
+
+                          setTypeface(
+                              null,
+                              Typeface.BOLD
+                          )
+
+                          setTextColor(
+                              blue
+                          )
+
+                          gravity=
+                              Gravity.CENTER
+
+                          setPadding(
+                              0,
+                              dp(5),
+                              0,
+                              dp(5)
+                          )
+                      }
+
+                  val listener=
+                      NumberPicker
+                          .OnValueChangeListener{
+                              _,_,_->
+
+                              value.text=
+                                  "%02d:%02d".format(
+                                      Locale.US,
+                                      hour.value,
+                                      minute.value
+                                  )
+                          }
+
+                  hour.setOnValueChangedListener(
+                      listener
+                  )
+
+                  minute.setOnValueChangedListener(
+                      listener
+                  )
+
+                  wrap.addView(value)
+
+                  val dialog=
+                      AlertDialog.Builder(this)
+                          .setTitle(
+                              "Editar registro"
+                          )
+                          .setView(wrap)
+                          .setNegativeButton(
+                              "Cancelar",
+                              null
+                          )
+                          .setPositiveButton(
+                              "SALVAR",
+                              null
+                          )
+                          .create()
+
+                  dialog.setOnShowListener{
+
+                      dialog.getButton(
+                          AlertDialog.BUTTON_POSITIVE
+                      ).setOnClickListener{
+
+                          rec.punches[index]=
+                              "%02d:%02d".format(
+                                  Locale.US,
+                                  hour.value,
+                                  minute.value
+                              )
+
+                          saveData()
+
+                          dialog.dismiss()
+
+                          showPunch()
+                      }
+                  }
+
+                  dialog.show()
+              }
+
+              private fun showManualWheel(
+                  empId:Long
+              ){
+
+                  val r=
+                      getRecord(
+                          empId,
+                          selectedPunchDate
+                      )
+
+                  val n=
+                      nextPunchIndex(
+                          r,
+                          extraEnabled(
+                              empId,
+                              selectedPunchDate
+                          )
+                      )
+
+                  if(n<0){
+
+                      Toast.makeText(
+                          this,
+                          "As batidas disponíveis deste dia já estão preenchidas.",
+                          Toast.LENGTH_LONG
+                      ).show()
+
+                      return
+                  }
+
+                  val wrap=
+                      LinearLayout(this).apply{
+
+                          orientation=
+                              LinearLayout.VERTICAL
+
+                          gravity=
+                              Gravity.CENTER_HORIZONTAL
+
+                          setPadding(
+                              dp(10),
+                              0,
+                              dp(10),
+                              0
+                          )
+                      }
+
+                  wrap.addView(
+                      TextView(this).apply{
+
+                          text=
+                              "${punchNames[n]}\n"+
+                              df.format(
+                                  parseIso(
+                                      selectedPunchDate
+                                  )
+                              )
+
+                          gravity=
+                              Gravity.CENTER
+
+                          textSize=16f
+
+                          setTypeface(
+                              null,
+                              Typeface.BOLD
+                          )
+
+                          setTextColor(
+                              darkBlue
+                          )
+
+                          setPadding(
+                              0,
+                              dp(4),
+                              0,
+                              dp(8)
+                          )
+                      }
+                  )
+
+                  val wheels=
+                      LinearLayout(this).apply{
+
+                          orientation=
+                              LinearLayout.HORIZONTAL
+
+                          gravity=
+                              Gravity.CENTER
+                      }
+
+                  val now=
+                      Calendar.getInstance()
+
+                  val hour=
+                      NumberPicker(this).apply{
+
+                          minValue=0
+                          maxValue=23
+
+                          value=
+                              now.get(
+                                  Calendar.HOUR_OF_DAY
+                              )
+
+                          wrapSelectorWheel=true
+
+                          descendantFocusability=
+                              NumberPicker
+                                  .FOCUS_BLOCK_DESCENDANTS
+                      }
+
+                  val minute=
+                      NumberPicker(this).apply{
+
+                          minValue=0
+                          maxValue=59
+
+                          value=
+                              now.get(
+                                  Calendar.MINUTE
+                              )
+
+                          wrapSelectorWheel=true
+
+                          descendantFocusability=
+                              NumberPicker
+                                  .FOCUS_BLOCK_DESCENDANTS
+                      }
+
+                  styleWheel(hour)
+                  styleWheel(minute)
+
+                  val sep=
+                      TextView(this).apply{
+
+                          text=":"
+
+                          textSize=22f
+
+                          gravity=
+                              Gravity.CENTER
+                      }
+
+                  wheels.addView(
+                      hour,
+                      LinearLayout.LayoutParams(
+                          dp(72),
+                          dp(126)
+                      )
+                  )
+
+                  wheels.addView(
+                      sep,
+                      LinearLayout.LayoutParams(
+                          dp(28),
+                          dp(126)
+                      )
+                  )
+
+                  wheels.addView(
+                      minute,
+                      LinearLayout.LayoutParams(
+                          dp(72),
+                          dp(126)
+                      )
+                  )
+
+                  wrap.addView(wheels)
+
+                  val value=
+                      TextView(this).apply{
+
+                          text=
+                              "%02d:%02d".format(
+                                  Locale.US,
+                                  hour.value,
+                                  minute.value
+                              )
+
+                          textSize=24f
+
+                          setTypeface(
+                              null,
+                              Typeface.BOLD
+                          )
+
+                          setTextColor(
+                              blue
+                          )
+
+                          gravity=
+                              Gravity.CENTER
+
+                          setPadding(
+                              0,
+                              dp(5),
+                              0,
+                              dp(5)
+                          )
+                      }
+
+                  val listener=
+                      NumberPicker
+                          .OnValueChangeListener{
+                              _,_,_->
+
+                              value.text=
+                                  "%02d:%02d".format(
+                                      Locale.US,
+                                      hour.value,
+                                      minute.value
+                                  )
+                          }
+
+                  hour.setOnValueChangedListener(
+                      listener
+                  )
+
+                  minute.setOnValueChangedListener(
+                      listener
+                  )
+
+                  wrap.addView(value)
+
+                  val dialog=
+                      AlertDialog.Builder(this)
+                          .setTitle(
+                              "Registro manual"
+                          )
+                          .setView(wrap)
+                          .setNegativeButton(
+                              "Cancelar",
+                              null
+                          )
+                          .setPositiveButton(
+                              "REGISTRAR",
+                              null
+                          )
+                          .create()
+
+                  dialog.setOnShowListener{
+
+                      dialog.getButton(
+                          AlertDialog.BUTTON_POSITIVE
+                      ).setOnClickListener{
+
+                          r.punches[n]=
+                              "%02d:%02d".format(
+                                  Locale.US,
+                                  hour.value,
+                                  minute.value
+                              )
+
+                          saveData()
+
+                          dialog.dismiss()
+
+                          showPunch()
+                      }
+                  }
+
+                  dialog.show()
+              }
+
+          '''
+
+          code=code[:start]+show+code[end:]
+
+          # Calculation
+          cstart=
+              code.find(
+                  '    private fun calculate(r:PunchDay):Calc{'
+              )
+
+          cend=
+              code.find(
+                  '    private fun minutesBetween',
+                  cstart
+              )
+
+          if cstart<0 or cend<0:
+              raise SystemExit(
+                  'ERRO: calculate não encontrado'
+              )
+
+          calc='''    private fun calculate(
+                  r:PunchDay
+              ):Calc{
+
+                  var worked=
+                      minutesBetween(
+                          r.punches[0],
+                          r.punches[1]
+                      )+
+                      minutesBetween(
+                          r.punches[2],
+                          r.punches[5]
+                      )
+
+                  val extra2=
+                      r.punches[3].isNotBlank()||
+                      r.punches[4].isNotBlank()
+
+                  if(extra2){
+
+                      worked=
+                          minutesBetween(
+                              r.punches[0],
+                              r.punches[1]
+                          )+
+                          minutesBetween(
+                              r.punches[2],
+                              r.punches[3]
+                          )+
+                          minutesBetween(
+                              r.punches[4],
+                              r.punches[5]
+                          )
+                  }
+
+                  val date=
+                      parseIso(r.date)
+
+                  if(!modeForDay(date))
+                      return Calc(
+                          worked,
+                          0,
+                          0,
+                          worked
+                      )
+
+                  val expected=
+                      durationMinutes(
+                          weeklyTarget
+                      )/
+                      (
+                          if(
+                              modeForDate(date)=="MS"
+                          )
+                              6
+                          else
+                              5
+                      )
+
+                  val extra=
+                      max(
+                          0,
+                          worked-expected
+                      )
+
+                  return Calc(
+                      worked,
+                      expected,
+                      extra,
+                      0
+                  )
+              }
+
+          '''
+
+          code=
+              code[:cstart]+
+              calc+
+              code[cend:]
+
+          # Android window/insets
+          imports=
+              'import androidx.core.view.WindowCompat\n'+
+              'import androidx.core.view.ViewCompat\n'+
+              'import androidx.core.view.WindowInsetsCompat\n'
+
+          if(
+              'import androidx.core.view.WindowCompat'
+              not in code
+          ):
+
+              code=
+                  code.replace(
+                      'import androidx.core.content.FileProvider\n',
+                      'import androidx.core.content.FileProvider\n'+
+                      imports,
+                      1
+                  )
+
+          if(
+              'WindowCompat.setDecorFitsSystemWindows(window,false)'
+              not in code
+          ):
+
+              anchor='        buildShell()\n'
+
+              if anchor not in code:
+                  raise SystemExit(
+                      'ERRO: buildShell não encontrado'
+                  )
+
+              inset='''        WindowCompat.setDecorFitsSystemWindows(window,false)
+                  window.statusBarColor=blue
+                  window.navigationBarColor=Color.WHITE
+                  window.decorView.systemUiVisibility=View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+
+                  ViewCompat.setOnApplyWindowInsetsListener(root){v,insets->
+
+                      val bars=
+                          insets.getInsets(
+                              WindowInsetsCompat.Type.systemBars()
+                          )
+
+                      v.setPadding(
+                          v.paddingLeft,
+                          bars.top,
+                          v.paddingRight,
+                          bars.bottom
+                      )
+
+                      insets
+                  }
+
+                  ViewCompat.requestApplyInsets(root)
+
+          '''
+
+              code=
+                  code.replace(
+                      anchor,
+                      anchor+inset,
+                      1
+                  )
+
+          # ÍCONE CORRETO:
+          # relógio + calendário + CONTROLE DE HORAS
+
+          icon_b64='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'
+
+          icon=root/'app/src/main/res/drawable/controlehoras_icon.jpg'
 
           icon.parent.mkdir(
               parents=True,
               exist_ok=True
           )
 
-          # ========================================================
-          # ÍCONE DIDHUUU ASTRONAUTA + GRAFITE
-          # ========================================================
-
-          icon_b64 = """
-/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDABIMDRANCxIQDhAUExIVGywdGxgYGzYnKSAsQDlEQz85Pj1HUGZXR0thTT0+WXlaYWltcnNyRVV9Nf2VlhbXrm42guIiwJ6MTgmipL8RXUZU5IjBf0BOPnQ9pBb6fJczxTbveOCrjGxc5wT16UD07bADbMKO6KxPJAxB/aeJV1C7RRhZAtyo8CeDfnVerfsrb7iP+kV7WrntbsOMHFsRx/8Alwrms9zsUPNYYwfXaKGnTke39zbaxdaiecSrRLhY7tRJ9Bsq3oeBoixLWN+kErbTDI8BbwVxhWpNBJsYEU7lT9KWokhAa6jTayf91P8AcUinUu3IiHFdgY8SV3Ebd5ZbngRxKDnSkzT37hIkyq/RX6q+Z86lb/rA0eZGMkqbtx6DIIJ/GqXunVmRO4oyNq8KtZ1DWAZOBPUcVgAhcCEQu+mx3CuykzRgqwOckH/JqdtctHpE0fFGWTcCefeXh8vzrljNAyrHNGHIYkE9OH+KKRrabZdvcCN4uLRBf2hHFfnQ0kDUh/TzJ2XLUoYfXaCR6XJNayPPMkTopZYc94nGeI9KsiD6xLBaxdxFRA7scBcAAmqLG5WHUUmdDKOOVJ58MUdqV2FhtjDEkIdRIQgwCckUigb7/eef61yEp83n2k7aBbDVmtEffDId0bZ545j50Db388byrDGJYdxKho923jUrdmujtEyRSod8bOcDPUfD5VCa7e1kSK2mYJCQoKHAbHM/iaYtp+E7Dj+pdeocItf+QkZE1F5VvXjkXBAVsbceg8KIe9uEnVr5NqhSyKqBd56cqZaFrESwGG8Z5GLqqZ486D1LXHa8k2xx4jYiMsoJTGRwNKDpGQ0gnVdQLCNMBkluo7kXciOnDhkcMeBHhTAS6e0Mc85kg3DPZgbgfIHpSZ5popSWLq5wTnOTnjxq1n7VbdIEEkhBAQDO07vCuTqGTOkz0K2UqWfBMLgU6lqKhl2JIQzD7ES1DVrn3i6kk6MSQPCimC6XaPDuD3c37Zwc7R9kH50mlfcTSs2F35MxFvWs1eBxKg2KKtbp4ZAysQR1FB10GsquVORLMoYYM0DPZ6kQ85NvcjlPGOZ/iH9xQx0K7WQSWs0M+DuDK4Bz6HFLUlK9aIS6Yda0akfnaZ9Lpsp2hUej6qsvae6OxOSeI4k/jURoOq9LST4j/eorfOPrGrF1Fx9Y0wVPmgNl2MYEj/w/qv8Ao5Pyq6fSNZnSJZLRyIl2LwHKuDVJB9Y1L9KSfaPxo6F+aTL2k50iUjQNWHKzk/KuH2f1U87OT8v96uOqSfbNROpufrGh6afNGFl3sJ6DRtTinRzZPtV1YgYzwPrVc+ialJM7i0cBmJGSOHH1rzag5+sara8Y9TSlExjMINuc4EsXRJAd17cwwjqN+9vgKu96ttPQpp6EORhp3+mfTwFLnuCetUM5NLqVeI+hn+Iy2WYuck1QTmuE1yosxMuFAn//2Q==
-"""
-
-          data = base64.b64decode(
-              "".join(icon_b64.split())
+          icon.write_bytes(
+              base64.b64decode(icon_b64)
           )
 
-          icon.write_bytes(data)
-
-          if not icon.exists():
-              raise SystemExit(
-                  "ERRO: ícone não foi criado"
-              )
-
-          if icon.stat().st_size < 1000:
-              raise SystemExit(
-                  "ERRO: ícone inválido"
-              )
-
-          print(
-              "ÍCONE DIDHUUU GRAVADO:",
-              icon.stat().st_size,
-              "bytes"
+          m=manifest.read_text(
+              encoding='utf-8'
           )
 
-      # ============================================================
-      # MANIFEST
-      # ============================================================
+          if(
+              'android:icon="@drawable/controlehoras_icon"'
+              not in m
+          ):
 
-      - name: Configurar ícone no Android
-        shell: python
-        run: |
-          from pathlib import Path
-
-          manifest = Path(
-              "ControleHoras/app/src/main/AndroidManifest.xml"
-          )
-
-          m = manifest.read_text(
-              encoding="utf-8"
-          )
-
-          if 'android:icon="@drawable/controlehoras_icon"' not in m:
-
-              m = m.replace(
-                  "<application",
+              m=m.replace(
+                  '<application',
                   '<application\n'
                   '        android:icon="@drawable/controlehoras_icon"\n'
                   '        android:roundIcon="@drawable/controlehoras_icon"',
@@ -553,62 +1926,156 @@ jobs:
 
           manifest.write_text(
               m,
+              encoding='utf-8'
+          )
+
+          src.write_text(
+              code,
+              encoding='utf-8'
+          )
+
+          print(
+              'CORREÇÕES FINAIS APLICADAS'
+          )
+
+      - name: Corrigir visual do relógio de rolagem
+        shell: python
+        run: |
+          from pathlib import Path
+
+          file=Path(
+              "ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
+          )
+
+          code=file.read_text(
               encoding="utf-8"
           )
 
-          if 'android:icon="@drawable/controlehoras_icon"' not in m:
-              raise SystemExit(
-                  "ERRO: ícone não foi configurado no Manifest"
+          # Rodas menores no celular
+          code=code.replace(
+              'LinearLayout.LayoutParams(dp(88),dp(150))',
+              'LinearLayout.LayoutParams(dp(72),dp(126))'
+          )
+
+          code=code.replace(
+              'LinearLayout.LayoutParams(dp(35),dp(150))',
+              'LinearLayout.LayoutParams(dp(28),dp(126))'
+          )
+
+          code=code.replace(
+              'text=":";textSize=28f;gravity=Gravity.CENTER',
+              'text=":";textSize=22f;gravity=Gravity.CENTER'
+          )
+
+          # Estilo das rodas
+          if(
+              'private fun styleWheel(picker:NumberPicker)'
+              not in code
+          ):
+
+              marker=
+                  '              private fun showEditWheel(rec:PunchDay,index:Int){\n'
+
+              helper=(
+                  '              private fun styleWheel(picker:NumberPicker){\n'
+                  '                  picker.setBackgroundColor(Color.TRANSPARENT)\n'
+                  '                  picker.wrapSelectorWheel=true\n'
+                  '                  picker.descendantFocusability=NumberPicker.FOCUS_BLOCK_DESCENDANTS\n'
+                  '                  picker.post{\n'
+                  '                      for(i in 0 until picker.childCount){\n'
+                  '                          val child=picker.getChildAt(i)\n'
+                  '                          if(child is TextView){\n'
+                  '                              child.setTextColor(darkBlue)\n'
+                  '                              child.textSize=21f\n'
+                  '                              child.gravity=Gravity.CENTER\n'
+                  '                              child.setTypeface(null,Typeface.BOLD)\n'
+                  '                          }\n'
+                  '                      }\n'
+                  '                  }\n'
+                  '              }\n\n'
               )
 
-          print("MANIFEST COM ÍCONE DIDHUUU OK")
+              if marker not in code:
+                  raise SystemExit(
+                      'ERRO: showEditWheel não encontrado'
+                  )
 
-      # ============================================================
-      # VALIDAÇÃO FINAL
-      # ============================================================
+              code=
+                  code.replace(
+                      marker,
+                      helper+marker,
+                      1
+                  )
 
-      - name: Validar projeto final
+          target=
+              "                  val minute=NumberPicker(this).apply{minValue=0;maxValue=59;value=currentMinute;wrapSelectorWheel=true;descendantFocusability=NumberPicker.FOCUS_BLOCK_DESCENDANTS}\n"
+
+          if target in code:
+
+              code=
+                  code.replace(
+                      target,
+                      target+
+                      '                  styleWheel(hour)\n'
+                      '                  styleWheel(minute)\n',
+                      1
+                  )
+
+          target2=
+              "                  val minute=NumberPicker(this).apply{minValue=0;maxValue=59;value=now.get(Calendar.MINUTE);wrapSelectorWheel=true;descendantFocusability=NumberPicker.FOCUS_BLOCK_DESCENDANTS}\n"
+
+          if target2 in code:
+
+              code=
+                  code.replace(
+                      target2,
+                      target2+
+                      '                  styleWheel(hour)\n'
+                      '                  styleWheel(minute)\n',
+                      1
+                  )
+
+          file.write_text(
+              code,
+              encoding="utf-8"
+          )
+
+          print(
+              "RELÓGIO DE ROLAGEM AJUSTADO"
+          )
+
+      - name: Validar código e ícone
         shell: bash
         run: |
           set -e
 
           FILE="ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
+
           ICON="ControleHoras/app/src/main/res/drawable/controlehoras_icon.jpg"
-          MANIFEST="ControleHoras/app/src/main/AndroidManifest.xml"
 
           test -s "$FILE"
           test -s "$ICON"
 
-          grep -q "extra2Enabled" "$FILE"
-          grep -q "showManualWheel" "$FILE"
-          grep -q "showEditWheel" "$FILE"
-          grep -q "nextPunchIndex" "$FILE"
-          grep -q "punchNames" "$FILE"
-          grep -q "styleHourMinutePicker" "$FILE"
+          grep -q 'extra2Enabled' "$FILE"
+          grep -q 'showManualWheel' "$FILE"
+          grep -q 'showEditWheel' "$FILE"
+          grep -q 'nextPunchIndex' "$FILE"
+          grep -q 'styleWheel' "$FILE"
 
           grep -q \
-            "WindowCompat.setDecorFitsSystemWindows" \
+            'WindowCompat.setDecorFitsSystemWindows' \
             "$FILE"
 
           grep -q \
             'controlehoras_icon' \
-            "$MANIFEST"
+            ControleHoras/app/src/main/AndroidManifest.xml
 
           if grep -q 'Button(context)' "$FILE"; then
-            echo "ERRO: Button(context) encontrado"
+            echo "ERRO: Button(context)"
             exit 1
           fi
 
-          echo "========================================"
-          echo "VALIDAÇÃO FINAL OK"
-          echo "========================================"
-
-          echo "Tamanho do ícone:"
-          ls -lh "$ICON"
-
-      # ============================================================
-      # GRADLE
-      # ============================================================
+          echo "VALIDAÇÃO OK"
 
       - name: Instalar Gradle 8.11.1
         shell: bash
@@ -634,11 +2101,8 @@ jobs:
         run: |
           set -e
 
-          gradle clean --no-daemon
-
-      # ============================================================
-      # GERAR APK
-      # ============================================================
+          gradle clean \
+            --no-daemon
 
       - name: Gerar APK
         working-directory: ControleHoras
@@ -646,9 +2110,7 @@ jobs:
         run: |
           set -e
 
-          echo "========================================"
           echo "GERANDO APK"
-          echo "========================================"
 
           gradle assembleDebug \
             --no-daemon \
@@ -658,15 +2120,9 @@ jobs:
 
           test -s "$APK"
 
-          echo "========================================"
           echo "APK GERADO COM SUCESSO"
-          echo "========================================"
 
           ls -lh "$APK"
-
-      # ============================================================
-      # VERIFICAR APK
-      # ============================================================
 
       - name: Verificar APK
         working-directory: ControleHoras
@@ -680,11 +2136,7 @@ jobs:
 
           unzip -t "$APK" >/dev/null
 
-          echo "APK VALIDADO COM SUCESSO"
-
-      # ============================================================
-      # PUBLICAR APK
-      # ============================================================
+          echo "APK VALIDADO"
 
       - name: Publicar APK
         uses: actions/upload-artifact@v4
