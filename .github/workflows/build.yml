@@ -62,7 +62,7 @@ jobs:
           print("Linhas originais:", len(codigo.splitlines()))
 
           # ======================================================
-          # 1 - CORRIGIR SALÁRIO
+          # SALÁRIO
           # ======================================================
 
           codigo = codigo.replace(
@@ -75,10 +75,8 @@ jobs:
               'setText(if(existing != null) existing.salary.toString() else "")'
           )
 
-          print("OK - salário")
-
           # ======================================================
-          # 2 - CORRIGIR COR
+          # CORES
           # ======================================================
 
           codigo = codigo.replace(
@@ -86,10 +84,8 @@ jobs:
               "setTextColor(this@MainActivity.text)"
           )
 
-          print("OK - cores")
-
           # ======================================================
-          # 3 - CORRIGIR HISTÓRICO MENSAL
+          # HISTÓRICO
           # ======================================================
 
           codigo = codigo.replace(
@@ -97,49 +93,22 @@ jobs:
               'it.date.startsWith(SimpleDateFormat("yyyy-MM", Locale.US).format(Date()))'
           )
 
-          print("OK - histórico")
-
           # ======================================================
-          # 4 - CORRIGIR addView() COM MARGEM
-          # ======================================================
-          #
-          # O código original possui chamadas incompatíveis com
-          # a API atual do Android, equivalentes a:
-          #
-          # addView(view, 0, 0, 0, dp(10))
-          #
-          # e:
-          #
-          # addView(view, 0, 0, 0, dp(12))
-          #
-          # Essas chamadas fazem o Kotlin acusar:
-          # "None of the following candidates is applicable"
-          #
-          # Transformamos em addView(view, LayoutParams).
+          # CORRIGIR addView()
           # ======================================================
 
-          padrao_addview_10 = re.compile(
-              r',\s*0\s*,\s*0\s*,\s*0\s*,\s*dp\(10\)\)'
-          )
-
-          codigo, quantidade10 = padrao_addview_10.subn(
+          codigo = re.sub(
+              r',\s*0\s*,\s*0\s*,\s*0\s*,\s*dp\(10\)\)',
               ', LinearLayout.LayoutParams(-1, -2).apply{bottomMargin=dp(10)})',
               codigo
           )
 
-          padrao_addview_12 = re.compile(
-              r',\s*0\s*,\s*0\s*,\s*0\s*,\s*dp\(12\)\)'
-          )
-
-          codigo, quantidade12 = padrao_addview_12.subn(
+          codigo = re.sub(
+              r',\s*0\s*,\s*0\s*,\s*0\s*,\s*dp\(12\)\)',
               ', LinearLayout.LayoutParams(-1, -2).apply{bottomMargin=dp(12)})',
               codigo
           )
 
-          print("OK - addView dp(10):", quantidade10)
-          print("OK - addView dp(12):", quantidade12)
-
-          # Também corrige a forma antiga caso apareça com espaços.
           codigo = codigo.replace(
               "}, 0, 0, 0, dp(10))",
               "}, LinearLayout.LayoutParams(-1, -2).apply{bottomMargin=dp(10)})"
@@ -150,8 +119,10 @@ jobs:
               "}, LinearLayout.LayoutParams(-1, -2).apply{bottomMargin=dp(12)})"
           )
 
+          print("OK - addView")
+
           # ======================================================
-          # 5 - NORMALIZAÇÃO DE HORÁRIO
+          # NORMALIZAÇÃO DE HORÁRIO
           # ======================================================
 
           if "private fun normalizeTime(" not in codigo:
@@ -161,11 +132,9 @@ jobs:
               )
 
               if marcador not in codigo:
-                  raise SystemExit(
-                      "ERRO: getRecord não encontrado."
-                  )
+                  raise SystemExit("ERRO: getRecord não encontrado.")
 
-              helper_lines = [
+              helper = "\n".join([
                   "    private fun normalizeTime(value:String):String{",
                   "        val digits=value.filter{it.isDigit()}.take(4)",
                   "        if(digits.length!=4)return \"\"",
@@ -224,9 +193,7 @@ jobs:
                   "        return e",
                   "    }",
                   ""
-              ]
-
-              helper = "\n".join(helper_lines)
+              ])
 
               codigo = codigo.replace(
                   marcador,
@@ -234,30 +201,20 @@ jobs:
                   1
               )
 
-              print("OK - normalizeTime/timeEdit")
-
-          else:
-              print("OK - funções de horário já existem")
-
           # ======================================================
-          # 6 - EDIÇÃO MANUAL DO PONTO
+          # EDIÇÃO MANUAL
           # ======================================================
 
-          padrao = re.compile(
+          codigo = re.sub(
               r'val e=EditText\(this\)\.apply\{'
               r'setText\(r\.punches\[index\]\);'
               r'hint="HH:mm";'
               r'inputType=2;'
-              r'setSingleLine\(\)\}'
-          )
-
-          codigo, quantidade = padrao.subn(
+              r'setSingleLine\(\)\}',
               'val e=timeEdit(r.punches[index],punchNames[index])',
               codigo,
               count=1
           )
-
-          print("OK - edição manual:", quantidade)
 
           codigo = codigo.replace(
               'r.punches[index]=e.text.toString();saveData();showPunch()',
@@ -265,25 +222,20 @@ jobs:
           )
 
           # ======================================================
-          # 7 - EDIÇÃO DO REGISTRO COMPLETO
+          # EDIÇÃO DO HISTÓRICO
           # ======================================================
 
-          padrao = re.compile(
+          codigo = re.sub(
               r'val fields=r\.punches\.mapIndexed'
               r'\{i,v->EditText\(this\)\.apply\{'
               r'hint=punchNames\[i\];'
               r'setText\(v\);'
               r'inputType=2;'
-              r'setSingleLine\(\);\}\}'
-          )
-
-          codigo, quantidade = padrao.subn(
+              r'setSingleLine\(\);\}\}',
               'val fields=r.punches.mapIndexed{i,v->timeEdit(v,punchNames[i])}',
               codigo,
               count=1
           )
-
-          print("OK - edição histórico:", quantidade)
 
           codigo = codigo.replace(
               'fields.forEachIndexed{i,e->r.punches[i]=e.text.toString()};saveData();showHistory()',
@@ -291,33 +243,7 @@ jobs:
           )
 
           # ======================================================
-          # 8 - ESCALA
-          # ======================================================
-
-          padrao = re.compile(
-              r'val ed=EditText\(this\)\.apply\{'
-              r'setText\(p\.second\);'
-              r'hint="00:00";'
-              r'gravity=Gravity\.CENTER;'
-              r'inputType=2;'
-              r'setSingleLine\(\)\}'
-          )
-
-          codigo, quantidade = padrao.subn(
-              'val ed=timeEdit(p.second,"00:00").apply{gravity=Gravity.CENTER}',
-              codigo,
-              count=1
-          )
-
-          print("OK - escala:", quantidade)
-
-          codigo = codigo.replace(
-              '0->s.e=ed.text.toString();1->s.x1=ed.text.toString();2->s.r1=ed.text.toString();3->s.x2=ed.text.toString()',
-              '0->s.e=normalizeTime(ed.text.toString());1->s.x1=normalizeTime(ed.text.toString());2->s.r1=normalizeTime(ed.text.toString());3->s.x2=normalizeTime(ed.text.toString())'
-          )
-
-          # ======================================================
-          # 9 - MINUTES BETWEEN
+          # MINUTES BETWEEN
           # ======================================================
 
           inicio = codigo.find(
@@ -339,7 +265,7 @@ jobs:
                   "ERRO: formatMin não encontrada."
               )
 
-          minutes_lines = [
+          minutes = "\n".join([
               "    private fun minutesBetween(a:String,b:String):Int{",
               "        val x=normalizeTime(a)",
               "        val y=normalizeTime(b)",
@@ -359,95 +285,364 @@ jobs:
               "        }",
               "    }",
               ""
-          ]
+          ])
 
-          minutes_between = "\n".join(minutes_lines)
-
-          codigo = (
-              codigo[:inicio]
-              + minutes_between
-              + codigo[fim:]
-          )
-
-          print("OK - minutesBetween")
+          codigo = codigo[:inicio] + minutes + codigo[fim:]
 
           # ======================================================
-          # 10 - FORMATMIN
+          # FORMATMIN
           # ======================================================
 
           inicio = codigo.find(
               "    private fun formatMin(m:Int):String="
           )
 
-          if inicio == -1:
-              raise SystemExit(
-                  "ERRO: formatMin não encontrada."
-              )
-
-          fim = codigo.find(
-              "\n",
-              inicio
-          )
+          fim = codigo.find("\n", inicio)
 
           if fim == -1:
               fim = len(codigo)
 
-          format_min = (
-              '    private fun formatMin(m:Int):String='
-              '"%02d:%02d".format(Locale.US,max(0,m)/60,max(0,m)%60)'
-          )
-
           codigo = (
               codigo[:inicio]
-              + format_min
+              + '    private fun formatMin(m:Int):String="%02d:%02d".format(Locale.US,max(0,m)/60,max(0,m)%60)'
               + codigo[fim:]
           )
 
-          print("OK - formatMin")
-
           # ======================================================
-          # 11 - VALIDAÇÕES
+          # NOVA VARIÁVEL: CARGA SEMANAL
           # ======================================================
 
-          obrigatorias = [
+          marcador = (
+              '    private val scale = linkedMapOf<String, DayScale>()'
+          )
+
+          if marcador not in codigo:
+              raise SystemExit("ERRO: variável scale não encontrada.")
+
+          codigo = codigo.replace(
+              marcador,
+              marcador + '\n    private var weeklyTarget:String = "44:00"',
+              1
+          )
+
+          # ======================================================
+          # LOAD DATA
+          # ======================================================
+
+          marcador = (
+              '    private fun loadData() {'
+          )
+
+          pos = codigo.find(marcador)
+
+          if pos == -1:
+              raise SystemExit("ERRO: loadData não encontrada.")
+
+          trecho = (
+              '        weeklyTarget=normalizeTime(prefs.getString("weeklyTarget","44:00")?:"44:00").ifBlank{"44:00"}\n'
+          )
+
+          pos_insert = codigo.find("\n", pos) + 1
+
+          codigo = (
+              codigo[:pos_insert]
+              + trecho
+              + codigo[pos_insert:]
+          )
+
+          # ======================================================
+          # SAVE DATA
+          # ======================================================
+
+          marcador = (
+              '        val e = prefs.edit().putString("records", ra.toString())'
+          )
+
+          if marcador not in codigo:
+              raise SystemExit("ERRO: saveData não encontrada.")
+
+          codigo = codigo.replace(
+              marcador,
+              '        val e = prefs.edit().putString("records", ra.toString()).putString("weeklyTarget", weeklyTarget)',
+              1
+          )
+
+          # ======================================================
+          # SUBSTITUIR SHOWSCALE
+          # ======================================================
+
+          inicio = codigo.find(
+              "    private fun showScale() {"
+          )
+
+          fim = codigo.find(
+              "    private fun employeeDialog",
+              inicio
+          )
+
+          if inicio == -1 or fim == -1:
+              raise SystemExit("ERRO: showScale não encontrada.")
+
+          escala = "\n".join([
+              "    private fun showScale() {",
+              "        val box=page(\"Escala Semanal\")",
+              "",
+              "        box.addView(infoCard(\"Configure os dias trabalhados. O aplicativo distribui automaticamente as 44 horas semanais entre os dias marcados como TRABALHA.\"))",
+              "",
+              "        val semanal=card()",
+              "        val semanalLine=LinearLayout(this).apply{",
+              "            orientation=LinearLayout.HORIZONTAL",
+              "            gravity=Gravity.CENTER_VERTICAL",
+              "            setPadding(dp(14),dp(8),dp(14),dp(8))",
+              "        }",
+              "",
+              "        semanalLine.addView(",
+              "            TextView(this).apply{",
+              "                text=\"Carga semanal\"",
+              "                textSize=16f",
+              "                setTypeface(null,Typeface.BOLD)",
+              "                setTextColor(darkBlue)",
+              "            },",
+              "            LinearLayout.LayoutParams(0,dp(55),1f)",
+              "        )",
+              "",
+              "        val cargaSemanal=timeEdit(weeklyTarget,\"44:00\").apply{",
+              "            gravity=Gravity.CENTER",
+              "        }",
+              "",
+              "        cargaSemanal.setOnFocusChangeListener{_,hasFocus->",
+              "            if(!hasFocus){",
+              "                val v=normalizeTime(cargaSemanal.text.toString())",
+              "                if(v.isNotBlank()){",
+              "                    weeklyTarget=v",
+              "                    cargaSemanal.setText(v)",
+              "                    cargaSemanal.setSelection(cargaSemanal.text.length)",
+              "                    saveData()",
+              "                }",
+              "            }",
+              "        }",
+              "",
+              "        semanalLine.addView(",
+              "            cargaSemanal,",
+              "            LinearLayout.LayoutParams(dp(110),dp(55))",
+              "        )",
+              "",
+              "        semanal.addView(semanalLine)",
+              "",
+              "        box.addView(",
+              "            semanal,",
+              "            LinearLayout.LayoutParams(-1,dp(75)).apply{bottomMargin=dp(10)}",
+              "        )",
+              "",
+              "        days.forEachIndexed{i,d->",
+              "",
+              "            val s=scale[d]!!",
+              "            val row=card()",
+              "",
+              "            val line=LinearLayout(this).apply{",
+              "                orientation=LinearLayout.VERTICAL",
+              "                setPadding(dp(12),dp(8),dp(12),dp(8))",
+              "            }",
+              "",
+              "            val top=LinearLayout(this).apply{",
+              "                orientation=LinearLayout.HORIZONTAL",
+              "                gravity=Gravity.CENTER_VERTICAL",
+              "            }",
+              "",
+              "            top.addView(",
+              "                TextView(this).apply{",
+              "                    text=d",
+              "                    textSize=16f",
+              "                    setTypeface(null,Typeface.BOLD)",
+              "                    setTextColor(darkBlue)",
+              "                },",
+              "                LinearLayout.LayoutParams(0,dp(48),1f)",
+              "            )",
+              "",
+              "            val sw=Switch(this).apply{",
+              "                text=if(s.enabled)\"TRABALHA\" else \"FOLGA\"",
+              "                isChecked=s.enabled",
+              "            }",
+              "",
+              "            sw.setOnCheckedChangeListener{_,v->",
+              "                s.enabled=v",
+              "                sw.text=if(v)\"TRABALHA\" else \"FOLGA\"",
+              "                saveData()",
+              "                showScale()",
+              "            }",
+              "",
+              "            top.addView(sw)",
+              "            line.addView(top)",
+              "",
+              "            if(s.enabled){",
+              "",
+              "                val times=LinearLayout(this).apply{",
+              "                    orientation=LinearLayout.HORIZONTAL",
+              "                }",
+              "",
+              "                listOf(",
+              "                    \"Entrada\" to s.e,",
+              "                    \"Saída 1\" to s.x1,",
+              "                    \"Retorno 1\" to s.r1,",
+              "                    \"Saída 2\" to s.x2",
+              "                ).forEachIndexed{j,p->",
+              "",
+              "                    val ed=timeEdit(p.second,p.first).apply{",
+              "                        gravity=Gravity.CENTER",
+              "                    }",
+              "",
+              "                    ed.setOnFocusChangeListener{_,has->",
+              "                        if(!has){",
+              "                            val v=normalizeTime(ed.text.toString())",
+              "                            when(j){",
+              "                                0->s.e=v",
+              "                                1->s.x1=v",
+              "                                2->s.r1=v",
+              "                                3->s.x2=v",
+              "                            }",
+              "                            saveData()",
+              "                        }",
+              "                    }",
+              "",
+              "                    times.addView(",
+              "                        ed,",
+              "                        LinearLayout.LayoutParams(0,dp(55),1f).apply{",
+              "                            if(j<3)rightMargin=dp(4)",
+              "                        }",
+              "                    )",
+              "                }",
+              "",
+              "                line.addView(times)",
+              "",
+              "                val cargaDia=TextView(this).apply{",
+              "                    textSize=13f",
+              "                    setTextColor(muted)",
+              "                    setPadding(0,dp(5),0,0)",
+              "                }",
+              "",
+              "                val diasAtivos=scale.values.count{it.enabled}.coerceAtLeast(1)",
+              "                val semanalMin=minutesBetween(\"00:00\",weeklyTarget)",
+              "                val diaria=semanalMin/diasAtivos",
+              "                cargaDia.text=\"Carga automática do dia: ${formatMin(diaria)}\"",
+              "",
+              "                line.addView(cargaDia)",
+              "            }",
+              "",
+              "            row.addView(line)",
+              "",
+              "            box.addView(",
+              "                row,",
+              "                LinearLayout.LayoutParams(",
+              "                    -1,",
+              "                    if(s.enabled)dp(180) else dp(70)",
+              "                ).apply{bottomMargin=dp(8)}",
+              "            )",
+              "        }",
+              "    }",
+              "",
+              ""
+          ])
+
+          codigo = codigo[:inicio] + escala + codigo[fim:]
+
+          # ======================================================
+          # SUBSTITUIR CALCULATE
+          # ======================================================
+
+          inicio = codigo.find(
+              "    private fun calculate(r:PunchDay):Calc{"
+          )
+
+          fim = codigo.find(
+              "    private fun minutesBetween",
+              inicio
+          )
+
+          if inicio == -1 or fim == -1:
+              raise SystemExit("ERRO: calculate não encontrada.")
+
+          calculate = "\n".join([
+              "    private fun calculate(r:PunchDay):Calc{",
+              "",
+              "        var worked=0",
+              "",
+              "        worked+=minutesBetween(r.punches[0],r.punches[1])",
+              "        worked+=minutesBetween(r.punches[2],r.punches[3])",
+              "        worked+=minutesBetween(r.punches[4],r.punches[5])",
+              "",
+              "        val cal=Calendar.getInstance().apply{",
+              "            time=parseIso(r.date)",
+              "        }",
+              "",
+              "        val key=cal.get(Calendar.DAY_OF_WEEK)",
+              "",
+              "        val index=dayKeys.indexOf(key)",
+              "",
+              "        val d=if(index>=0)scale[days[index]] else null",
+              "",
+              "        if(d==null || !d.enabled){",
+              "            return Calc(worked,0,0,worked)",
+              "        }",
+              "",
+              "        val semanal=minutesBetween(\"00:00\",weeklyTarget)",
+              "",
+              "        val diasTrabalhados=scale.values.count{it.enabled}",
+              "",
+              "        val expected=",
+              "            if(diasTrabalhados>0)",
+              "                semanal/diasTrabalhados",
+              "            else",
+              "                0",
+              "",
+              "        val extra=max(0,worked-expected)",
+              "",
+              "        return Calc(",
+              "            worked,",
+              "            expected,",
+              "            extra,",
+              "            0",
+              "        )",
+              "    }",
+              "",
+              ""
+          ])
+
+          codigo = codigo[:inicio] + calculate + codigo[fim:]
+
+          # ======================================================
+          # VALIDAÇÃO
+          # ======================================================
+
+          obrigatorias=[
               "private fun normalizeTime",
               "private fun timeEdit",
               "private fun minutesBetween",
               "private fun formatMin",
-              "private fun editPunch",
-              "private fun editRecord",
-              "private fun employeeDialog",
-              "private fun confirmDelete",
-              "private fun showPunch",
-              "private fun showHistory",
-              "private fun showReport",
-              "private fun showEmployees",
-              "private fun showScale"
+              "private fun calculate(r:PunchDay):Calc",
+              "private var weeklyTarget:String = \"44:00\"",
+              "Carga semanal",
+              "Carga automática do dia"
           ]
 
-          for funcao in obrigatorias:
-              if funcao not in codigo:
+          for item in obrigatorias:
+              if item not in codigo:
                   raise SystemExit(
-                      "ERRO FINAL: função ausente: " + funcao
+                      "ERRO: item ausente: " + item
                   )
 
-          abertas = codigo.count("{")
-          fechadas = codigo.count("}")
+          abertas=codigo.count("{")
+          fechadas=codigo.count("}")
 
           print("========================================")
           print("VALIDAÇÃO FINAL")
           print("========================================")
-          print("Linhas:", len(codigo.splitlines()))
-          print("Chaves abertas:", abertas)
-          print("Chaves fechadas:", fechadas)
+          print("Linhas:",len(codigo.splitlines()))
+          print("Chaves:",abertas,fechadas)
 
-          if abertas != fechadas:
+          if abertas!=fechadas:
               raise SystemExit(
-                  f"ERRO: chaves incompatíveis {abertas}/{fechadas}"
+                  f"ERRO DE CHAVES: {abertas}/{fechadas}"
               )
-
-          if "%02d:%02d" not in codigo:
-              raise SystemExit("ERRO: formato 00:00")
 
           arquivo.write_text(
               codigo,
@@ -455,7 +650,7 @@ jobs:
           )
 
           print("========================================")
-          print("MAINACTIVITY ORIGINAL CORRIGIDA")
+          print("MAINACTIVITY CORRIGIDA")
           print("========================================")
 
       - name: Validar código
@@ -463,30 +658,34 @@ jobs:
         run: |
           from pathlib import Path
 
-          arquivo = Path(
+          arquivo=Path(
               "ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
           )
 
-          codigo = arquivo.read_text(encoding="utf-8")
+          codigo=arquivo.read_text(encoding="utf-8")
 
-          obrigatorias = [
+          obrigatorias=[
               "private fun normalizeTime",
               "private fun timeEdit",
               "private fun minutesBetween",
-              "private fun formatMin"
+              "private fun formatMin",
+              "private fun calculate(r:PunchDay):Calc",
+              "private var weeklyTarget:String = \"44:00\"",
+              "Carga semanal",
+              "Carga automática do dia"
           ]
 
           for item in obrigatorias:
               if item not in codigo:
-                  raise SystemExit("ERRO: " + item)
+                  raise SystemExit("ERRO: "+item)
 
-          abertas = codigo.count("{")
-          fechadas = codigo.count("}")
+          abertas=codigo.count("{")
+          fechadas=codigo.count("}")
 
-          print("Linhas:", len(codigo.splitlines()))
-          print("Chaves:", abertas, fechadas)
+          print("Linhas:",len(codigo.splitlines()))
+          print("Chaves:",abertas,fechadas)
 
-          if abertas != fechadas:
+          if abertas!=fechadas:
               raise SystemExit("ERRO DE CHAVES")
 
           print("CÓDIGO VALIDADO")
