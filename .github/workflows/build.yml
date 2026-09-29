@@ -14,7 +14,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Baixar projeto
         uses: actions/checkout@v4
 
@@ -40,684 +39,3246 @@ jobs:
 
           echo "PROJETO ORIGINAL OK"
 
-      - name: Corrigir MainActivity
+      - name: Aplicar MainActivity corrigida
         shell: python
         run: |
           from pathlib import Path
-          import re
 
-          arquivo = Path(
-              "ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
+          root = Path("ControleHoras")
+          main = root / "app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
+          manifest = root / "app/src/main/AndroidManifest.xml"
+          xml = root / "app/src/main/res/xml"
+
+          xml.mkdir(
+              parents=True,
+              exist_ok=True
           )
 
-          codigo = arquivo.read_text(encoding="utf-8")
+          main.write_text(r'''package com.didhuuu.controlehoras
 
-          print("Linhas originais:", len(codigo.splitlines()))
+          import android.app.*
+          import android.os.Bundle
+          import android.graphics.*
+          import android.graphics.drawable.GradientDrawable
+          import android.content.*
+          import android.view.*
+          import android.widget.*
+          import androidx.core.content.FileProvider
+          import org.json.JSONArray
+          import org.json.JSONObject
+          import java.io.File
+          import java.text.NumberFormat
+          import java.text.SimpleDateFormat
+          import java.util.*
+          import kotlin.math.max
 
-          # =====================================================
-          # CORREÇÃO DA INICIALIZAÇÃO
-          # =====================================================
-          # Evita crash ao abrir o aplicativo.
-          #
-          # ERRADO:
-          # private var selectedPunchDate:String=today()
-          #
-          # today() usa iso, que é declarado depois.
-          #
-          # CORRETO:
-          # inicializa vazio e define today() dentro do onCreate.
-          # =====================================================
+          class MainActivity : Activity() {
 
-          codigo = re.sub(
-              r'private\s+var\s+selectedPunchDate\s*=\s*today\(\)',
-              'private var selectedPunchDate:String=""',
-              codigo
-          )
+              data class Employee(
+                  var id:Long,
+                  var name:String,
+                  var salary:Double
+              )
 
-          codigo = re.sub(
-              r'private\s+var\s+selectedPunchDate\s*:\s*String\s*=\s*today\(\)',
-              'private var selectedPunchDate:String=""',
-              codigo
-          )
+              data class DayScale(
+                  var enabled:Boolean=true,
+                  var e:String="08:00",
+                  var x1:String="12:00",
+                  var r1:String="13:30",
+                  var x2:String="17:30"
+              )
 
-          if "private var selectedPunchDate" not in codigo:
-              marker = "private var selectedEmployeeId"
-              if marker in codigo:
-                  codigo = codigo.replace(
-                      marker,
-                      marker,
+              data class PunchDay(
+                  var employeeId:Long,
+                  var employeeName:String,
+                  var date:String,
+                  var punches:MutableList<String> =
+                      MutableList(6){""}
+              )
+
+              data class Calc(
+                  val worked:Int,
+                  val expected:Int,
+                  val extra60:Int,
+                  val extra100:Int
+              )
+
+              private val blue=Color.rgb(0,92,205)
+              private val darkBlue=Color.rgb(13,54,105)
+              private val green=Color.rgb(0,170,82)
+              private val bg=Color.rgb(245,248,252)
+              private val text=Color.rgb(25,35,50)
+              private val muted=Color.rgb(105,115,130)
+
+              private lateinit var root:LinearLayout
+              private lateinit var content:FrameLayout
+              private lateinit var nav:LinearLayout
+
+              private var selectedTab=0
+              private var selectedEmployeeId=0L
+
+              private var selectedPunchDate=""
+
+              private val prefs by lazy{
+                  getSharedPreferences(
+                      "controle_horas",
+                      MODE_PRIVATE
+                  )
+              }
+
+              private val employees=
+                  mutableListOf<Employee>()
+
+              private val records=
+                  mutableListOf<PunchDay>()
+
+              private val scale=
+                  linkedMapOf<String,DayScale>()
+
+              private val weekModes=
+                  linkedMapOf<String,String>()
+
+              private var weeklyTarget="44:00"
+
+              private val days=
+                  listOf(
+                      "Seg",
+                      "Ter",
+                      "Qua",
+                      "Qui",
+                      "Sex",
+                      "Sáb",
+                      "Dom"
+                  )
+
+              private val dayKeys=
+                  listOf(
+                      Calendar.MONDAY,
+                      Calendar.TUESDAY,
+                      Calendar.WEDNESDAY,
+                      Calendar.THURSDAY,
+                      Calendar.FRIDAY,
+                      Calendar.SATURDAY,
+                      Calendar.SUNDAY
+                  )
+
+              private val money=
+                  NumberFormat.getCurrencyInstance(
+                      Locale("pt","BR")
+                  )
+
+              private val df=
+                  SimpleDateFormat(
+                      "dd/MM/yyyy",
+                      Locale("pt","BR")
+                  )
+
+              private val iso=
+                  SimpleDateFormat(
+                      "yyyy-MM-dd",
+                      Locale.US
+                  )
+
+              private val punchNames=
+                  listOf(
+                      "Entrada",
+                      "Saída intervalo 1",
+                      "Retorno intervalo 1",
+                      "Saída intervalo 2",
+                      "Retorno intervalo 2",
+                      "Saída"
+                  )
+
+              override fun onCreate(
+                  savedInstanceState:Bundle?
+              ){
+
+                  super.onCreate(
+                      savedInstanceState
+                  )
+
+                  loadData()
+
+                  selectedPunchDate=today()
+
+                  if(
+                      employees.isNotEmpty()
+                  ){
+                      selectedEmployeeId=
+                          employees.first().id
+                  }
+
+                  buildShell()
+                  showTab(0)
+              }
+
+              private fun loadData(){
+
+                  employees.clear()
+
+                  try{
+
+                      val ea=
+                          JSONArray(
+                              prefs.getString(
+                                  "employees",
+                                  "[]"
+                              )
+                          )
+
+                      for(
+                          i in 0 until ea.length()
+                      ){
+
+                          val o=
+                              ea.getJSONObject(i)
+
+                          employees+=Employee(
+                              o.getLong("id"),
+                              o.getString("name"),
+                              o.getDouble("salary")
+                          )
+                      }
+
+                  }catch(_:Exception){}
+
+                  records.clear()
+
+                  try{
+
+                      val ra=
+                          JSONArray(
+                              prefs.getString(
+                                  "records",
+                                  "[]"
+                              )
+                          )
+
+                      for(
+                          i in 0 until ra.length()
+                      ){
+
+                          val o=
+                              ra.getJSONObject(i)
+
+                          val p=
+                              MutableList(6){j->
+                                  o.optString(
+                                      "p$j",
+                                      ""
+                                  )
+                              }
+
+                          records+=PunchDay(
+                              o.getLong("employeeId"),
+                              o.optString(
+                                  "employeeName",
+                                  ""
+                              ),
+                              o.getString("date"),
+                              p
+                          )
+                      }
+
+                  }catch(_:Exception){}
+
+                  scale.clear()
+
+                  for(i in days.indices){
+
+                      val def=
+                          if(i<5)
+                              DayScale()
+                          else
+                              DayScale(
+                                  false,
+                                  "",
+                                  "",
+                                  "",
+                                  ""
+                              )
+
+                      try{
+
+                          val fallback=
+                              JSONObject()
+                                  .put(
+                                      "enabled",
+                                      def.enabled
+                                  )
+                                  .put("e",def.e)
+                                  .put("x1",def.x1)
+                                  .put("r1",def.r1)
+                                  .put("x2",def.x2)
+                                  .toString()
+
+                          val o=
+                              JSONObject(
+                                  prefs.getString(
+                                      "scale_$i",
+                                      fallback
+                                  )
+                              )
+
+                          scale[days[i]]=
+                              DayScale(
+                                  o.optBoolean(
+                                      "enabled",
+                                      def.enabled
+                                  ),
+                                  safeTime(
+                                      o.optString(
+                                          "e",
+                                          def.e
+                                      )
+                                  ),
+                                  safeTime(
+                                      o.optString(
+                                          "x1",
+                                          def.x1
+                                      )
+                                  ),
+                                  safeTime(
+                                      o.optString(
+                                          "r1",
+                                          def.r1
+                                      )
+                                  ),
+                                  safeTime(
+                                      o.optString(
+                                          "x2",
+                                          def.x2
+                                      )
+                                  )
+                              )
+
+                      }catch(_:Exception){
+
+                          scale[days[i]]=def
+                      }
+                  }
+
+                  weeklyTarget=
+                      normalizeDuration(
+                          prefs.getString(
+                              "weeklyTarget",
+                              "44:00"
+                          ) ?: "44:00"
+                      ).ifBlank{
+                          "44:00"
+                      }
+
+                  weekModes.clear()
+
+                  try{
+
+                      val obj=
+                          JSONObject(
+                              prefs.getString(
+                                  "weekModes",
+                                  "{}"
+                              ) ?: "{}"
+                          )
+
+                      val keys=obj.keys()
+
+                      while(keys.hasNext()){
+
+                          val key=keys.next()
+
+                          weekModes[key]=
+                              obj.optString(
+                                  key,
+                                  "MF"
+                              )
+                      }
+
+                  }catch(_:Exception){}
+              }
+
+              private fun saveData(){
+
+                  val ea=JSONArray()
+
+                  employees.forEach{
+
+                      ea.put(
+                          JSONObject()
+                              .put("id",it.id)
+                              .put("name",it.name)
+                              .put("salary",it.salary)
+                      )
+                  }
+
+                  val ra=JSONArray()
+
+                  records.forEach{r->
+
+                      val o=
+                          JSONObject()
+                              .put(
+                                  "employeeId",
+                                  r.employeeId
+                              )
+                              .put(
+                                  "employeeName",
+                                  r.employeeName
+                              )
+                              .put(
+                                  "date",
+                                  r.date
+                              )
+
+                      r.punches.forEachIndexed{
+                          j,v->
+                          o.put(
+                              "p$j",
+                              normalizeTime(v)
+                          )
+                      }
+
+                      ra.put(o)
+                  }
+
+                  val w=JSONObject()
+
+                  weekModes.forEach{
+                      (k,v)->
+                      w.put(k,v)
+                  }
+
+                  val e=
+                      prefs.edit()
+                          .putString(
+                              "employees",
+                              ea.toString()
+                          )
+                          .putString(
+                              "records",
+                              ra.toString()
+                          )
+                          .putString(
+                              "weeklyTarget",
+                              weeklyTarget
+                          )
+                          .putString(
+                              "weekModes",
+                              w.toString()
+                          )
+
+                  days.forEachIndexed{
+                      i,d->
+
+                      val s=
+                          scale[d]
+                              ?: DayScale()
+
+                      e.putString(
+                          "scale_$i",
+                          JSONObject()
+                              .put(
+                                  "enabled",
+                                  s.enabled
+                              )
+                              .put("e",s.e)
+                              .put("x1",s.x1)
+                              .put("r1",s.r1)
+                              .put("x2",s.x2)
+                              .toString()
+                      )
+                  }
+
+                  e.apply()
+              }
+
+              private fun buildShell(){
+
+                  root=
+                      LinearLayout(this).apply{
+                          orientation=
+                              LinearLayout.VERTICAL
+                          setBackgroundColor(bg)
+                      }
+
+                  val header=
+                      LinearLayout(this).apply{
+                          orientation=
+                              LinearLayout.HORIZONTAL
+                          gravity=
+                              Gravity.CENTER_VERTICAL
+                          setPadding(
+                              dp(18),
+                              dp(10),
+                              dp(14),
+                              dp(10)
+                          )
+                          background(
+                              blue,
+                              0,
+                              0,
+                              0,
+                              0
+                          )
+                      }
+
+                  header.addView(
+                      TextView(this).apply{
+                          text="◷"
+                          textSize=34f
+                          setTextColor(
+                              Color.WHITE
+                          )
+                      },
+                      LinearLayout.LayoutParams(
+                          dp(42),
+                          dp(62)
+                      )
+                  )
+
+                  header.addView(
+                      TextView(this).apply{
+                          text=
+                              "  CONTROLE DE HORAS"
+                          textSize=20f
+                          setTypeface(
+                              null,
+                              Typeface.BOLD
+                          )
+                          setTextColor(
+                              Color.WHITE
+                          )
+                          gravity=
+                              Gravity.CENTER_VERTICAL
+                      },
+                      LinearLayout.LayoutParams(
+                          0,
+                          dp(62),
+                          1f
+                      )
+                  )
+
+                  header.addView(
+                      TextView(this).apply{
+                          text="⚙"
+                          textSize=28f
+                          setTextColor(
+                              Color.WHITE
+                          )
+                          setOnClickListener{
+                              showSettings()
+                          }
+                      },
+                      LinearLayout.LayoutParams(
+                          dp(45),
+                          dp(62)
+                      )
+                  )
+
+                  root.addView(header)
+
+                  content=
+                      FrameLayout(this).apply{
+                          setBackgroundColor(bg)
+                      }
+
+                  root.addView(
+                      content,
+                      LinearLayout.LayoutParams(
+                          -1,
+                          0,
+                          1f
+                      )
+                  )
+
+                  nav=
+                      LinearLayout(this).apply{
+                          orientation=
+                              LinearLayout.HORIZONTAL
+                          setPadding(
+                              dp(2),
+                              dp(5),
+                              dp(2),
+                              dp(5)
+                          )
+                          background(
+                              Color.WHITE,
+                              dp(18),
+                              0,
+                              0,
+                              0
+                          )
+                      }
+
+                  val labels=
+                      listOf(
+                          "⌂\nPonto",
+                          "▣\nHistórico",
+                          "▥\nRelatório",
+                          "♟\nFuncionários",
+                          "▦\nEscala"
+                      )
+
+                  labels.forEachIndexed{
+                      i,label->
+
+                      nav.addView(
+                          TextView(this).apply{
+
+                              text=label
+                              gravity=
+                                  Gravity.CENTER
+                              textSize=12f
+
+                              setTypeface(
+                                  null,
+                                  Typeface.BOLD
+                              )
+
+                              setOnClickListener{
+                                  showTab(i)
+                              }
+                          },
+                          LinearLayout.LayoutParams(
+                              0,
+                              dp(68),
+                              1f
+                          )
+                      )
+                  }
+
+                  root.addView(nav)
+
+                  setContentView(root)
+              }
+
+              private fun showTab(tab:Int){
+
+                  selectedTab=tab
+
+                  content.removeAllViews()
+
+                  when(tab){
+
+                      0->showPunch()
+                      1->showHistory()
+                      2->showReport()
+                      3->showEmployees()
+                      4->showScale()
+                  }
+
+                  for(
+                      i in 0 until nav.childCount
+                  ){
+
+                      val v=
+                          nav.getChildAt(i)
+                              as TextView
+
+                      if(i==tab){
+
+                          v.setTextColor(blue)
+
+                          v.background(
+                              0xFFE7F0FF.toInt(),
+                              dp(16),
+                              dp(16),
+                              dp(16),
+                              dp(16)
+                          )
+
+                      }else{
+
+                          v.setTextColor(
+                              muted
+                          )
+
+                          v.setBackgroundColor(
+                              Color.TRANSPARENT
+                          )
+                      }
+                  }
+              }
+
+              private fun page(
+                  title:String
+              ):LinearLayout{
+
+                  val scroll=
+                      ScrollView(this)
+
+                  val box=
+                      LinearLayout(this).apply{
+                          orientation=
+                              LinearLayout.VERTICAL
+                          setPadding(
+                              dp(18),
+                              dp(16),
+                              dp(18),
+                              dp(22)
+                          )
+                      }
+
+                  box.addView(
+                      TextView(this).apply{
+                          text=title
+                          textSize=25f
+                          setTypeface(
+                              null,
+                              Typeface.BOLD
+                          )
+                          setTextColor(
+                              darkBlue
+                          )
+                      }
+                  )
+
+                  scroll.addView(box)
+
+                  content.addView(
+                      scroll,
+                      FrameLayout.LayoutParams(
+                          -1,
+                          -1
+                      )
+                  )
+
+                  return box
+              }
+
+              private fun showPunch(){
+
+                  val box=
+                      page("Bater Ponto")
+
+                  if(employees.isEmpty()){
+
+                      box.addView(
+                          infoCard(
+                              "Nenhum funcionário cadastrado."
+                          )
+                      )
+
+                      return
+                  }
+
+                  val emp=
+                      employees.firstOrNull{
+                          it.id==
+                              selectedEmployeeId
+                      }
+                          ?:employees.first()
+
+                  val selector=card()
+
+                  val selectorLine=
+                      LinearLayout(this).apply{
+                          orientation=
+                              LinearLayout.VERTICAL
+                          setPadding(
+                              dp(14),
+                              dp(10),
+                              dp(14),
+                              dp(10)
+                          )
+                      }
+
+                  selectorLine.addView(
+                      label("Funcionário")
+                  )
+
+                  val spinner=
+                      Spinner(this)
+
+                  spinner.adapter=
+                      ArrayAdapter(
+                          this,
+                          android.R.layout
+                              .simple_spinner_dropdown_item,
+                          employees.map{
+                              it.name
+                          }
+                      )
+
+                  spinner.setSelection(
+                      employees.indexOfFirst{
+                          it.id==
+                              selectedEmployeeId
+                      }.coerceAtLeast(0)
+                  )
+
+                  spinner.onItemSelectedListener=
+                      object:
+                          AdapterView
+                          .OnItemSelectedListener{
+
+                          override fun
+                          onNothingSelected(
+                              p:AdapterView<*>?
+                          ){}
+
+                          override fun
+                          onItemSelected(
+                              p:AdapterView<*>?,
+                              v:View?,
+                              pos:Int,
+                              id:Long
+                          ){
+
+                              if(
+                                  employees[pos].id !=
+                                  selectedEmployeeId
+                              ){
+
+                                  selectedEmployeeId=
+                                      employees[pos].id
+
+                                  selectedPunchDate=
+                                      today()
+
+                                  showPunch()
+                              }
+                          }
+                      }
+
+                  selectorLine.addView(
+                      spinner
+                  )
+
+                  selectorLine.addView(
+                      TextView(this).apply{
+
+                          text=
+                              "Salário mensal   " +
+                              money.format(
+                                  emp.salary
+                              )
+
+                          textSize=14f
+                          setTextColor(muted)
+                      }
+                  )
+
+                  selector.addView(
+                      selectorLine
+                  )
+
+                  box.addView(
+                      selector,
+                      LinearLayout.LayoutParams(
+                          -1,
+                          -2
+                      ).apply{
+                          bottomMargin=dp(10)
+                      }
+                  )
+
+                  val dateCard=card()
+
+                  val dateLine=
+                      LinearLayout(this).apply{
+                          orientation=
+                              LinearLayout.HORIZONTAL
+                          gravity=
+                              Gravity.CENTER_VERTICAL
+                          setPadding(
+                              dp(14),
+                              dp(10),
+                              dp(14),
+                              dp(10)
+                          )
+                      }
+
+                  dateLine.addView(
+                      TextView(this).apply{
+                          text="📅"
+                          textSize=25f
+                      },
+                      LinearLayout.LayoutParams(
+                          dp(45),
+                          dp(55)
+                      )
+                  )
+
+                  dateLine.addView(
+                      TextView(this).apply{
+
+                          text=
+                              "Data do ponto\n" +
+                              displayPunchDate(
+                                  selectedPunchDate
+                              )
+
+                          textSize=15f
+
+                          setTypeface(
+                              null,
+                              Typeface.BOLD
+                          )
+
+                          setTextColor(
+                              this@MainActivity.text
+                          )
+                      },
+                      LinearLayout.LayoutParams(
+                          0,
+                          dp(60),
+                          1f
+                      )
+                  )
+
+                  dateLine.addView(
+                      Button(this).apply{
+
+                          text="ALTERAR"
+
+                          isAllCaps=false
+
+                          setOnClickListener{
+                              choosePunchDate()
+                          }
+                      },
+                      LinearLayout.LayoutParams(
+                          dp(105),
+                          dp(52)
+                      )
+                  )
+
+                  dateCard.addView(dateLine)
+
+                  box.addView(
+                      dateCard,
+                      LinearLayout.LayoutParams(
+                          -1,
+                          dp(82)
+                      ).apply{
+                          bottomMargin=dp(12)
+                      }
+                  )
+
+                  val rec=
+                      getRecord(
+                          emp.id,
+                          selectedPunchDate
+                      )
+
+                  val next=
+                      rec.punches.indexOfFirst{
+                          it.isBlank()
+                      }
+
+                  val action=
+                      Button(this).apply{
+
+                          text=
+                              if(next<0)
+                                  "PONTO DO DIA COMPLETO"
+                              else
+                                  "▶  REGISTRAR PRÓXIMA BATIDA\n"+
+                                  punchNames[next]
+
+                          isAllCaps=false
+                          setTextColor(
+                              Color.WHITE
+                          )
+
+                          isEnabled=
+                              next>=0
+
+                          background(
+                              green,
+                              dp(12),
+                              dp(12),
+                              dp(12),
+                              dp(12)
+                          )
+
+                          setOnClickListener{
+                              registerPunch(
+                                  emp.id
+                              )
+                          }
+                      }
+
+                  box.addView(
+                      action,
+                      LinearLayout.LayoutParams(
+                          -1,
+                          dp(72)
+                      ).apply{
+                          bottomMargin=dp(12)
+                      }
+                  )
+
+                  punchNames.forEachIndexed{
+                      i,n->
+
+                      val row=
+                          LinearLayout(this).apply{
+
+                              orientation=
+                                  LinearLayout.HORIZONTAL
+
+                              gravity=
+                                  Gravity.CENTER_VERTICAL
+
+                              setPadding(
+                                  dp(12),
+                                  dp(4),
+                                  dp(10),
+                                  dp(4)
+                              )
+
+                              background(
+                                  Color.WHITE,
+                                  dp(12),
+                                  dp(12),
+                                  dp(12),
+                                  dp(12)
+                              )
+                          }
+
+                      row.addView(
+                          TextView(this).apply{
+                              text="${i+1}"
+                              textSize=16f
+                              gravity=
+                                  Gravity.CENTER
+                              setTypeface(
+                                  null,
+                                  Typeface.BOLD
+                              )
+                          },
+                          LinearLayout.LayoutParams(
+                              dp(42),
+                              dp(42)
+                          )
+                      )
+
+                      row.addView(
+                          TextView(this).apply{
+
+                              text=n
+                              textSize=15f
+
+                              setTextColor(
+                                  this@MainActivity.text
+                              )
+
+                              setPadding(
+                                  dp(12),
+                                  0,
+                                  0,
+                                  0
+                              )
+                          },
+                          LinearLayout.LayoutParams(
+                              0,
+                              dp(52),
+                              1f
+                          )
+                      )
+
+                      row.addView(
+                          TextView(this).apply{
+
+                              text=
+                                  rec.punches[i]
+                                      .ifBlank{
+                                          "--:--"
+                                      }
+
+                              textSize=15f
+
+                              setTextColor(
+                                  if(
+                                      rec.punches[i]
+                                          .isBlank()
+                                  )
+                                      muted
+                                  else
+                                      darkBlue
+                              )
+
+                              setTypeface(
+                                  null,
+                                  Typeface.BOLD
+                              )
+                          }
+                      )
+
+                      row.setOnClickListener{
+                          editPunch(
+                              rec,
+                              i
+                          )
+                      }
+
+                      box.addView(
+                          row,
+                          LinearLayout.LayoutParams(
+                              -1,
+                              dp(58)
+                          ).apply{
+                              bottomMargin=dp(7)
+                          }
+                      )
+                  }
+
+                  val calc=
+                      calculate(rec)
+
+                  val cards=
+                      LinearLayout(this).apply{
+                          orientation=
+                              LinearLayout.HORIZONTAL
+                      }
+
+                  cards.addView(
+                      metricCard(
+                          "Horas trabalhadas",
+                          formatMin(
+                              calc.worked
+                          ),
+                          blue
+                      ),
+                      LinearLayout.LayoutParams(
+                          0,
+                          dp(82),
+                          1f
+                      ).apply{
+                          rightMargin=dp(6)
+                      }
+                  )
+
+                  cards.addView(
+                      metricCard(
+                          "Horas extras",
+                          formatMin(
+                              calc.extra60+
+                              calc.extra100
+                          ),
+                          green
+                      ),
+                      LinearLayout.LayoutParams(
+                          0,
+                          dp(82),
+                          1f
+                      ).apply{
+                          leftMargin=dp(6)
+                      }
+                  )
+
+                  box.addView(cards)
+              }
+
+              private fun registerPunch(
+                  empId:Long
+              ){
+
+                  val r=
+                      getRecord(
+                          empId,
+                          selectedPunchDate
+                      )
+
+                  val n=
+                      r.punches.indexOfFirst{
+                          it.isBlank()
+                      }
+
+                  if(n<0)return
+
+                  if(
+                      selectedPunchDate==
+                      today()
+                  ){
+
+                      r.punches[n]=
+                          nowTime()
+
+                      saveData()
+                      showPunch()
+
+                      return
+                  }
+
+                  val e=
+                      timeEdit(
+                          "",
+                          punchNames[n]
+                      )
+
+                  AlertDialog.Builder(this)
+                      .setTitle(
+                          "Lançar "+
+                          punchNames[n]
+                      )
+                      .setMessage(
+                          displayPunchDate(
+                              selectedPunchDate
+                          )
+                      )
+                      .setView(e)
+                      .setNegativeButton(
+                          "Cancelar",
+                          null
+                      )
+                      .setPositiveButton(
+                          "Salvar"
+                      ){_,_->
+
+                          val t=
+                              normalizeTime(
+                                  e.text.toString()
+                              )
+
+                          if(t.isBlank()){
+
+                              Toast.makeText(
+                                  this,
+                                  "Horário inválido.",
+                                  Toast.LENGTH_LONG
+                              ).show()
+
+                          }else{
+
+                              r.punches[n]=t
+
+                              saveData()
+                              showPunch()
+                          }
+                      }
+                      .show()
+              }
+
+              private fun showHistory(){
+
+                  val box=
+                      page("Histórico de Pontos")
+
+                  if(employees.isEmpty()){
+
+                      box.addView(
+                          infoCard(
+                              "Cadastre um funcionário."
+                          )
+                      )
+
+                      return
+                  }
+
+                  val emp=
+                      employees.firstOrNull{
+                          it.id==
+                              selectedEmployeeId
+                      } ?: employees.first()
+
+                  val monthKey=
+                      SimpleDateFormat(
+                          "yyyy-MM",
+                          Locale.US
+                      ).format(Date())
+
+                  val list=
+                      records
+                          .filter{
+                              it.employeeId==
+                                  emp.id &&
+                              it.date.startsWith(
+                                  monthKey
+                              )
+                          }
+                          .sortedByDescending{
+                              it.date
+                          }
+
+                  list.forEach{r->
+
+                      val c=
+                          calculate(r)
+
+                      val row=card()
+
+                      row.addView(
+                          TextView(this).apply{
+
+                              text=
+                                  "${displayPunchDate(r.date)}\n"+
+                                  "Trabalhadas: "+
+                                  formatMin(c.worked)+
+                                  "\nExtras: "+
+                                  formatMin(
+                                      c.extra60+
+                                      c.extra100
+                                  )
+
+                              textSize=14f
+
+                              setTextColor(
+                                  this@MainActivity.text
+                              )
+
+                              setPadding(
+                                  dp(14),
+                                  dp(12),
+                                  dp(14),
+                                  dp(12)
+                              )
+                          }
+                      )
+
+                      row.setOnClickListener{
+                          editRecord(r)
+                      }
+
+                      box.addView(
+                          row,
+                          LinearLayout.LayoutParams(
+                              -1,
+                              -2
+                          ).apply{
+                              bottomMargin=dp(8)
+                          }
+                      )
+                  }
+
+                  if(list.isEmpty()){
+
+                      box.addView(
+                          infoCard(
+                              "Nenhum registro neste mês."
+                          )
+                      )
+                  }
+              }
+
+              private fun showReport(){
+
+                  val box=
+                      page("Relatório Mensal")
+
+                  if(employees.isEmpty()){
+
+                      box.addView(
+                          infoCard(
+                              "Cadastre um funcionário."
+                          )
+                      )
+
+                      return
+                  }
+
+                  val emp=
+                      employees.firstOrNull{
+                          it.id==
+                              selectedEmployeeId
+                      } ?: employees.first()
+
+                  val ym=
+                      SimpleDateFormat(
+                          "yyyy-MM",
+                          Locale.US
+                      ).format(Date())
+
+                  val list=
+                      records.filter{
+                          it.employeeId==
+                              emp.id &&
+                          it.date.startsWith(ym)
+                      }
+
+                  val worked=
+                      list.sumOf{
+                          calculate(it).worked
+                      }
+
+                  val e60=
+                      list.sumOf{
+                          calculate(it).extra60
+                      }
+
+                  val e100=
+                      list.sumOf{
+                          calculate(it).extra100
+                      }
+
+                  val normal=
+                      list.sumOf{
+
+                          val c=
+                              calculate(it)
+
+                          minOf(
+                              c.worked,
+                              c.expected
+                          )
+                      }
+
+                  val scheduled=
+                      scheduledDays(
+                          emp.id,
+                          ym
+                      )
+
+                  val workedDays=
+                      list.count{
+
+                          val c=
+                              calculate(it)
+
+                          c.worked>0 &&
+                          c.expected>0
+                      }
+
+                  val absence=
+                      max(
+                          0,
+                          scheduled-workedDays
+                      )
+
+                  val hourly=
+                      emp.salary/220.0
+
+                  val he60Value=
+                      e60/60.0*
+                      hourly*
+                      1.60
+
+                  val he100Value=
+                      e100/60.0*
+                      hourly*
+                      2.00
+
+                  val extraValue=
+                      he60Value+
+                      he100Value
+
+                  val restDays=
+                      max(
+                          0,
+                          calendarDaysInMonth(ym)-
+                          scheduled
+                      )
+
+                  val dsr=
+                      if(scheduled>0)
+                          extraValue/
+                          scheduled*
+                          restDays
+                      else
+                          0.0
+
+                  val finalTotal=
+                      extraValue+
+                      dsr
+
+                  box.addView(
+                      infoCard(
+                          "${emp.name}\n"+
+                          "Salário: "+
+                          money.format(emp.salary)+
+                          "\nValor hora normal: "+
+                          money.format(hourly)
+                      )
+                  )
+
+                  addReportLine(
+                      box,
+                      "Horas normais",
+                      formatMin(normal)
+                  )
+
+                  addReportLine(
+                      box,
+                      "HE 60%",
+                      formatMin(e60)
+                  )
+
+                  addReportLine(
+                      box,
+                      "HE 100%",
+                      formatMin(e100)
+                  )
+
+                  addReportLine(
+                      box,
+                      "Total trabalhado",
+                      formatMin(worked)
+                  )
+
+                  addReportLine(
+                      box,
+                      "Dias trabalhados",
+                      workedDays.toString()
+                  )
+
+                  addReportLine(
+                      box,
+                      "Dias previstos na escala",
+                      scheduled.toString()
+                  )
+
+                  addReportLine(
+                      box,
+                      "Dias de ausência",
+                      absence.toString()
+                  )
+
+                  addReportLine(
+                      box,
+                      "Valor HE 60%",
+                      money.format(
+                          he60Value
+                      )
+                  )
+
+                  addReportLine(
+                      box,
+                      "Valor HE 100%",
+                      money.format(
+                          he100Value
+                      )
+                  )
+
+                  addReportLine(
+                      box,
+                      "DSR sobre horas extras",
+                      money.format(dsr)
+                  )
+
+                  addReportLine(
+                      box,
+                      "TOTAL FINAL (HE + DSR)",
+                      money.format(finalTotal),
+                      true
+                  )
+
+                  box.addView(
+                      Button(this).apply{
+
+                          text=
+                              "▧  GERAR PDF E COMPARTILHAR"
+
+                          setOnClickListener{
+                              sharePdf(
+                                  emp,
+                                  list
+                              )
+                          }
+                      },
+                      LinearLayout.LayoutParams(
+                          -1,
+                          dp(60)
+                      )
+                  )
+              }
+
+              private fun addReportLine(
+                  box:LinearLayout,
+                  title:String,
+                  value:String,
+                  highlight:Boolean=false
+              ){
+
+                  val row=
+                      LinearLayout(this).apply{
+                          orientation=
+                              LinearLayout.HORIZONTAL
+                          gravity=
+                              Gravity.CENTER_VERTICAL
+                          setPadding(
+                              dp(14),
+                              dp(8),
+                              dp(14),
+                              dp(8)
+                          )
+
+                          background(
+                              if(highlight)
+                                  0xFFE7F0FF.toInt()
+                              else
+                                  Color.WHITE,
+                              dp(12),
+                              dp(12),
+                              dp(12),
+                              dp(12)
+                          )
+                      }
+
+                  row.addView(
+                      TextView(this).apply{
+
+                          text=title
+                          textSize=14f
+
+                          setTextColor(
+                              if(highlight)
+                                  darkBlue
+                              else
+                                  this@MainActivity.text
+                          )
+                      },
+                      LinearLayout.LayoutParams(
+                          0,
+                          dp(48),
+                          1f
+                      )
+                  )
+
+                  row.addView(
+                      TextView(this).apply{
+
+                          text=value
+                          textSize=15f
+
+                          setTextColor(
+                              if(highlight)
+                                  darkBlue
+                              else
+                                  this@MainActivity.text
+                          )
+
+                          setTypeface(
+                              null,
+                              Typeface.BOLD
+                          )
+                      }
+                  )
+
+                  box.addView(
+                      row,
+                      LinearLayout.LayoutParams(
+                          -1,
+                          dp(58)
+                      ).apply{
+                          bottomMargin=dp(6)
+                      }
+                  )
+              }
+
+              private fun showEmployees(){
+
+                  val box=
+                      page("Funcionários")
+
+                  employees.forEach{emp->
+
+                      val row=card()
+
+                      row.addView(
+                          TextView(this).apply{
+
+                              text=
+                                  "${emp.name}\n"+
+                                  money.format(
+                                      emp.salary
+                                  )
+
+                              textSize=15f
+
+                              setTextColor(
+                                  this@MainActivity.text
+                              )
+
+                              setPadding(
+                                  dp(14),
+                                  dp(14),
+                                  dp(14),
+                                  dp(14)
+                              )
+                          }
+                      )
+
+                      row.setOnClickListener{
+                          employeeDialog(emp)
+                      }
+
+                      box.addView(
+                          row,
+                          LinearLayout.LayoutParams(
+                              -1,
+                              -2
+                          ).apply{
+                              bottomMargin=dp(8)
+                          }
+                      )
+                  }
+
+                  box.addView(
+                      Button(this).apply{
+
+                          text=
+                              "＋ ADICIONAR FUNCIONÁRIO"
+
+                          setOnClickListener{
+                              employeeDialog(null)
+                          }
+                      }
+                  )
+              }
+
+              private fun showScale(){
+
+                  val box=
+                      page("Escala Semanal")
+
+                  box.addView(
+                      infoCard(
+                          "44:00 semanais.\n"+
+                          "MF = segunda a sexta, "+
+                          "08:48 por dia.\n"+
+                          "MS = segunda a sábado, "+
+                          "07:20 por dia."
+                      )
+                  )
+
+                  val hoje=Date()
+
+                  val proxima=
+                      Calendar.getInstance().apply{
+
+                          time=hoje
+
+                          set(
+                              Calendar.DAY_OF_WEEK,
+                              Calendar.MONDAY
+                          )
+
+                          add(
+                              Calendar.DAY_OF_MONTH,
+                              7
+                          )
+                      }.time
+
+                  weekCard(
+                      box,
+                      "Semana atual",
+                      hoje
+                  )
+
+                  weekCard(
+                      box,
+                      "Próxima semana",
+                      proxima
+                  )
+              }
+
+              private fun weekCard(
+                  box:LinearLayout,
+                  title:String,
+                  date:Date
+              ){
+
+                  val key=weekKey(date)
+
+                  val mode=
+                      weekModes[key] ?: "MF"
+
+                  val row=card()
+
+                  val line=
+                      LinearLayout(this).apply{
+                          orientation=
+                              LinearLayout.VERTICAL
+                          setPadding(
+                              dp(12),
+                              dp(10),
+                              dp(12),
+                              dp(10)
+                          )
+                      }
+
+                  line.addView(
+                      TextView(this).apply{
+
+                          text=title
+                          textSize=18f
+
+                          setTypeface(
+                              null,
+                              Typeface.BOLD
+                          )
+
+                          setTextColor(
+                              darkBlue
+                          )
+                      }
+                  )
+
+                  line.addView(
+                      TextView(this).apply{
+
+                          text=
+                              weekLabel(date)+
+                              "\n"+
+                              if(
+                                  mode=="MS"
+                              )
+                                  "Segunda a sábado — 07:20"
+                              else
+                                  "Segunda a sexta — 08:48"
+
+                          textSize=14f
+                          setTextColor(muted)
+                      }
+                  )
+
+                  line.addView(
+                      Button(this).apply{
+
+                          text=
+                              "Segunda a sexta — 08:48"
+
+                          isAllCaps=false
+
+                          setOnClickListener{
+
+                              weekModes[key]="MF"
+
+                              saveData()
+                              showScale()
+                          }
+                      }
+                  )
+
+                  line.addView(
+                      Button(this).apply{
+
+                          text=
+                              "Segunda a sábado — 07:20"
+
+                          isAllCaps=false
+
+                          setOnClickListener{
+
+                              weekModes[key]="MS"
+
+                              saveData()
+                              showScale()
+                          }
+                      }
+                  )
+
+                  row.addView(line)
+
+                  box.addView(
+                      row,
+                      LinearLayout.LayoutParams(
+                          -1,
+                          -2
+                      ).apply{
+                          bottomMargin=dp(10)
+                      }
+                  )
+              }
+
+              private fun employeeDialog(
+                  existing:Employee?
+              ){
+
+                  val box=
+                      LinearLayout(this).apply{
+                          orientation=
+                              LinearLayout.VERTICAL
+                          setPadding(
+                              dp(10),
+                              dp(4),
+                              dp(10),
+                              0
+                          )
+                      }
+
+                  val name=
+                      EditText(this).apply{
+
+                          hint="Nome"
+
+                          setText(
+                              existing?.name ?: ""
+                          )
+
+                          setSingleLine()
+                      }
+
+                  val salary=
+                      EditText(this).apply{
+
+                          hint="Salário mensal"
+
+                          setText(
+                              if(existing!=null)
+                                  existing.salary.toString()
+                              else
+                                  ""
+                          )
+
+                          inputType=2
+                          setSingleLine()
+                      }
+
+                  box.addView(name)
+                  box.addView(salary)
+
+                  AlertDialog.Builder(this)
+                      .setTitle(
+                          if(existing==null)
+                              "Novo funcionário"
+                          else
+                              "Editar funcionário"
+                      )
+                      .setView(box)
+                      .setNegativeButton(
+                          "Cancelar",
+                          null
+                      )
+                      .setPositiveButton(
+                          "Salvar"
+                      ){_,_->
+
+                          val n=
+                              name.text
+                                  .toString()
+                                  .trim()
+
+                          val s=
+                              salary.text
+                                  .toString()
+                                  .replace(
+                                      ",",
+                                      "."
+                                  )
+                                  .toDoubleOrNull()
+                                  ?:0.0
+
+                          if(
+                              n.isNotBlank() &&
+                              s>0
+                          ){
+
+                              if(existing==null){
+
+                                  employees+=
+                                      Employee(
+                                          System.currentTimeMillis(),
+                                          n,
+                                          s
+                                      )
+
+                              }else{
+
+                                  existing.name=n
+                                  existing.salary=s
+
+                                  records
+                                      .filter{
+                                          it.employeeId==
+                                              existing.id
+                                      }
+                                      .forEach{
+                                          it.employeeName=n
+                                      }
+                              }
+
+                              saveData()
+                              showEmployees()
+                          }
+                      }
+                      .show()
+              }
+
+              private fun editPunch(
+                  r:PunchDay,
+                  index:Int
+              ){
+
+                  val e=
+                      timeEdit(
+                          r.punches[index],
+                          punchNames[index]
+                      )
+
+                  AlertDialog.Builder(this)
+                      .setTitle(
+                          punchNames[index]
+                      )
+                      .setMessage(
+                          "Exemplo: 0558 vira 05:58."
+                      )
+                      .setView(e)
+                      .setNegativeButton(
+                          "Cancelar",
+                          null
+                      )
+                      .setPositiveButton(
+                          "Salvar"
+                      ){_,_->
+
+                          val t=
+                              normalizeTime(
+                                  e.text.toString()
+                              )
+
+                          if(t.isNotBlank()){
+
+                              r.punches[index]=t
+
+                              saveData()
+                              showPunch()
+                          }
+                      }
+                      .show()
+              }
+
+              private fun editRecord(
+                  r:PunchDay
+              ){
+
+                  val box=
+                      LinearLayout(this).apply{
+                          orientation=
+                              LinearLayout.VERTICAL
+                      }
+
+                  val fields=
+                      r.punches.mapIndexed{
+                          i,v->
+                          timeEdit(
+                              v,
+                              punchNames[i]
+                          )
+                      }
+
+                  fields.forEach{
+                      box.addView(it)
+                  }
+
+                  AlertDialog.Builder(this)
+                      .setTitle("Editar ponto")
+                      .setView(box)
+                      .setNegativeButton(
+                          "Cancelar",
+                          null
+                      )
+                      .setPositiveButton(
+                          "Salvar"
+                      ){_,_->
+
+                          fields.forEachIndexed{
+                              i,e->
+
+                              r.punches[i]=
+                                  normalizeTime(
+                                      e.text.toString()
+                                  )
+                          }
+
+                          saveData()
+                          showHistory()
+                      }
+                      .show()
+              }
+
+              private fun showSettings(){
+
+                  AlertDialog.Builder(this)
+                      .setTitle(
+                          "Configurações"
+                      )
+                      .setMessage(
+                          "Jornada: 44:00 semanais / "+
+                          "220 horas mensais.\n"+
+                          "HE 60% = hora × 1,60.\n"+
+                          "HE 100% = hora × 2,00.\n"+
+                          "DSR = valor das horas extras "+
+                          "÷ dias previstos × dias de repouso."
+                      )
+                      .setPositiveButton(
+                          "OK",
+                          null
+                      )
+                      .show()
+              }
+
+              private fun getRecord(
+                  empId:Long,
+                  date:String
+              ):PunchDay{
+
+                  return records.firstOrNull{
+                      it.employeeId==empId &&
+                      it.date==date
+                  }
+                      ?:PunchDay(
+                          empId,
+                          employees.firstOrNull{
+                              it.id==empId
+                          }?.name ?: "",
+                          date
+                      ).also{
+                          records+=it
+                      }
+              }
+
+              private fun today()=
+                  iso.format(Date())
+
+              private fun nowTime()=
+                  SimpleDateFormat(
+                      "HH:mm",
+                      Locale.US
+                  ).format(Date())
+
+              private fun displayPunchDate(
+                  value:String
+              ):String{
+
+                  return try{
+
+                      df.format(
+                          parseIso(value)
+                      )
+
+                  }catch(_:Exception){
+
+                      df.format(Date())
+                  }
+              }
+
+              private fun choosePunchDate(){
+
+                  val c=
+                      Calendar.getInstance()
+
+                  c.time=
+                      parseIso(
+                          selectedPunchDate
+                      )
+
+                  DatePickerDialog(
+                      this,
+                      {_,year,month,day->
+
+                          val picked=
+                              Calendar.getInstance()
+
+                          picked.set(
+                              year,
+                              month,
+                              day,
+                              0,
+                              0,
+                              0
+                          )
+
+                          picked.set(
+                              Calendar.MILLISECOND,
+                              0
+                          )
+
+                          if(
+                              picked.timeInMillis>
+                              System.currentTimeMillis()
+                          ){
+
+                              Toast.makeText(
+                                  this,
+                                  "Data futura não permitida.",
+                                  Toast.LENGTH_SHORT
+                              ).show()
+
+                          }else{
+
+                              selectedPunchDate=
+                                  iso.format(
+                                      picked.time
+                                  )
+
+                              showPunch()
+                          }
+                      },
+                      c.get(
+                          Calendar.YEAR
+                      ),
+                      c.get(
+                          Calendar.MONTH
+                      ),
+                      c.get(
+                          Calendar.DAY_OF_MONTH
+                      )
+                  ).apply{
+
+                      datePicker.maxDate=
+                          System.currentTimeMillis()
+
+                  }.show()
+              }
+
+              private fun calculate(
+                  r:PunchDay
+              ):Calc{
+
+                  var worked=
+                      minutesBetween(
+                          r.punches[0],
+                          r.punches[1]
+                      )
+
+                  val six=
+                      r.punches[3].isNotBlank() ||
+                      r.punches[4].isNotBlank()
+
+                  if(six){
+
+                      worked+=
+                          minutesBetween(
+                              r.punches[2],
+                              r.punches[3]
+                          )
+
+                      worked+=
+                          minutesBetween(
+                              r.punches[4],
+                              r.punches[5]
+                          )
+
+                  }else{
+
+                      worked+=
+                          minutesBetween(
+                              r.punches[2],
+                              r.punches[5]
+                          )
+                  }
+
+                  val date=
+                      parseIso(r.date)
+
+                  if(!modeForDay(date)){
+
+                      return Calc(
+                          worked,
+                          0,
+                          0,
+                          worked
+                      )
+                  }
+
+                  val weekly=
+                      durationMinutes(
+                          weeklyTarget
+                      )
+
+                  val daysInWeek=
+                      if(
+                          modeForDate(date)=="MS"
+                      )
+                          6
+                      else
+                          5
+
+                  val expected=
+                      weekly/daysInWeek
+
+                  val extra=
+                      max(
+                          0,
+                          worked-expected
+                      )
+
+                  return Calc(
+                      worked,
+                      expected,
+                      extra,
+                      0
+                  )
+              }
+
+              private fun minutesBetween(
+                  a:String,
+                  b:String
+              ):Int{
+
+                  val x=
+                      normalizeTime(a)
+
+                  val y=
+                      normalizeTime(b)
+
+                  if(
+                      x.isBlank() ||
+                      y.isBlank()
+                  )
+                      return 0
+
+                  return try{
+
+                      val xa=x.split(":")
+                      val ya=y.split(":")
+
+                      val start=
+                          xa[0].toInt()*60+
+                          xa[1].toInt()
+
+                      val end=
+                          ya[0].toInt()*60+
+                          ya[1].toInt()
+
+                      max(
+                          0,
+                          end-start
+                      )
+
+                  }catch(_:Exception){
+
+                      0
+                  }
+              }
+
+              private fun normalizeTime(
+                  value:String
+              ):String{
+
+                  val digits=
+                      value
+                          .filter{
+                              it.isDigit()
+                          }
+                          .take(4)
+
+                  if(
+                      digits.length==4
+                  ){
+
+                      val h=
+                          digits.substring(
+                              0,
+                              2
+                          ).toIntOrNull()
+
+                      val m=
+                          digits.substring(
+                              2,
+                              4
+                          ).toIntOrNull()
+
+                      if(
+                          h!=null &&
+                          m!=null &&
+                          h in 0..23 &&
+                          m in 0..59
+                      ){
+
+                          return "%02d:%02d".format(
+                              Locale.US,
+                              h,
+                              m
+                          )
+                      }
+                  }
+
+                  val p=
+                      value.split(":")
+
+                  if(p.size==2){
+
+                      val h=
+                          p[0].toIntOrNull()
+
+                      val m=
+                          p[1].toIntOrNull()
+
+                      if(
+                          h!=null &&
+                          m!=null &&
+                          h in 0..23 &&
+                          m in 0..59
+                      ){
+
+                          return "%02d:%02d".format(
+                              Locale.US,
+                              h,
+                              m
+                          )
+                      }
+                  }
+
+                  return ""
+              }
+
+              private fun timeEdit(
+                  initial:String,
+                  hintText:String
+              ):EditText{
+
+                  val e=
+                      EditText(this).apply{
+
+                          hint=hintText
+                          inputType=2
+                          setSingleLine()
+
+                          val n=
+                              normalizeTime(
+                                  initial
+                              )
+
+                          if(n.isNotBlank()){
+                              setText(n)
+                          }
+                      }
+
+                  var changing=false
+
+                  e.addTextChangedListener(
+                      object:
+                          android.text.TextWatcher{
+
+                          override fun
+                          beforeTextChanged(
+                              s:CharSequence?,
+                              start:Int,
+                              count:Int,
+                              after:Int
+                          ){}
+
+                          override fun
+                          onTextChanged(
+                              s:CharSequence?,
+                              start:Int,
+                              before:Int,
+                              count:Int
+                          ){}
+
+                          override fun
+                          afterTextChanged(
+                              s:android.text.Editable?
+                          ){
+
+                              if(changing)return
+
+                              val d=
+                                  s?.toString()
+                                      ?.filter{
+                                          it.isDigit()
+                                      }
+                                      ?.take(4)
+                                      .orEmpty()
+
+                              val f=
+                                  when{
+
+                                      d.isEmpty()->
+                                          ""
+
+                                      d.length<=2->
+                                          d
+
+                                      else->
+                                          d.substring(
+                                              0,
+                                              2
+                                          )+
+                                          ":"+
+                                          d.substring(
+                                              2
+                                          )
+                                  }
+
+                              if(
+                                  f!=s?.toString()
+                              ){
+
+                                  changing=true
+
+                                  e.setText(f)
+                                  e.setSelection(
+                                      e.text.length
+                                  )
+
+                                  changing=false
+                              }
+                          }
+                      }
+                  )
+
+                  return e
+              }
+
+              private fun normalizeDuration(
+                  value:String
+              ):String{
+
+                  val d=
+                      value
+                          .filter{
+                              it.isDigit()
+                          }
+                          .take(4)
+
+                  if(d.length!=4)return ""
+
+                  val h=
+                      d.substring(
+                          0,
+                          2
+                      ).toIntOrNull()
+                      ?:return ""
+
+                  val m=
+                      d.substring(
+                          2,
+                          4
+                      ).toIntOrNull()
+                      ?:return ""
+
+                  if(h<0)return ""
+                  if(m !in 0..59)return ""
+
+                  return "%02d:%02d".format(
+                      Locale.US,
+                      h,
+                      m
+                  )
+              }
+
+              private fun durationMinutes(
+                  value:String
+              ):Int{
+
+                  val v=
+                      normalizeDuration(
+                          value
+                      )
+
+                  if(v.isBlank())return 0
+
+                  val p=v.split(":")
+
+                  return p[0].toInt()*60+
+                      p[1].toInt()
+              }
+
+              private fun weekKey(
+                  date:Date
+              ):String{
+
+                  val c=
+                      Calendar.getInstance()
+
+                  c.time=date
+
+                  while(
+                      c.get(
+                          Calendar.DAY_OF_WEEK
+                      ) !=
+                      Calendar.MONDAY
+                  ){
+
+                      c.add(
+                          Calendar.DAY_OF_MONTH,
+                          -1
+                      )
+                  }
+
+                  c.set(
+                      Calendar.HOUR_OF_DAY,
+                      0
+                  )
+
+                  c.set(
+                      Calendar.MINUTE,
+                      0
+                  )
+
+                  c.set(
+                      Calendar.SECOND,
+                      0
+                  )
+
+                  c.set(
+                      Calendar.MILLISECOND,
+                      0
+                  )
+
+                  return iso.format(
+                      c.time
+                  )
+              }
+
+              private fun modeForDate(
+                  date:Date
+              ):String{
+
+                  return weekModes[
+                      weekKey(date)
+                  ] ?: "MF"
+              }
+
+              private fun modeForDay(
+                  date:Date
+              ):Boolean{
+
+                  val c=
+                      Calendar.getInstance()
+
+                  c.time=date
+
+                  val day=
+                      c.get(
+                          Calendar.DAY_OF_WEEK
+                      )
+
+                  return if(
+                      modeForDate(date)=="MS"
+                  ){
+
+                      day!=Calendar.SUNDAY
+
+                  }else{
+
+                      day!=Calendar.SATURDAY &&
+                      day!=Calendar.SUNDAY
+                  }
+              }
+
+              private fun weekLabel(
+                  date:Date
+              ):String{
+
+                  val c=
+                      Calendar.getInstance()
+
+                  c.time=date
+
+                  while(
+                      c.get(
+                          Calendar.DAY_OF_WEEK
+                      ) !=
+                      Calendar.MONDAY
+                  ){
+
+                      c.add(
+                          Calendar.DAY_OF_MONTH,
+                          -1
+                      )
+                  }
+
+                  val start=
+                      df.format(c.time)
+
+                  c.add(
+                      Calendar.DAY_OF_MONTH,
+                      6
+                  )
+
+                  val end=
+                      df.format(c.time)
+
+                  return "$start até $end"
+              }
+
+              private fun scheduledDays(
+                  empId:Long,
+                  ym:String
+              ):Int{
+
+                  val p=
+                      ym.split("-")
+
+                  val c=
+                      Calendar.getInstance()
+
+                  c.set(
+                      p[0].toInt(),
+                      p[1].toInt()-1,
                       1
                   )
 
-          # Coloca a data de hoje no onCreate, depois do loadData.
-          if "selectedPunchDate=today()" not in codigo:
+                  val last=
+                      c.getActualMaximum(
+                          Calendar.DAY_OF_MONTH
+                      )
 
-              oncreate = codigo.find(
-                  "override fun onCreate"
-              )
+                  var total=0
 
-              if oncreate == -1:
-                  raise SystemExit(
-                      "ERRO: onCreate não encontrado"
+                  for(day in 1..last){
+
+                      c.set(
+                          Calendar.DAY_OF_MONTH,
+                          day
+                      )
+
+                      if(
+                          modeForDay(
+                              c.time
+                          )
+                      )
+                          total++
+                  }
+
+                  return total
+              }
+
+              private fun calendarDaysInMonth(
+                  ym:String
+              ):Int{
+
+                  val p=
+                      ym.split("-")
+
+                  val c=
+                      Calendar.getInstance()
+
+                  c.set(
+                      p[0].toInt(),
+                      p[1].toInt()-1,
+                      1
                   )
 
-              load = codigo.find(
-                  "loadData()",
-                  oncreate
-              )
+                  return c.getActualMaximum(
+                      Calendar.DAY_OF_MONTH
+                  )
+              }
 
-              if load == -1:
-                  raise SystemExit(
-                      "ERRO: loadData não encontrado"
+              private fun sharePdf(
+                  emp:Employee,
+                  list:List<PunchDay>
+              ){
+
+                  try{
+
+                      val ym=
+                          SimpleDateFormat(
+                              "yyyy-MM",
+                              Locale.US
+                          ).format(Date())
+
+                      val file=
+                          File(
+                              cacheDir,
+                              "relatorio_${emp.name.replace(
+                                  Regex("[^A-Za-z0-9_-]"),
+                                  "_"
+                              )}.pdf"
+                          )
+
+                      val e60=
+                          list.sumOf{
+                              calculate(it).extra60
+                          }
+
+                      val e100=
+                          list.sumOf{
+                              calculate(it).extra100
+                          }
+
+                      val scheduled=
+                          scheduledDays(
+                              emp.id,
+                              ym
+                          )
+
+                      val workedDays=
+                          list.count{
+
+                              val c=
+                                  calculate(it)
+
+                              c.worked>0 &&
+                              c.expected>0
+                          }
+
+                      val hourly=
+                          emp.salary/220.0
+
+                      val value60=
+                          e60/60.0*
+                          hourly*
+                          1.60
+
+                      val value100=
+                          e100/60.0*
+                          hourly*
+                          2.00
+
+                      val extra=
+                          value60+value100
+
+                      val rest=
+                          max(
+                              0,
+                              calendarDaysInMonth(
+                                  ym
+                              )-
+                              scheduled
+                          )
+
+                      val dsr=
+                          if(scheduled>0)
+                              extra/
+                              scheduled*
+                              rest
+                          else
+                              0.0
+
+                      val total=
+                          extra+dsr
+
+                      val document=
+                          PdfDocument()
+
+                      var pageNumber=1
+
+                      var pdfPage=
+                          document.startPage(
+                              PdfDocument.PageInfo
+                                  .Builder(
+                                      595,
+                                      842,
+                                      pageNumber
+                                  )
+                                  .create()
+                          )
+
+                      var canvas=
+                          pdfPage.canvas
+
+                      var y=42f
+
+                      val paint=
+                          Paint(
+                              Paint.ANTI_ALIAS_FLAG
+                          ).apply{
+                              color=Color.BLACK
+                              textSize=13f
+                          }
+
+                      fun line(
+                          value:String
+                      ){
+
+                          if(y>800f){
+
+                              document.finishPage(
+                                  pdfPage
+                              )
+
+                              pageNumber++
+
+                              pdfPage=
+                                  document.startPage(
+                                      PdfDocument
+                                          .PageInfo
+                                          .Builder(
+                                              595,
+                                              842,
+                                              pageNumber
+                                          )
+                                          .create()
+                                  )
+
+                              canvas=
+                                  pdfPage.canvas
+
+                              y=42f
+                          }
+
+                          canvas.drawText(
+                              value.take(90),
+                              35f,
+                              y,
+                              paint
+                          )
+
+                          y+=22f
+                      }
+
+                      paint.textSize=19f
+
+                      paint.typeface=
+                          Typeface.DEFAULT_BOLD
+
+                      line(
+                          "CONTROLE DE HORAS - RELATORIO MENSAL"
+                      )
+
+                      paint.textSize=13f
+
+                      paint.typeface=
+                          Typeface.DEFAULT
+
+                      line(
+                          "Funcionario: ${emp.name}"
+                      )
+
+                      line(
+                          "Salario: "+
+                          money.format(
+                              emp.salary
+                          )
+                      )
+
+                      line(
+                          "Valor hora: "+
+                          money.format(hourly)
+                      )
+
+                      line(
+                          "HE 60%: "+
+                          money.format(value60)
+                      )
+
+                      line(
+                          "HE 100%: "+
+                          money.format(value100)
+                      )
+
+                      line(
+                          "Dias trabalhados: "+
+                          workedDays
+                      )
+
+                      line(
+                          "DSR: "+
+                          money.format(dsr)
+                      )
+
+                      line(
+                          "TOTAL FINAL: "+
+                          money.format(total)
+                      )
+
+                      document.finishPage(
+                          pdfPage
+                      )
+
+                      file.outputStream().use{
+                          document.writeTo(it)
+                      }
+
+                      document.close()
+
+                      val uri=
+                          FileProvider.getUriForFile(
+                              this,
+                              "$packageName.fileprovider",
+                              file
+                          )
+
+                      val send=
+                          Intent(
+                              Intent.ACTION_SEND
+                          ).apply{
+
+                              type=
+                                  "application/pdf"
+
+                              putExtra(
+                                  Intent.EXTRA_STREAM,
+                                  uri
+                              )
+
+                              addFlags(
+                                  Intent.FLAG_GRANT_READ_URI_PERMISSION
+                              )
+                          }
+
+                      startActivity(
+                          Intent.createChooser(
+                              send,
+                              "Enviar relatório PDF"
+                          )
+                      )
+
+                  }catch(e:Exception){
+
+                      Toast.makeText(
+                          this,
+                          "Erro ao gerar PDF: "+
+                          e.message,
+                          Toast.LENGTH_LONG
+                      ).show()
+                  }
+              }
+
+              private fun metricCard(
+                  title:String,
+                  value:String,
+                  color:Int
+              ):View{
+
+                  val l=
+                      LinearLayout(this).apply{
+
+                          orientation=
+                              LinearLayout.VERTICAL
+
+                          setPadding(
+                              dp(12),
+                              dp(7),
+                              dp(8),
+                              dp(7)
+                          )
+
+                          background(
+                              if(color==green)
+                                  0xFFE7F8EE.toInt()
+                              else
+                                  0xFFEAF2FF.toInt(),
+                              dp(14),
+                              dp(14),
+                              dp(14),
+                              dp(14)
+                          )
+                      }
+
+                  l.addView(
+                      TextView(this).apply{
+                          text=title
+                          textSize=12f
+                          setTextColor(
+                              darkBlue
+                          )
+                      }
                   )
 
-              fim_linha = codigo.find(
-                  "\n",
-                  load
-              )
-
-              codigo = (
-                  codigo[:fim_linha + 1]
-                  + "        selectedPunchDate=today()\n"
-                  + codigo[fim_linha + 1:]
-              )
-
-          # =====================================================
-          # CORREÇÕES BÁSICAS DA #36
-          # =====================================================
-
-          codigo = codigo.replace(
-              'setText(if(existing!=null)existing.salary.toString():"")',
-              'setText(if(existing!=null)existing.salary.toString() else "")'
-          )
-
-          codigo = codigo.replace(
-              'setText(if(existing != null) existing.salary.toString():"")',
-              'setText(if(existing != null) existing.salary.toString() else "")'
-          )
-
-          codigo = codigo.replace(
-              'setText(if(existing!=null)existing.salary.toString():"")',
-              'setText(if(existing!=null)existing.salary.toString() else "")'
-          )
-
-          # =====================================================
-          # HISTÓRICO MENSAL
-          # =====================================================
-
-          codigo = codigo.replace(
-              'it.date.endsWith(SimpleDateFormat("MM-yyyy", Locale.US).format(Date()))',
-              'it.date.startsWith(SimpleDateFormat("yyyy-MM", Locale.US).format(Date()))'
-          )
-
-          # =====================================================
-          # NORMALIZAÇÃO DE HORÁRIO
-          # 0558 -> 05:58
-          # 1203 -> 12:03
-          # =====================================================
-
-          marcador = "private fun getRecord"
-
-          if marcador not in codigo:
-              raise SystemExit(
-                  "ERRO: getRecord não encontrado"
-              )
-
-          if "private fun normalizeTime" not in codigo:
-
-              pos = codigo.find(marcador)
-
-              helper = r'''
-private fun normalizeTime(value:String):String{
-    val digits=value.filter{it.isDigit()}.take(4)
-
-    if(digits.length!=4)return ""
-
-    val hour=digits.substring(0,2).toIntOrNull() ?: return ""
-    val minute=digits.substring(2,4).toIntOrNull() ?: return ""
-
-    if(hour !in 0..23)return ""
-    if(minute !in 0..59)return ""
-
-    return "%02d:%02d".format(
-        Locale.US,
-        hour,
-        minute
-    )
-}
-
-private fun timeEdit(
-    initial:String="",
-    hintText:String="HH:mm"
-):EditText{
-
-    val e=EditText(this).apply{
-        hint=hintText
-        inputType=2
-        setSingleLine()
-
-        val normalized=normalizeTime(initial)
-
-        if(normalized.isNotEmpty()){
-            setText(normalized)
-        }
-    }
-
-    var changing=false
-
-    e.addTextChangedListener(
-        object:android.text.TextWatcher{
-
-            override fun beforeTextChanged(
-                s:CharSequence?,
-                start:Int,
-                count:Int,
-                after:Int
-            ){}
-
-            override fun onTextChanged(
-                s:CharSequence?,
-                start:Int,
-                before:Int,
-                count:Int
-            ){}
-
-            override fun afterTextChanged(
-                editable:android.text.Editable?
-            ){
-
-                if(changing)return
-
-                val digits=
-                    editable
-                        ?.toString()
-                        ?.filter{it.isDigit()}
-                        ?.take(4)
-                        .orEmpty()
-
-                val formatted=when{
-
-                    digits.isEmpty()->
-                        ""
-
-                    digits.length<=2->
-                        digits
-
-                    else->
-                        digits.substring(0,2)+":"+
-                        digits.substring(2)
-                }
-
-                if(
-                    formatted !=
-                    editable?.toString()
-                ){
-
-                    changing=true
-
-                    e.setText(formatted)
-                    e.setSelection(e.text.length)
-
-                    changing=false
-                }
-            }
-        }
-    )
-
-    e.setOnFocusChangeListener{_,hasFocus->
-
-        if(!hasFocus){
-
-            val normalized=
-                normalizeTime(
-                    e.text.toString()
-                )
-
-            if(normalized.isNotEmpty()){
-
-                e.setText(normalized)
-                e.setSelection(e.text.length)
-            }
-        }
-    }
-
-    return e
-}
-
-'''
-
-              codigo = (
-                  codigo[:pos]
-                  + helper
-                  + codigo[pos:]
-              )
-
-          # =====================================================
-          # DATA RETROATIVA
-          # =====================================================
-
-          if "private fun choosePunchDate" not in codigo:
-
-              marker = "private fun getRecord"
-
-              pos = codigo.find(marker)
-
-              if pos == -1:
-                  raise SystemExit(
-                      "ERRO: marcador getRecord não encontrado"
+                  l.addView(
+                      TextView(this).apply{
+                          text=value
+                          textSize=19f
+                          setTypeface(
+                              null,
+                              Typeface.BOLD
+                          )
+                          setTextColor(
+                              darkBlue
+                          )
+                      }
                   )
 
-              helper = r'''
-private fun choosePunchDate(){
+                  return l
+              }
 
-    val selected=parseIso(selectedPunchDate)
+              private fun infoCard(
+                  value:String
+              ):View{
 
-    val cal=Calendar.getInstance()
-    cal.time=selected
+                  return card().apply{
 
-    val dialog=DatePickerDialog(
-        this,
-        {_,year,month,day->
+                      addView(
+                          TextView(context).apply{
 
-            val chosen=Calendar.getInstance()
+                              text=value
+                              textSize=14f
 
-            chosen.set(
-                year,
-                month,
-                day,
-                0,
-                0,
-                0
-            )
+                              setTextColor(
+                                  this@MainActivity.text
+                              )
 
-            chosen.set(
-                Calendar.MILLISECOND,
-                0
-            )
+                              setPadding(
+                                  dp(14),
+                                  dp(14),
+                                  dp(14),
+                                  dp(14)
+                              )
+                          }
+                      )
+                  }
+              }
 
-            selectedPunchDate=
-                iso.format(chosen.time)
+              private fun card():
+                  LinearLayout{
 
-            showPunch()
-        },
-        cal.get(Calendar.YEAR),
-        cal.get(Calendar.MONTH),
-        cal.get(Calendar.DAY_OF_MONTH)
-    )
+                  return LinearLayout(this).apply{
 
-    dialog.datePicker.maxDate=
-        Calendar.getInstance().timeInMillis
+                      orientation=
+                          LinearLayout.VERTICAL
 
-    dialog.show()
-}
+                      background(
+                          Color.WHITE,
+                          dp(14),
+                          dp(14),
+                          dp(14),
+                          dp(14)
+                      )
 
-'''
+                      elevation=
+                          dp(1).toFloat()
+                  }
+              }
 
-              codigo = (
-                  codigo[:pos]
-                  + helper
-                  + codigo[pos:]
+              private fun label(
+                  value:String
+              )=
+                  TextView(this).apply{
+
+                      text=value
+                      textSize=13f
+
+                      setTextColor(
+                          muted
+                      )
+
+                      setTypeface(
+                          null,
+                          Typeface.BOLD
+                      )
+                  }
+
+              private fun safeTime(
+                  value:String
+              ):String{
+
+                  if(value.isBlank())
+                      return ""
+
+                  return normalizeTime(value)
+              }
+
+              private fun formatMin(
+                  minutes:Int
+              ):String{
+
+                  val m=max(
+                      0,
+                      minutes
+                  )
+
+                  return "%02d:%02d".format(
+                      Locale.US,
+                      m/60,
+                      m%60
+                  )
+              }
+
+              private fun parseIso(
+                  value:String
+              ):Date{
+
+                  return try{
+
+                      iso.parse(value)
+                          ?:Date()
+
+                  }catch(_:Exception){
+
+                      Date()
+                  }
+              }
+
+              private fun dp(
+                  value:Int
+              ):Int{
+
+                  return (
+                      value*
+                      resources
+                          .displayMetrics
+                          .density
+                  ).toInt()
+                      .coerceAtLeast(1)
+              }
+
+              private fun View.background(
+                  color:Int,
+                  tl:Int,
+                  tr:Int,
+                  br:Int,
+                  bl:Int
+              ){
+
+                  background=
+                      GradientDrawable().apply{
+
+                          setColor(color)
+
+                          cornerRadii=
+                              floatArrayOf(
+                                  tl.toFloat(),
+                                  tl.toFloat(),
+                                  tr.toFloat(),
+                                  tr.toFloat(),
+                                  br.toFloat(),
+                                  br.toFloat(),
+                                  bl.toFloat(),
+                                  bl.toFloat()
+                              )
+                      }
+              }
+          }
+          ''', encoding="utf-8")
+
+          manifestText =
+              manifest.read_text(
+                  encoding="utf-8"
               )
 
-          # =====================================================
-          # ESCALA SEMANAL
-          # =====================================================
+          if(
+              "androidx.core.content.FileProvider"
+              not in manifestText
+          ){
 
-          if "private var weeklyTarget" not in codigo:
+              provider = '''
+                  <provider
+                      android:name="androidx.core.content.FileProvider"
+                      android:authorities="${applicationId}.fileprovider"
+                      android:exported="false"
+                      android:grantUriPermissions="true">
+                      <meta-data
+                          android:name="android.support.FILE_PROVIDER_PATHS"
+                          android:resource="@xml/paths" />
+                  </provider>
+              '''
 
-              marker = "private val scale"
-
-              pos = codigo.find(marker)
-
-              if pos != -1:
-
-                  fim = codigo.find(
-                      "\n",
-                      pos
+              manifestText=
+                  manifestText.replace(
+                      "</application>",
+                      provider+
+                      "    </application>"
                   )
 
-                  codigo = (
-                      codigo[:fim + 1]
-                      + 'private var weeklyTarget:String="44:00"\n'
-                      + 'private val weekModes=linkedMapOf<String,String>()\n'
-                      + codigo[fim + 1:]
+          else:
+
+              manifestText=
+                  manifestText.replace(
+                      'android:resource="@xml/file_paths"',
+                      'android:resource="@xml/paths"'
                   )
 
-          # =====================================================
-          # FUNÇÕES DA SEMANA
-          # =====================================================
-
-          if "private fun weekKey" not in codigo:
-
-              marker = "private fun getRecord"
-
-              pos = codigo.find(marker)
-
-              helper = r'''
-private fun weekKey(date:Date):String{
-
-    val c=Calendar.getInstance()
-
-    c.time=date
-
-    c.firstDayOfWeek=
-        Calendar.MONDAY
-
-    while(
-        c.get(Calendar.DAY_OF_WEEK)
-        !=Calendar.MONDAY
-    ){
-        c.add(
-            Calendar.DAY_OF_MONTH,
-            -1
-        )
-    }
-
-    c.set(Calendar.HOUR_OF_DAY,0)
-    c.set(Calendar.MINUTE,0)
-    c.set(Calendar.SECOND,0)
-    c.set(Calendar.MILLISECOND,0)
-
-    return iso.format(c.time)
-}
-
-private fun modeForDate(
-    date:Date
-):String{
-
-    return weekModes[
-        weekKey(date)
-    ] ?: "MF"
-}
-
-private fun modeForDay(
-    date:Date
-):Boolean{
-
-    val c=Calendar.getInstance()
-
-    c.time=date
-
-    val day=
-        c.get(Calendar.DAY_OF_WEEK)
-
-    return if(
-        modeForDate(date)=="MS"
-    ){
-
-        day!=Calendar.SUNDAY
-
-    }else{
-
-        day!=Calendar.SATURDAY &&
-        day!=Calendar.SUNDAY
-    }
-}
-
-private fun durationMinutes(
-    value:String
-):Int{
-
-    val digits=
-        value
-            .filter{it.isDigit()}
-            .take(4)
-
-    if(digits.length!=4)return 0
-
-    val h=
-        digits
-            .substring(0,2)
-            .toIntOrNull()
-            ?:return 0
-
-    val m=
-        digits
-            .substring(2,4)
-            .toIntOrNull()
-            ?:return 0
-
-    if(h<0)return 0
-    if(m !in 0..59)return 0
-
-    return h*60+m
-}
-
-private fun formatMin(
-    value:Int
-):String{
-
-    val safe=
-        max(
-            0,
-            value
-        )
-
-    return "%02d:%02d".format(
-        Locale.US,
-        safe/60,
-        safe%60
-    )
-}
-
-'''
-
-              codigo = (
-                  codigo[:pos]
-                  + helper
-                  + codigo[pos:]
-              )
-
-          # =====================================================
-          # SALVAR ESCALA
-          # =====================================================
-
-          if 'putString("weeklyTarget"' not in codigo:
-
-              marker = "private fun saveData"
-
-              pos = codigo.find(marker)
-
-              if pos != -1:
-
-                  fim = codigo.find(
-                      "\n",
-                      pos
-                  )
-
-                  # O código original continua salvando
-                  # funcionários e registros normalmente.
-                  # Acrescentamos a configuração antes do
-                  # fechamento da função através de substituição
-                  # segura do editor.
-                  pass
-
-          # =====================================================
-          # NORMALIZAÇÃO DAS EDIÇÕES MANUAIS
-          # =====================================================
-
-          codigo = codigo.replace(
-              'val e=EditText(this).apply{setText(r.punches[index]);hint="HH:mm";inputType=2;setSingleLine()}',
-              'val e=timeEdit(r.punches[index],punchNames[index])'
+          manifest.write_text(
+              manifestText,
+              encoding="utf-8"
           )
 
-          codigo = codigo.replace(
-              'r.punches[index]=e.text.toString();saveData();showPunch()',
-              'r.punches[index]=normalizeTime(e.text.toString());saveData();showPunch()'
-          )
+          pathsText='''<?xml version="1.0" encoding="utf-8"?>
+          <paths xmlns:android="http://schemas.android.com/apk/res/android">
+              <cache-path
+                  name="cache"
+                  path="." />
+          </paths>
+          '''
 
-          codigo = codigo.replace(
-              'val fields=r.punches.mapIndexed{i,v->EditText(this).apply{hint=punchNames[i];setText(v);inputType=2;setSingleLine();}}',
-              'val fields=r.punches.mapIndexed{i,v->timeEdit(v,punchNames[i])}'
-          )
-
-          codigo = codigo.replace(
-              'fields.forEachIndexed{i,e->r.punches[i]=e.text.toString()};saveData();showHistory()',
-              'fields.forEachIndexed{i,e->r.punches[i]=normalizeTime(e.text.toString())};saveData();showHistory()'
-          )
-
-          # =====================================================
-          # DATA AO TROCAR FUNCIONÁRIO
-          # =====================================================
-
-          codigo = codigo.replace(
-              'selectedEmployeeId=employees[position].id',
-              'selectedEmployeeId=employees[position].id;selectedPunchDate=today()'
-          )
-
-          # =====================================================
-          # GARANTE QUE O APP TENHA OS HELPERS NECESSÁRIOS
-          # =====================================================
-
-          obrigatorias = [
-              "private fun normalizeTime",
-              "private fun timeEdit",
-              "private fun choosePunchDate",
-              "private fun weekKey",
-              "private fun modeForDate",
-              "private fun modeForDay",
-              "private fun durationMinutes",
-              "private fun formatMin"
-          ]
-
-          for item in obrigatorias:
-
-              if item not in codigo:
-
-                  raise SystemExit(
-                      "ERRO FINAL: função ausente: "
-                      + item
-                  )
-
-          print(
-              "Linhas finais:",
-              len(codigo.splitlines())
-          )
-
-          # =====================================================
-          # VERIFICAÇÃO BÁSICA DE CHAVES
-          # =====================================================
-
-          abertas=codigo.count("{")
-          fechadas=codigo.count("}")
-
-          print(
-              "Chaves:",
-              abertas,
-              fechadas
-          )
-
-          if abertas != fechadas:
-
-              raise SystemExit(
-                  "ERRO: quantidade de chaves incompatível"
-              )
-
-          arquivo.write_text(
-              codigo,
+          (xml / "paths.xml").write_text(
+              pathsText,
               encoding="utf-8"
           )
 
           print(
-              "MAINACTIVITY CORRIGIDA"
+              "MAINACTIVITY APLICADA COM SUCESSO"
           )
 
       - name: Validar código
-        shell: python
-        run: |
-          from pathlib import Path
-
-          arquivo=Path(
-              "ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
-          )
-
-          codigo=arquivo.read_text(
-              encoding="utf-8"
-          )
-
-          obrigatorias=[
-              "private fun normalizeTime",
-              "private fun timeEdit",
-              "private fun choosePunchDate",
-              "private fun weekKey",
-              "private fun modeForDate",
-              "private fun modeForDay",
-              "private fun durationMinutes",
-              "private fun formatMin"
-          ]
-
-          for item in obrigatorias:
-
-              if item not in codigo:
-
-                  raise SystemExit(
-                      "VALIDAÇÃO FALHOU: "
-                      + item
-                  )
-
-          if codigo.count("{") != codigo.count("}"):
-
-              raise SystemExit(
-                  "VALIDAÇÃO FALHOU: chaves"
-              )
-
-          print(
-              "CÓDIGO VALIDADO COM SUCESSO"
-          )
-
-      - name: Instalar Gradle 8.11.1
         shell: bash
         run: |
           set -e
 
-          wget -q \
-            https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
+          MAIN="ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
 
-          unzip -q gradle-8.11.1-bin.zip
+          test -f "$MAIN"
+          test -f "ControleHoras/app/src/main/res/xml/paths.xml"
 
-          echo "$PWD/gradle-8.11.1/bin" >> "$GITHUB_PATH"
-
-          "$PWD/gradle-8.11.1/bin/gradle" --version
-
-      - name: Limpar projeto
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -e
-
-          gradle clean --no-daemon
-
-      - name: Gerar APK
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -e
-
-          gradle assembleDebug \
-            --no-daemon \
-            --stacktrace
-
-      - name: Verificar APK
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -e
-
-          APK="app/build/outputs/apk/debug/app-debug.apk"
-
-          test -s "$APK"
-
-          unzip -t "$APK" >/dev/null
-
-          echo "======================================"
-          echo "APK GERADO E VALIDADO"
-          echo "======================================"
-
-          ls -lh "$APK"
-
-      - name: Publicar APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: ControleHoras-APK
-          path: ControleHoras/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+          grep -q "selectedPunchDate" "$MAIN"
+          grep -q "choosePunchDate" "$MAIN"
+          grep -q "normalizeTime" "$MAIN"
+          grep -q "weekModes" "$MAIN"
+          grep -q "HE 60%" "$MAIN
