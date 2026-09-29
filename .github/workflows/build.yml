@@ -63,11 +63,6 @@ jobs:
           )
 
           codigo = codigo.replace(
-              'setText(if(existing!=null)existing.salary.toString():"")',
-              'setText(if(existing!=null)existing.salary.toString() else "")'
-          )
-
-          codigo = codigo.replace(
               'setText(if(existing != null) existing.salary.toString():"")',
               'setText(if(existing != null) existing.salary.toString() else "")'
           )
@@ -84,111 +79,74 @@ jobs:
 
           # =====================================================
           # NORMALIZAÇÃO DE HORÁRIO
-          # 0558 -> 05:58
-          # 1203 -> 12:03
           # =====================================================
 
           marcador = "    private fun getRecord(empId:Long,date:String):PunchDay{"
 
           if marcador not in codigo:
-              raise SystemExit("ERRO: getRecord não encontrado")
+              raise SystemExit(
+                  "ERRO: função getRecord não encontrada."
+              )
 
           if "private fun normalizeTime" not in codigo:
 
-              helper = """
-    private fun normalizeTime(value:String):String{
-        val digits=value.filter{it.isDigit()}.take(4)
+              helper = "\n".join([
+                  "    private fun normalizeTime(value:String):String{",
+                  "        val digits=value.filter{it.isDigit()}.take(4)",
+                  "        if(digits.length!=4)return \"\"",
+                  "        val hour=digits.substring(0,2).toIntOrNull()?:return \"\"",
+                  "        val minute=digits.substring(2,4).toIntOrNull()?:return \"\"",
+                  "        if(hour !in 0..23)return \"\"",
+                  "        if(minute !in 0..59)return \"\"",
+                  "        return \"%02d:%02d\".format(Locale.US,hour,minute)",
+                  "    }",
+                  "",
+                  "    private fun timeEdit(initial:String=\"\",hintText:String=\"00:00\"):EditText{",
+                  "        val e=EditText(this).apply{",
+                  "            hint=hintText",
+                  "            inputType=2",
+                  "            setSingleLine()",
+                  "            val normalized=normalizeTime(initial)",
+                  "            if(normalized.isNotEmpty())setText(normalized)",
+                  "        }",
+                  "",
+                  "        var changing=false",
+                  "",
+                  "        e.addTextChangedListener(object:android.text.TextWatcher{",
+                  "            override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int){}",
+                  "            override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){}",
+                  "            override fun afterTextChanged(editable:android.text.Editable?){",
+                  "                if(changing)return",
+                  "                val digits=editable?.toString()?.filter{it.isDigit()}?.take(4).orEmpty()",
+                  "                val formatted=when{",
+                  "                    digits.isEmpty()->\"\"",
+                  "                    digits.length<=2->digits",
+                  "                    else->digits.substring(0,2)+\":\"+digits.substring(2)",
+                  "                }",
+                  "                if(formatted!=editable?.toString()){",
+                  "                    changing=true",
+                  "                    e.setText(formatted)",
+                  "                    e.setSelection(e.text.length)",
+                  "                    changing=false",
+                  "                }",
+                  "            }",
+                  "        })",
+                  "",
+                  "        e.setOnFocusChangeListener{_,hasFocus->",
+                  "            if(!hasFocus){",
+                  "                val normalized=normalizeTime(e.text.toString())",
+                  "                if(normalized.isNotEmpty()){",
+                  "                    e.setText(normalized)",
+                  "                    e.setSelection(e.text.length)",
+                  "                }",
+                  "            }",
+                  "        }",
+                  "",
+                  "        return e",
+                  "    }",
+                  ""
+              ])
 
-        if(digits.length!=4)return ""
-
-        val hour=digits.substring(0,2).toIntOrNull()?:return ""
-        val minute=digits.substring(2,4).toIntOrNull()?:return ""
-
-        if(hour !in 0..23)return ""
-        if(minute !in 0..59)return ""
-
-        return "%02d:%02d".format(Locale.US,hour,minute)
-    }
-
-    private fun timeEdit(initial:String="",hintText:String="00:00"):EditText{
-        val e=EditText(this).apply{
-            hint=hintText
-            inputType=2
-            setSingleLine()
-
-            val normalized=normalizeTime(initial)
-
-            if(normalized.isNotEmpty()){
-                setText(normalized)
-            }
-        }
-
-        var changing=false
-
-        e.addTextChangedListener(object:android.text.TextWatcher{
-
-            override fun beforeTextChanged(
-                s:CharSequence?,
-                start:Int,
-                count:Int,
-                after:Int
-            ){}
-
-            override fun onTextChanged(
-                s:CharSequence?,
-                start:Int,
-                before:Int,
-                count:Int
-            ){}
-
-            override fun afterTextChanged(
-                editable:android.text.Editable?
-            ){
-                if(changing)return
-
-                val digits=
-                    editable
-                        ?.toString()
-                        ?.filter{it.isDigit()}
-                        ?.take(4)
-                        .orEmpty()
-
-                val formatted=when{
-                    digits.isEmpty()->""
-                    digits.length<=2->digits
-                    else->digits.substring(0,2)+":"+digits.substring(2)
-                }
-
-                if(formatted!=editable?.toString()){
-
-                    changing=true
-
-                    e.setText(formatted)
-                    e.setSelection(e.text.length)
-
-                    changing=false
-                }
-            }
-        })
-
-        e.setOnFocusChangeListener{_,hasFocus->
-
-            if(!hasFocus){
-
-                val normalized=normalizeTime(e.text.toString())
-
-                if(normalized.isNotEmpty()){
-
-                    e.setText(normalized)
-                    e.setSelection(e.text.length)
-                }
-            }
-        }
-
-        return e
-    }
-
-"""
               codigo = codigo.replace(
                   marcador,
                   helper + marcador,
@@ -199,7 +157,7 @@ jobs:
           # DATA SELECIONADA DO PONTO
           # =====================================================
 
-          if "private var selectedPunchDate:String" not in codigo:
+          if "selectedPunchDate" not in codigo:
 
               marcador_data = "    private var selectedEmployeeId:Long=0L"
 
@@ -207,249 +165,205 @@ jobs:
 
                   codigo = codigo.replace(
                       marcador_data,
-                      marcador_data + '\n    private var selectedPunchDate:String=""',
+                      marcador_data +
+                      "\n    private var selectedPunchDate:String=\"\"",
                       1
                   )
 
               else:
 
-                  # tenta inserir antes do primeiro método
                   marcador_data = "    override fun onCreate"
 
-                  if marcador_data not in codigo:
-                      raise SystemExit(
-                          "ERRO: não encontrei local para selectedPunchDate"
+                  if marcador_data in codigo:
+
+                      codigo = codigo.replace(
+                          marcador_data,
+                          "    private var selectedPunchDate:String=\"\"\n\n" +
+                          marcador_data,
+                          1
                       )
 
-                  codigo = codigo.replace(
-                      marcador_data,
-                      '    private var selectedPunchDate:String=""\n\n' +
-                      marcador_data,
-                      1
-                  )
-
           # =====================================================
-          # FUNÇÃO DE DATA DE HOJE
+          # FUNÇÃO TODAY
           # =====================================================
 
           if "private fun today():String" not in codigo:
 
-              marcador_today = "    private fun getRecord(empId:Long,date:String):PunchDay{"
-
-              today_helper = """
-    private fun today():String{
-        return SimpleDateFormat(
-            "yyyy-MM-dd",
-            Locale.US
-        ).format(Date())
-    }
-
-"""
+              today_helper = "\n".join([
+                  "    private fun today():String{",
+                  "        return SimpleDateFormat(\"yyyy-MM-dd\",Locale.US).format(Date())",
+                  "    }",
+                  ""
+              ])
 
               codigo = codigo.replace(
-                  marcador_today,
-                  today_helper + marcador_today,
+                  marcador,
+                  today_helper + marcador,
                   1
               )
 
           # =====================================================
-          # DATA AO ABRIR O APLICATIVO
+          # DATA INICIAL = HOJE
           # =====================================================
 
           if "selectedPunchDate=today()" not in codigo:
 
-              codigo = codigo.replace(
-                  "        loadData()",
-                  "        loadData()\n        selectedPunchDate=today()",
-                  1
-              )
+              if "        loadData()" in codigo:
+
+                  codigo = codigo.replace(
+                      "        loadData()",
+                      "        loadData()\n        selectedPunchDate=today()",
+                      1
+                  )
 
           # =====================================================
-          # CORREÇÃO DO CÁLCULO
+          # NORMALIZAR minutesBetween
           # =====================================================
 
-          inicio_calc = codigo.find(
+          inicio = codigo.find(
               "    private fun minutesBetween(a:String,b:String):Int"
           )
 
-          if inicio_calc >= 0:
+          if inicio >= 0:
 
-              fim_calc = codigo.find(
+              fim = codigo.find(
                   "\n    private fun ",
-                  inicio_calc + 10
+                  inicio + 10
               )
 
-              if fim_calc > inicio_calc:
+              if fim > inicio:
 
-                  nova_funcao = """
-    private fun minutesBetween(a:String,b:String):Int{
-
-        val x=normalizeTime(a)
-        val y=normalizeTime(b)
-
-        if(x.isBlank()||y.isBlank())return 0
-
-        return try{
-
-            val xa=x.split(":")
-            val ya=y.split(":")
-
-            val inicio=
-                xa[0].toInt()*60+
-                xa[1].toInt()
-
-            val fim=
-                ya[0].toInt()*60+
-                ya[1].toInt()
-
-            max(0,fim-inicio)
-
-        }catch(_:Exception){
-            0
-        }
-    }
-
-"""
+                  nova_funcao = "\n".join([
+                      "    private fun minutesBetween(a:String,b:String):Int{",
+                      "        val x=normalizeTime(a)",
+                      "        val y=normalizeTime(b)",
+                      "        if(x.isBlank()||y.isBlank())return 0",
+                      "        return try{",
+                      "            val xa=x.split(\":\")",
+                      "            val ya=y.split(\":\")",
+                      "            val inicio=xa[0].toInt()*60+xa[1].toInt()",
+                      "            val fim=ya[0].toInt()*60+ya[1].toInt()",
+                      "            max(0,fim-inicio)",
+                      "        }catch(_:Exception){",
+                      "            0",
+                      "        }",
+                      "    }",
+                      ""
+                  ])
 
                   codigo = (
-                      codigo[:inicio_calc]
-                      + nova_funcao
-                      + codigo[fim_calc+1:]
+                      codigo[:inicio] +
+                      nova_funcao +
+                      codigo[fim + 1:]
                   )
 
           # =====================================================
           # FORMATAÇÃO DO TOTAL
           # =====================================================
 
-          inicio_fmt = codigo.find(
+          inicio = codigo.find(
               "    private fun formatMin(m:Int):String"
           )
 
-          if inicio_fmt >= 0:
+          if inicio >= 0:
 
-              fim_fmt = codigo.find(
+              fim = codigo.find(
                   "\n    private fun ",
-                  inicio_fmt + 10
+                  inicio + 10
               )
 
-              if fim_fmt > inicio_fmt:
+              if fim > inicio:
 
-                  nova_formatacao = """
-    private fun formatMin(m:Int):String{
-        val minutos=max(0,m)
-        return "%02d:%02d".format(
-            Locale.US,
-            minutos/60,
-            minutos%60
-        )
-    }
-
-"""
+                  nova_funcao = "\n".join([
+                      "    private fun formatMin(m:Int):String{",
+                      "        val minutos=max(0,m)",
+                      "        return \"%02d:%02d\".format(Locale.US,minutos/60,minutos%60)",
+                      "    }",
+                      ""
+                  ])
 
                   codigo = (
-                      codigo[:inicio_fmt]
-                      + nova_formatacao
-                      + codigo[fim_fmt+1:]
+                      codigo[:inicio] +
+                      nova_funcao +
+                      codigo[fim + 1:]
                   )
 
           # =====================================================
-          # CÁLCULO DOS PERÍODOS
+          # CÁLCULO
           # =====================================================
 
-          inicio_calc2 = codigo.find(
+          inicio = codigo.find(
               "    private fun calculate(r:PunchDay):Calc"
           )
 
-          if inicio_calc2 >= 0:
+          if inicio >= 0:
 
-              fim_calc2 = codigo.find(
+              fim = codigo.find(
                   "\n    private fun ",
-                  inicio_calc2 + 10
+                  inicio + 10
               )
 
-              if fim_calc2 > inicio_calc2:
+              if fim > inicio:
 
-                  nova_calculate = """
-    private fun calculate(r:PunchDay):Calc{
-
-        var worked=0
-
-        // Primeiro período
-        worked+=minutesBetween(
-            r.punches[0],
-            r.punches[1]
-        )
-
-        // Se houver horário nos campos 4 ou 5,
-        // considera jornada com 6 batidas.
-        val seis=
-            r.punches[3].isNotBlank() ||
-            r.punches[4].isNotBlank()
-
-        if(seis){
-
-            worked+=minutesBetween(
-                r.punches[2],
-                r.punches[3]
-            )
-
-            worked+=minutesBetween(
-                r.punches[4],
-                r.punches[5]
-            )
-
-        }else{
-
-            worked+=minutesBetween(
-                r.punches[2],
-                r.punches[5]
-            )
-        }
-
-        val data=parseIso(r.date)
-
-        if(!modeForDay(data)){
-            return Calc(
-                worked,
-                0,
-                0,
-                worked
-            )
-        }
-
-        val semanal=durationMinutes(weeklyTarget)
-
-        val dias=
-            if(modeForDate(data)=="MS")
-                6
-            else
-                5
-
-        val expected=semanal/dias
-
-        val extra=max(
-            0,
-            worked-expected
-        )
-
-        return Calc(
-            worked,
-            expected,
-            extra,
-            0
-        )
-    }
-
-"""
+                  nova_funcao = "\n".join([
+                      "    private fun calculate(r:PunchDay):Calc{",
+                      "        var worked=0",
+                      "",
+                      "        worked+=minutesBetween(",
+                      "            r.punches[0],",
+                      "            r.punches[1]",
+                      "        )",
+                      "",
+                      "        val seis=",
+                      "            r.punches[3].isNotBlank() ||",
+                      "            r.punches[4].isNotBlank()",
+                      "",
+                      "        if(seis){",
+                      "            worked+=minutesBetween(",
+                      "                r.punches[2],",
+                      "                r.punches[3]",
+                      "            )",
+                      "",
+                      "            worked+=minutesBetween(",
+                      "                r.punches[4],",
+                      "                r.punches[5]",
+                      "            )",
+                      "        }else{",
+                      "            worked+=minutesBetween(",
+                      "                r.punches[2],",
+                      "                r.punches[5]",
+                      "            )",
+                      "        }",
+                      "",
+                      "        val data=parseIso(r.date)",
+                      "",
+                      "        if(!modeForDay(data)){",
+                      "            return Calc(worked,0,0,worked)",
+                      "        }",
+                      "",
+                      "        val semanal=durationMinutes(weeklyTarget)",
+                      "        val dias=if(modeForDate(data)==\"MS\")6 else 5",
+                      "        val expected=semanal/dias",
+                      "        val extra=max(0,worked-expected)",
+                      "",
+                      "        return Calc(",
+                      "            worked,",
+                      "            expected,",
+                      "            extra,",
+                      "            0",
+                      "        )",
+                      "    }",
+                      ""
+                  ])
 
                   codigo = (
-                      codigo[:inicio_calc2]
-                      + nova_calculate
-                      + codigo[fim_calc2+1:]
+                      codigo[:inicio] +
+                      nova_funcao +
+                      codigo[fim + 1:]
                   )
 
           # =====================================================
-          # GARANTE O SALVAMENTO
+          # SALVAR
           # =====================================================
 
           arquivo.write_text(
@@ -457,12 +371,14 @@ jobs:
               encoding="utf-8"
           )
 
-          print("MainActivity corrigida.")
+          print("====================================")
+          print("MAINACTIVITY CORRIGIDA")
           print("Linhas finais:", len(codigo.splitlines()))
+          print("====================================")
 
-      # =========================================================
+      # =====================================================
       # INSTALAR GRADLE
-      # =========================================================
+      # =====================================================
 
       - name: Instalar Gradle 8.11.1
         shell: bash
@@ -477,11 +393,11 @@ jobs:
 
           echo "/opt/gradle-8.11.1/bin" >> "$GITHUB_PATH"
 
-          gradle --version
+          /opt/gradle-8.11.1/bin/gradle --version
 
-      # =========================================================
-      # LIMPAR PROJETO
-      # =========================================================
+      # =====================================================
+      # LIMPAR
+      # =====================================================
 
       - name: Limpar projeto
         shell: bash
@@ -489,11 +405,13 @@ jobs:
         run: |
           set -e
 
-          gradle clean --no-daemon --stacktrace
+          gradle clean \
+            --no-daemon \
+            --stacktrace
 
-      # =========================================================
-      # GERAR APK
-      # =========================================================
+      # =====================================================
+      # COMPILAR APK
+      # =====================================================
 
       - name: Gerar APK
         shell: bash
@@ -505,9 +423,9 @@ jobs:
             --no-daemon \
             --stacktrace
 
-      # =========================================================
+      # =====================================================
       # VERIFICAR APK
-      # =========================================================
+      # =====================================================
 
       - name: Verificar APK
         shell: bash
@@ -516,22 +434,26 @@ jobs:
 
           APK="ControleHoras/app/build/outputs/apk/debug/app-debug.apk"
 
+          echo "Procurando APK..."
+
           if [ ! -f "$APK" ]; then
-            echo "ERRO: APK não foi gerado."
+            echo "ERRO: APK NÃO FOI GERADO."
+            echo ""
             echo "Arquivos encontrados:"
             find ControleHoras/app/build/outputs -type f 2>/dev/null || true
             exit 1
           fi
 
-          echo "===================================="
+          echo ""
+          echo "========================================"
           echo "APK GERADO COM SUCESSO"
-          echo "===================================="
+          echo "========================================"
 
           ls -lh "$APK"
 
-      # =========================================================
-      # ENVIAR APK PARA ARTIFACTS
-      # =========================================================
+      # =====================================================
+      # UPLOAD APK
+      # =====================================================
 
       - name: Enviar APK
         uses: actions/upload-artifact@v4
@@ -544,7 +466,10 @@ jobs:
       - name: Final
         shell: bash
         run: |
-          echo "===================================="
-          echo "BUILD CONCLUÍDO"
-          echo "APK: ControleHoras-APK"
-          echo "===================================="
+          echo ""
+          echo "========================================"
+          echo "CONTROLE HORAS - BUILD CONCLUÍDO"
+          echo "========================================"
+          echo "APK disponível em Artifacts:"
+          echo "ControleHoras-APK"
+          echo "========================================"
