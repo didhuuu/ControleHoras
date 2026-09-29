@@ -15,26 +15,14 @@ jobs:
 
     steps:
 
-      # ============================================================
-      # BAIXAR PROJETO
-      # ============================================================
-
       - name: Baixar projeto
         uses: actions/checkout@v4
-
-      # ============================================================
-      # JAVA 17
-      # ============================================================
 
       - name: Configurar Java 17
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
-
-      # ============================================================
-      # EXTRAIR PROJETO
-      # ============================================================
 
       - name: Extrair projeto
         shell: bash
@@ -52,10 +40,6 @@ jobs:
           test -f ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt
 
           echo "PROJETO ORIGINAL OK"
-
-      # ============================================================
-      # RECONSTRUIR EXATAMENTE A BASE 70
-      # ============================================================
 
       - name: Aplicar exatamente a base da versão 70
         shell: python
@@ -129,11 +113,7 @@ jobs:
                   check=True
               )
 
-          print("BASE 70 APLICADA COM SUCESSO")
-
-      # ============================================================
-      # APLICAR FUNCIONALIDADES QUE GERARAM O APK DO BUILD 80
-      # ============================================================
+          print("BASE 70 APLICADA")
 
       - name: Aplicar funcionalidades completas da versão 80
         shell: python
@@ -199,13 +179,7 @@ jobs:
               check=True
           )
 
-          print(
-              "FUNCIONALIDADES DA VERSÃO 80 APLICADAS"
-          )
-
-      # ============================================================
-      # CORREÇÕES DEFINITIVAS DA MAINACTIVITY
-      # ============================================================
+          print("FUNCIONALIDADES DA VERSÃO 80 APLICADAS")
 
       - name: Corrigir MainActivity definitivamente
         shell: python
@@ -217,18 +191,9 @@ jobs:
               "ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
           )
 
-          if not file.exists():
-              raise SystemExit(
-                  "ERRO: MainActivity.kt não encontrado"
-              )
-
           code=file.read_text(
               encoding="utf-8"
           )
-
-          # ========================================================
-          # PUNCHNAMES
-          # ========================================================
 
           if "private val punchNames" not in code:
 
@@ -268,12 +233,8 @@ jobs:
               if not inserted:
 
                   raise SystemExit(
-                      "ERRO: não foi possível inserir punchNames"
+                      "ERRO: punchNames não pôde ser inserido"
                   )
-
-          # ========================================================
-          # CORRIGIR ADDVIEW
-          # ========================================================
 
           pattern=(
               r'\},\s*'
@@ -305,19 +266,11 @@ jobs:
           )
 
           if count==0:
-
-              print(
-                  "ADDVIEW já estava corrigido"
-              )
-
-          # ========================================================
-          # GARANTIR PUNCHNAMES
-          # ========================================================
+              print("ADDVIEW já estava corrigido")
 
           if "private val punchNames" not in code:
-
               raise SystemExit(
-                  "ERRO FINAL: punchNames não existe"
+                  "ERRO FINAL: punchNames ausente"
               )
 
           file.write_text(
@@ -325,18 +278,17 @@ jobs:
               encoding="utf-8"
           )
 
-          print(
-              "MAINACTIVITY BASE CORRIGIDA"
-          )
+          print("MAINACTIVITY CORRIGIDA")
 
       # ============================================================
-      # CORREÇÃO COMPLETA DO RELÓGIO DE ROLAGEM
+      # CORREÇÃO COMPLETA DO RELÓGIO
       # ============================================================
 
       - name: Corrigir completamente o relógio de rolagem
         shell: python
         run: |
           from pathlib import Path
+          import re
 
           file=Path(
               "ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
@@ -346,180 +298,178 @@ jobs:
               encoding="utf-8"
           )
 
-          # ========================================================
-          # TAMANHO DAS RODAS
-          # ========================================================
+          # --------------------------------------------------------
+          # DIMENSIONAMENTO DAS RODAS
+          # --------------------------------------------------------
 
-          code=code.replace(
-              "dp(88),\n                          dp(150)",
-              "dp(72),\n                          dp(126)"
+          code=re.sub(
+              r'dp\(88\)\s*,\s*dp\(150\)',
+              'dp(72),dp(126)',
+              code
           )
 
-          code=code.replace(
-              "dp(35),\n                          dp(150)",
-              "dp(28),\n                          dp(126)"
+          code=re.sub(
+              r'dp\(35\)\s*,\s*dp\(150\)',
+              'dp(28),dp(126)',
+              code
           )
 
-          # ========================================================
+          # --------------------------------------------------------
           # DOIS PONTOS
-          # ========================================================
+          # --------------------------------------------------------
 
-          code=code.replace(
-              'text=":"\n                          textSize=28f',
-              'text=":"\n                          textSize=22f'
+          code=re.sub(
+              r'(text\s*=\s*":"\s*textSize\s*=\s*)28f',
+              r'\g<1>22f',
+              code
           )
 
-          # ========================================================
-          # FUNÇÃO DE ESTILO
-          # ========================================================
+          # --------------------------------------------------------
+          # LOCALIZAR AS DUAS RODAS PELO NumberPicker
+          #
+          # Não depende de indentação.
+          # --------------------------------------------------------
+
+          hour_matches=list(
+              re.finditer(
+                  r'val\s+hour\s*=\s*NumberPicker\(this\)\.apply\s*\{',
+                  code
+              )
+          )
+
+          if len(hour_matches)<2:
+
+              raise SystemExit(
+                  "ERRO: as duas rodas de horário não foram encontradas"
+              )
+
+          # --------------------------------------------------------
+          # CRIAR FUNÇÃO VISUAL
+          # --------------------------------------------------------
 
           if "private fun styleWheel(picker:NumberPicker)" not in code:
 
-              marker=(
-                  "              private fun showEditWheel("
+              match=re.search(
+                  r'\n(\s*)private\s+fun\s+showEditWheel\s*\(',
+                  code
               )
 
-              if marker not in code:
-
-                  marker=(
-                      "    private fun showEditWheel("
-                  )
-
-              helper=(
-                  "              private fun styleWheel(picker:NumberPicker){\n"
-                  "                  picker.setBackgroundColor(Color.TRANSPARENT)\n"
-                  "                  picker.wrapSelectorWheel=true\n"
-                  "                  picker.descendantFocusability=NumberPicker.FOCUS_BLOCK_DESCENDANTS\n"
-                  "                  picker.post{\n"
-                  "                      for(i in 0 until picker.childCount){\n"
-                  "                          val child=picker.getChildAt(i)\n"
-                  "                          if(child is TextView){\n"
-                  "                              child.setTextColor(darkBlue)\n"
-                  "                              child.textSize=21f\n"
-                  "                              child.gravity=Gravity.CENTER\n"
-                  "                              child.setTypeface(null,Typeface.BOLD)\n"
-                  "                          }\n"
-                  "                      }\n"
-                  "                  }\n"
-                  "              }\n\n"
-              )
-
-              if marker not in code:
+              if not match:
 
                   raise SystemExit(
                       "ERRO: showEditWheel não encontrado"
                   )
 
-              code=code.replace(
-                  marker,
-                  helper+marker,
-                  1
-              )
+              indent=match.group(1)
 
-          # ========================================================
-          # APLICAR ESTILO NA EDIÇÃO
-          # ========================================================
-
-          edit_start=code.find(
-              "private fun showEditWheel"
-          )
-
-          manual_start=code.find(
-              "private fun showManualWheel",
-              edit_start
-          )
-
-          if edit_start<0:
-
-              raise SystemExit(
-                  "ERRO: showEditWheel não encontrado"
-              )
-
-          if manual_start<0:
-
-              raise SystemExit(
-                  "ERRO: showManualWheel não encontrado"
-              )
-
-          edit_block=code[
-              edit_start:
-              manual_start
-          ]
-
-          if "styleWheel(hour)" not in edit_block:
-
-              marker=(
-                  "                  val sep="
-              )
-
-              pos=edit_block.find(marker)
-
-              if pos<0:
-
-                  raise SystemExit(
-                      "ERRO: roda de edição não encontrada"
-                  )
-
-              edit_block=(
-                  edit_block[:pos]+
-                  "                  styleWheel(hour)\n"
-                  "                  styleWheel(minute)\n\n"+
-                  edit_block[pos:]
+              helper=(
+                  "\n"
+                  +indent+
+                  "private fun styleWheel(picker:NumberPicker){\n"
+                  +indent+
+                  "    picker.setBackgroundColor(Color.TRANSPARENT)\n"
+                  +indent+
+                  "    picker.wrapSelectorWheel=true\n"
+                  +indent+
+                  "    picker.descendantFocusability=NumberPicker.FOCUS_BLOCK_DESCENDANTS\n"
+                  +indent+
+                  "    picker.post{\n"
+                  +indent+
+                  "        for(i in 0 until picker.childCount){\n"
+                  +indent+
+                  "            val child=picker.getChildAt(i)\n"
+                  +indent+
+                  "            if(child is TextView){\n"
+                  +indent+
+                  "                child.setTextColor(darkBlue)\n"
+                  +indent+
+                  "                child.textSize=21f\n"
+                  +indent+
+                  "                child.gravity=Gravity.CENTER\n"
+                  +indent+
+                  "                child.setTypeface(null,Typeface.BOLD)\n"
+                  +indent+
+                  "            }\n"
+                  +indent+
+                  "        }\n"
+                  +indent+
+                  "    }\n"
+                  +indent+
+                  "}\n"
               )
 
               code=(
-                  code[:edit_start]+
-                  edit_block+
-                  code[manual_start:]
+                  code[:match.start()]+
+                  helper+
+                  code[match.start():]
               )
 
-          # ========================================================
-          # APLICAR ESTILO NO REGISTRO MANUAL
-          # ========================================================
+          # --------------------------------------------------------
+          # INSERIR styleWheel antes do separador das duas rodas
+          # --------------------------------------------------------
 
-          manual_start=code.find(
-              "private fun showManualWheel"
-          )
+          positions=[]
 
-          if manual_start<0:
+          for hour_match in hour_matches[:2]:
 
-              raise SystemExit(
-                  "ERRO: showManualWheel não encontrado"
+              start=hour_match.start()
+
+              sep_match=re.search(
+                  r'\n(\s*)val\s+sep\s*=',
+                  code[start:]
               )
 
-          manual_block=code[
-              manual_start:
-          ]
-
-          if "styleWheel(hour)" not in manual_block:
-
-              marker=(
-                  "                  val sep="
-              )
-
-              pos=manual_block.find(marker)
-
-              if pos<0:
+              if not sep_match:
 
                   raise SystemExit(
-                      "ERRO: roda de registro manual não encontrada"
+                      "ERRO: separador ':' da roda não encontrado"
                   )
 
-              manual_block=(
-                  manual_block[:pos]+
-                  "                  styleWheel(hour)\n"
-                  "                  styleWheel(minute)\n\n"+
-                  manual_block[pos:]
+              sep_pos=(
+                  start+
+                  sep_match.start()+1
               )
+
+              indent=sep_match.group(1)
+
+              positions.append(
+                  (
+                      sep_pos,
+                      indent
+                  )
+              )
+
+          # Inserir de trás para frente para não alterar posições
+          for pos,indent in reversed(positions):
 
               code=(
-                  code[:manual_start]+
-                  manual_block
+                  code[:pos]+
+                  indent+
+                  "styleWheel(hour)\n"+
+                  indent+
+                  "styleWheel(minute)\n\n"+
+                  code[pos:]
               )
 
-          # ========================================================
-          # VALIDAÇÕES DA FUNCIONALIDADE
-          # ========================================================
+          # --------------------------------------------------------
+          # VALIDAR AS DUAS CHAMADAS
+          # --------------------------------------------------------
+
+          if code.count("styleWheel(hour)")<2:
+
+              raise SystemExit(
+                  "ERRO: roda de horas não recebeu estilo"
+              )
+
+          if code.count("styleWheel(minute)")<2:
+
+              raise SystemExit(
+                  "ERRO: roda de minutos não recebeu estilo"
+              )
+
+          # --------------------------------------------------------
+          # VALIDAR FUNCIONALIDADES
+          # --------------------------------------------------------
 
           required=[
               "private fun showManualWheel(",
@@ -529,7 +479,9 @@ jobs:
               "formatMin(calc.worked)",
               "calc.extra60",
               "calc.extra100",
-              '"%02d:%02d".format'
+              '"%02d:%02d".format',
+              "extra2Enabled",
+              "extra2ReturnEnabled"
           ]
 
           for term in required:
@@ -547,11 +499,11 @@ jobs:
           )
 
           print(
-              "RELÓGIO DE ROLAGEM CORRIGIDO"
+              "RELÓGIO DE ROLAGEM CORRIGIDO COMPLETAMENTE"
           )
 
       # ============================================================
-      # VALIDAÇÃO FINAL
+      # VALIDAÇÃO
       # ============================================================
 
       - name: Validar código e ícone
@@ -564,10 +516,6 @@ jobs:
           ICON="ControleHoras/app/src/main/res/drawable/controlehoras_icon.jpg"
 
           MANIFEST="ControleHoras/app/src/main/AndroidManifest.xml"
-
-          echo "========================================"
-          echo "VALIDAÇÃO FINAL"
-          echo "========================================"
 
           test -s "$FILE"
 
@@ -595,7 +543,9 @@ jobs:
 
           grep -q '"%02d:%02d".format' "$FILE"
 
-          grep -q 'styleWheel' "$FILE"
+          grep -q 'styleWheel(hour)' "$FILE"
+
+          grep -q 'styleWheel(minute)' "$FILE"
 
           grep -q 'WindowCompat.setDecorFitsSystemWindows' "$FILE"
 
@@ -607,16 +557,14 @@ jobs:
           fi
 
           if grep -n "'''" "$GITHUB_WORKSPACE/.github/workflows/build.yml"; then
-              echo "ERRO: aspas triplas encontradas no YAML"
+              echo "ERRO: aspas triplas encontradas"
               exit 1
           fi
 
-          echo "========================================"
-          echo "VALIDAÇÃO FINAL OK"
-          echo "========================================"
+          echo "VALIDAÇÃO OK"
 
       # ============================================================
-      # GRADLE 8.11.1
+      # GRADLE
       # ============================================================
 
       - name: Instalar Gradle 8.11.1
@@ -637,10 +585,6 @@ jobs:
           "$PWD/gradle-8.11.1/bin/gradle" \
             --version
 
-      # ============================================================
-      # LIMPAR
-      # ============================================================
-
       - name: Limpar projeto
         working-directory: ControleHoras
         shell: bash
@@ -649,19 +593,11 @@ jobs:
 
           gradle clean --no-daemon
 
-      # ============================================================
-      # GERAR APK
-      # ============================================================
-
       - name: Gerar APK
         working-directory: ControleHoras
         shell: bash
         run: |
           set -e
-
-          echo "========================================"
-          echo "GERANDO APK"
-          echo "========================================"
 
           gradle assembleDebug \
             --no-daemon \
@@ -669,20 +605,11 @@ jobs:
 
           APK="app/build/outputs/apk/debug/app-debug.apk"
 
-          if [ ! -s "$APK" ]; then
-              echo "ERRO: APK NÃO FOI GERADO"
-              exit 1
-          fi
-
-          echo "========================================"
-          echo "APK GERADO"
-          echo "========================================"
+          test -s "$APK"
 
           ls -lh "$APK"
 
-      # ============================================================
-      # TESTAR APK
-      # ============================================================
+          echo "APK GERADO COM SUCESSO"
 
       - name: Verificar APK
         working-directory: ControleHoras
@@ -698,11 +625,7 @@ jobs:
             "$APK" \
             >/dev/null
 
-          echo "APK VALIDADO COM SUCESSO"
-
-      # ============================================================
-      # PUBLICAR APK
-      # ============================================================
+          echo "APK VALIDADO"
 
       - name: Publicar APK
         uses: actions/upload-artifact@v4
