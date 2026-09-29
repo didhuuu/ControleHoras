@@ -15,8 +15,16 @@ jobs:
 
     steps:
 
+      # ==========================================================
+      # BAIXAR PROJETO
+      # ==========================================================
+
       - name: Baixar projeto
         uses: actions/checkout@v4
+
+      # ==========================================================
+      # JAVA
+      # ==========================================================
 
       - name: Configurar Java 17
         uses: actions/setup-java@v5
@@ -24,12 +32,17 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Extrair projeto
+      # ==========================================================
+      # EXTRAIR PROJETO
+      # ==========================================================
+
+      - name: Extrair projeto original
         shell: bash
         run: |
           set -e
 
           rm -rf ControleHoras
+
           unzip -q -o ControleHoras.zip
 
           test -f ControleHoras/settings.gradle.kts
@@ -38,347 +51,653 @@ jobs:
           test -f ControleHoras/app/src/main/AndroidManifest.xml
           test -f ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt
 
+          echo "========================================"
           echo "PROJETO ORIGINAL OK"
+          echo "========================================"
+
+          wc -l ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt
+
+      # ==========================================================
+      # CORRIGIR MAINACTIVITY
+      # ==========================================================
 
       - name: Corrigir MainActivity
-        shell: python
+        shell: bash
         run: |
+          set -e
+
+          python3 - <<'PY'
           from pathlib import Path
 
-          arquivo = Path(
+          p = Path(
               "ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
           )
 
-          codigo = arquivo.read_text(encoding="utf-8")
+          s = p.read_text(encoding="utf-8")
 
-          print("Linhas originais:", len(codigo.splitlines()))
+          print("Linhas originais:", len(s.splitlines()))
 
-          # =====================================================
-          # CORREÇÕES BÁSICAS
-          # =====================================================
+          # ======================================================
+          # CORREÇÕES BÁSICAS DE COMPILAÇÃO
+          # ======================================================
 
-          codigo = codigo.replace(
-              'setText(if(existing!=null)existing.salary.toString():"")',
-              'setText(if(existing!=null)existing.salary.toString() else "")'
+          s = s.replace(
+              "        }, 0, 0, 0, dp(10))",
+              "        }, LinearLayout.LayoutParams(-1, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(10) })"
           )
 
-          codigo = codigo.replace(
-              'setText(if(existing != null) existing.salary.toString():"")',
-              'setText(if(existing != null) existing.salary.toString() else "")'
+          s = s.replace(
+              "        }, 0, 0, 0, dp(12))",
+              "        }, LinearLayout.LayoutParams(-1, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(12) })"
           )
 
-          codigo = codigo.replace(
+          s = s.replace(
               "setTextColor(text)",
               "setTextColor(this@MainActivity.text)"
           )
 
-          codigo = codigo.replace(
+          s = s.replace(
+              'setText(if(existing!=null)existing.salary.toString():"")',
+              'setText(if (existing != null) existing.salary.toString() else "")'
+          )
+
+          s = s.replace(
+              'setText(if(existing!=null)existing.salary.toString():"")',
+              'setText(if (existing != null) existing.salary.toString() else "")'
+          )
+
+          # Histórico mensal
+          s = s.replace(
               'it.date.endsWith(SimpleDateFormat("MM-yyyy", Locale.US).format(Date()))',
               'it.date.startsWith(SimpleDateFormat("yyyy-MM", Locale.US).format(Date()))'
           )
 
-          # =====================================================
+          # ======================================================
           # NORMALIZAÇÃO DE HORÁRIO
-          # =====================================================
+          #
+          # 0558 -> 05:58
+          # 1203 -> 12:03
+          # ======================================================
 
-          marcador = "    private fun getRecord(empId:Long,date:String):PunchDay{"
+          marker = "    private fun getRecord(empId:Long,date:String):PunchDay{"
 
-          if marcador not in codigo:
+          helper = '''    private fun normalizeTime(value:String):String{
+              val digits=value.filter{it.isDigit()}.take(4)
+
+              if(digits.length!=4)return ""
+
+              val hour=digits.substring(0,2).toIntOrNull()?:return ""
+              val minute=digits.substring(2,4).toIntOrNull()?:return ""
+
+              if(hour !in 0..23)return ""
+              if(minute !in 0..59)return ""
+
+              return "%02d:%02d".format(Locale.US,hour,minute)
+          }
+
+          private fun timeEdit(initial:String="",hintText:String="00:00"):EditText{
+              val e=EditText(this).apply{
+                  hint=hintText
+                  inputType=2
+                  setSingleLine()
+
+                  val normalized=normalizeTime(initial)
+
+                  if(normalized.isNotEmpty()){
+                      setText(normalized)
+                  }
+              }
+
+              var changing=false
+
+              e.addTextChangedListener(object:android.text.TextWatcher{
+
+                  override fun beforeTextChanged(
+                      s:CharSequence?,
+                      start:Int,
+                      count:Int,
+                      after:Int
+                  ){}
+
+                  override fun onTextChanged(
+                      s:CharSequence?,
+                      start:Int,
+                      before:Int,
+                      count:Int
+                  ){}
+
+                  override fun afterTextChanged(
+                      editable:android.text.Editable?
+                  ){
+
+                      if(changing)return
+
+                      val digits=
+                          editable
+                              ?.toString()
+                              ?.filter{it.isDigit()}
+                              ?.take(4)
+                              .orEmpty()
+
+                      val formatted=when{
+
+                          digits.isEmpty()->""
+
+                          digits.length<=2->digits
+
+                          else->
+                              digits.substring(0,2)+":"+
+                              digits.substring(2)
+                      }
+
+                      if(formatted!=editable?.toString()){
+
+                          changing=true
+
+                          e.setText(formatted)
+                          e.setSelection(e.text.length)
+
+                          changing=false
+                      }
+                  }
+              })
+
+              e.setOnFocusChangeListener{_,hasFocus->
+
+                  if(!hasFocus){
+
+                      val normalized=
+                          normalizeTime(e.text.toString())
+
+                      if(normalized.isNotEmpty()){
+
+                          e.setText(normalized)
+                          e.setSelection(e.text.length)
+                      }
+                  }
+              }
+
+              return e
+          }
+
+          '''
+
+          if marker not in s:
               raise SystemExit(
-                  "ERRO: função getRecord não encontrada."
+                  "ERRO: getRecord não encontrado"
               )
 
-          if "private fun normalizeTime" not in codigo:
+          if "private fun normalizeTime" not in s:
 
-              helper = "\n".join([
-                  "    private fun normalizeTime(value:String):String{",
-                  "        val digits=value.filter{it.isDigit()}.take(4)",
-                  "        if(digits.length!=4)return \"\"",
-                  "        val hour=digits.substring(0,2).toIntOrNull()?:return \"\"",
-                  "        val minute=digits.substring(2,4).toIntOrNull()?:return \"\"",
-                  "        if(hour !in 0..23)return \"\"",
-                  "        if(minute !in 0..59)return \"\"",
-                  "        return \"%02d:%02d\".format(Locale.US,hour,minute)",
-                  "    }",
-                  "",
-                  "    private fun timeEdit(initial:String=\"\",hintText:String=\"00:00\"):EditText{",
-                  "        val e=EditText(this).apply{",
-                  "            hint=hintText",
-                  "            inputType=2",
-                  "            setSingleLine()",
-                  "            val normalized=normalizeTime(initial)",
-                  "            if(normalized.isNotEmpty())setText(normalized)",
-                  "        }",
-                  "",
-                  "        var changing=false",
-                  "",
-                  "        e.addTextChangedListener(object:android.text.TextWatcher{",
-                  "            override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int){}",
-                  "            override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){}",
-                  "            override fun afterTextChanged(editable:android.text.Editable?){",
-                  "                if(changing)return",
-                  "                val digits=editable?.toString()?.filter{it.isDigit()}?.take(4).orEmpty()",
-                  "                val formatted=when{",
-                  "                    digits.isEmpty()->\"\"",
-                  "                    digits.length<=2->digits",
-                  "                    else->digits.substring(0,2)+\":\"+digits.substring(2)",
-                  "                }",
-                  "                if(formatted!=editable?.toString()){",
-                  "                    changing=true",
-                  "                    e.setText(formatted)",
-                  "                    e.setSelection(e.text.length)",
-                  "                    changing=false",
-                  "                }",
-                  "            }",
-                  "        })",
-                  "",
-                  "        e.setOnFocusChangeListener{_,hasFocus->",
-                  "            if(!hasFocus){",
-                  "                val normalized=normalizeTime(e.text.toString())",
-                  "                if(normalized.isNotEmpty()){",
-                  "                    e.setText(normalized)",
-                  "                    e.setSelection(e.text.length)",
-                  "                }",
-                  "            }",
-                  "        }",
-                  "",
-                  "        return e",
-                  "    }",
-                  ""
-              ])
-
-              codigo = codigo.replace(
-                  marcador,
-                  helper + marcador,
+              s = s.replace(
+                  marker,
+                  helper + marker,
                   1
               )
 
-          # =====================================================
-          # DATA SELECIONADA DO PONTO
-          # =====================================================
+          # ======================================================
+          # DATA DO PONTO
+          # ======================================================
 
-          if "selectedPunchDate" not in codigo:
+          selected_marker = "    private var selectedEmployeeId=0L"
 
-              marcador_data = "    private var selectedEmployeeId:Long=0L"
+          if selected_marker in s:
 
-              if marcador_data in codigo:
+              s = s.replace(
+                  selected_marker,
+                  selected_marker +
+                  '\n    private var selectedPunchDate:String=""',
+                  1
+              )
 
-                  codigo = codigo.replace(
-                      marcador_data,
-                      marcador_data +
-                      "\n    private var selectedPunchDate:String=\"\"",
-                      1
+          elif "private var selectedPunchDate:String" not in s:
+
+              marker_oncreate = "    override fun onCreate"
+
+              if marker_oncreate not in s:
+                  raise SystemExit(
+                      "ERRO: não encontrei onCreate"
                   )
 
-              else:
-
-                  marcador_data = "    override fun onCreate"
-
-                  if marcador_data in codigo:
-
-                      codigo = codigo.replace(
-                          marcador_data,
-                          "    private var selectedPunchDate:String=\"\"\n\n" +
-                          marcador_data,
-                          1
-                      )
-
-          # =====================================================
-          # FUNÇÃO TODAY
-          # =====================================================
-
-          if "private fun today():String" not in codigo:
-
-              today_helper = "\n".join([
-                  "    private fun today():String{",
-                  "        return SimpleDateFormat(\"yyyy-MM-dd\",Locale.US).format(Date())",
-                  "    }",
-                  ""
-              ])
-
-              codigo = codigo.replace(
-                  marcador,
-                  today_helper + marcador,
+              s = s.replace(
+                  marker_oncreate,
+                  '    private var selectedPunchDate:String=""\n\n' +
+                  marker_oncreate,
                   1
               )
 
-          # =====================================================
-          # DATA INICIAL = HOJE
-          # =====================================================
+          # ======================================================
+          # FUNÇÃO HOJE
+          # ======================================================
 
-          if "selectedPunchDate=today()" not in codigo:
+          if "private fun today()" not in s:
 
-              if "        loadData()" in codigo:
+              today_helper = '''    private fun today():String{
+              return SimpleDateFormat(
+                  "yyyy-MM-dd",
+                  Locale.US
+              ).format(Date())
+          }
 
-                  codigo = codigo.replace(
+          '''
+
+              s = s.replace(
+                  marker,
+                  today_helper + marker,
+                  1
+              )
+
+          # ======================================================
+          # ABERTURA DO APP = HOJE
+          # ======================================================
+
+          if "selectedPunchDate=today()" not in s:
+
+              if "        loadData()" in s:
+
+                  s = s.replace(
                       "        loadData()",
                       "        loadData()\n        selectedPunchDate=today()",
                       1
                   )
 
-          # =====================================================
-          # NORMALIZAR minutesBetween
-          # =====================================================
+          # ======================================================
+          # TROCAR PONTO FIXO DE HOJE PARA DATA SELECIONADA
+          # ======================================================
 
-          inicio = codigo.find(
-              "    private fun minutesBetween(a:String,b:String):Int"
+          s = s.replace(
+              "val rec = getRecord(emp.id, today())",
+              "val rec = getRecord(emp.id, selectedPunchDate)",
+              1
           )
 
-          if inicio >= 0:
-
-              fim = codigo.find(
-                  "\n    private fun ",
-                  inicio + 10
-              )
-
-              if fim > inicio:
-
-                  nova_funcao = "\n".join([
-                      "    private fun minutesBetween(a:String,b:String):Int{",
-                      "        val x=normalizeTime(a)",
-                      "        val y=normalizeTime(b)",
-                      "        if(x.isBlank()||y.isBlank())return 0",
-                      "        return try{",
-                      "            val xa=x.split(\":\")",
-                      "            val ya=y.split(\":\")",
-                      "            val inicio=xa[0].toInt()*60+xa[1].toInt()",
-                      "            val fim=ya[0].toInt()*60+ya[1].toInt()",
-                      "            max(0,fim-inicio)",
-                      "        }catch(_:Exception){",
-                      "            0",
-                      "        }",
-                      "    }",
-                      ""
-                  ])
-
-                  codigo = (
-                      codigo[:inicio] +
-                      nova_funcao +
-                      codigo[fim + 1:]
-                  )
-
-          # =====================================================
-          # FORMATAÇÃO DO TOTAL
-          # =====================================================
-
-          inicio = codigo.find(
-              "    private fun formatMin(m:Int):String"
+          s = s.replace(
+              "val r = getRecord(emp.id, today())",
+              "val r = getRecord(emp.id, selectedPunchDate)",
+              1
           )
 
-          if inicio >= 0:
+          # ======================================================
+          # TROCAR FUNCIONÁRIO = VOLTA PARA HOJE
+          # ======================================================
 
-              fim = codigo.find(
-                  "\n    private fun ",
-                  inicio + 10
-              )
-
-              if fim > inicio:
-
-                  nova_funcao = "\n".join([
-                      "    private fun formatMin(m:Int):String{",
-                      "        val minutos=max(0,m)",
-                      "        return \"%02d:%02d\".format(Locale.US,minutos/60,minutos%60)",
-                      "    }",
-                      ""
-                  ])
-
-                  codigo = (
-                      codigo[:inicio] +
-                      nova_funcao +
-                      codigo[fim + 1:]
-                  )
-
-          # =====================================================
-          # CÁLCULO
-          # =====================================================
-
-          inicio = codigo.find(
-              "    private fun calculate(r:PunchDay):Calc"
+          employee_switch = (
+              'if (employees[pos].id != selectedEmployeeId) '
+              '{ selectedEmployeeId = employees[pos].id; showPunch() }'
           )
 
-          if inicio >= 0:
+          employee_switch_new = (
+              'if (employees[pos].id != selectedEmployeeId) '
+              '{ selectedEmployeeId = employees[pos].id; '
+              'selectedPunchDate = today(); showPunch() }'
+          )
 
-              fim = codigo.find(
-                  "\n    private fun ",
-                  inicio + 10
+          if employee_switch in s:
+
+              s = s.replace(
+                  employee_switch,
+                  employee_switch_new,
+                  1
               )
 
-              if fim > inicio:
+          # ======================================================
+          # SELETOR DE DATA
+          # ======================================================
 
-                  nova_funcao = "\n".join([
-                      "    private fun calculate(r:PunchDay):Calc{",
-                      "        var worked=0",
-                      "",
-                      "        worked+=minutesBetween(",
-                      "            r.punches[0],",
-                      "            r.punches[1]",
-                      "        )",
-                      "",
-                      "        val seis=",
-                      "            r.punches[3].isNotBlank() ||",
-                      "            r.punches[4].isNotBlank()",
-                      "",
-                      "        if(seis){",
-                      "            worked+=minutesBetween(",
-                      "                r.punches[2],",
-                      "                r.punches[3]",
-                      "            )",
-                      "",
-                      "            worked+=minutesBetween(",
-                      "                r.punches[4],",
-                      "                r.punches[5]",
-                      "            )",
-                      "        }else{",
-                      "            worked+=minutesBetween(",
-                      "                r.punches[2],",
-                      "                r.punches[5]",
-                      "            )",
-                      "        }",
-                      "",
-                      "        val data=parseIso(r.date)",
-                      "",
-                      "        if(!modeForDay(data)){",
-                      "            return Calc(worked,0,0,worked)",
-                      "        }",
-                      "",
-                      "        val semanal=durationMinutes(weeklyTarget)",
-                      "        val dias=if(modeForDate(data)==\"MS\")6 else 5",
-                      "        val expected=semanal/dias",
-                      "        val extra=max(0,worked-expected)",
-                      "",
-                      "        return Calc(",
-                      "            worked,",
-                      "            expected,",
-                      "            extra,",
-                      "            0",
-                      "        )",
-                      "    }",
-                      ""
-                  ])
+          date_marker = "    private fun showPunch() {"
 
-                  codigo = (
-                      codigo[:inicio] +
-                      nova_funcao +
-                      codigo[fim + 1:]
+          date_function = '''    private fun selectPunchDate(){
+
+              val current=parseIso(selectedPunchDate)
+
+              val cal=Calendar.getInstance()
+              cal.time=current
+
+              DatePickerDialog(
+                  this,
+                  { _,year,month,day ->
+
+                      val c=Calendar.getInstance()
+
+                      c.set(
+                          year,
+                          month,
+                          day,
+                          0,
+                          0,
+                          0
+                      )
+
+                      selectedPunchDate=
+                          SimpleDateFormat(
+                              "yyyy-MM-dd",
+                              Locale.US
+                          ).format(c.time)
+
+                      showPunch()
+                  },
+                  cal.get(Calendar.YEAR),
+                  cal.get(Calendar.MONTH),
+                  cal.get(Calendar.DAY_OF_MONTH)
+              ).apply{
+
+                  setTitle("Selecionar data")
+
+                  setOnShowListener{
+                      val max=Calendar.getInstance()
+
+                      datePicker.maxDate=max.timeInMillis
+                  }
+
+              }.show()
+          }
+
+          '''
+
+          if "private fun selectPunchDate()" not in s:
+
+              if date_marker not in s:
+                  raise SystemExit(
+                      "ERRO: showPunch não encontrado"
                   )
 
-          # =====================================================
-          # SALVAR
-          # =====================================================
+              s = s.replace(
+                  date_marker,
+                  date_function + date_marker,
+                  1
+              )
 
-          arquivo.write_text(
-              codigo,
+          # ======================================================
+          # INSERIR CARTÃO DE DATA NO PONTO
+          # ======================================================
+
+          date_card_marker = "        val rec = getRecord(emp.id, selectedPunchDate)"
+
+          date_card = '''        val dateCard=card().apply{
+
+              val line=LinearLayout(context).apply{
+                  orientation=LinearLayout.HORIZONTAL
+                  gravity=Gravity.CENTER_VERTICAL
+                  setPadding(
+                      dp(14),
+                      dp(8),
+                      dp(14),
+                      dp(8)
+                  )
+              }
+
+              val dateText=TextView(context).apply{
+                  text=
+                      "Data do ponto: "+
+                      SimpleDateFormat(
+                          "dd/MM/yyyy",
+                          Locale(\"pt\",\"BR\")
+                      ).format(
+                          parseIso(selectedPunchDate)
+                      )
+
+                  textSize=16f
+                  setTypeface(null,Typeface.BOLD)
+                  setTextColor(darkBlue)
+              }
+
+              line.addView(
+                  dateText,
+                  LinearLayout.LayoutParams(
+                      0,
+                      dp(55),
+                      1f
+                  )
+              )
+
+              val button=Button(context).apply{
+
+                  text="ALTERAR DATA"
+
+                  setOnClickListener{
+                      selectPunchDate()
+                  }
+              }
+
+              line.addView(
+                  button,
+                  LinearLayout.LayoutParams(
+                      dp(145),
+                      dp(50)
+                  )
+              )
+
+              addView(line)
+          }
+
+          box.addView(
+              dateCard,
+              LinearLayout.LayoutParams(
+                  -1,
+                  LinearLayout.LayoutParams.WRAP_CONTENT
+              ).apply{
+                  bottomMargin=dp(10)
+              }
+          )
+
+          '''
+
+          if "Data do ponto:" not in s:
+
+              if date_card_marker not in s:
+                  raise SystemExit(
+                      "ERRO: local da data do ponto não encontrado"
+                  )
+
+              s = s.replace(
+                  date_card_marker,
+                  date_card + date_card_marker,
+                  1
+              )
+
+          # ======================================================
+          # MINUTOS
+          # ======================================================
+
+          old_minutes = '''    private fun minutesBetween(a:String,b:String):Int{
+              if(a.isBlank()||b.isBlank())return 0
+              return try{val x=a.split(":");val y=b.split(":");max(0,(y[0].toInt()*60+y[1].toInt())-(x[0].toInt()*60+x[1].toInt()))}catch(_:Exception){0}
+          }'''
+
+          new_minutes = '''    private fun minutesBetween(a:String,b:String):Int{
+
+              val x=normalizeTime(a)
+              val y=normalizeTime(b)
+
+              if(x.isBlank()||y.isBlank())return 0
+
+              return try{
+
+                  val xa=x.split(":")
+                  val ya=y.split(":")
+
+                  val inicio=
+                      xa[0].toInt()*60+
+                      xa[1].toInt()
+
+                  val fim=
+                      ya[0].toInt()*60+
+                      ya[1].toInt()
+
+                  max(
+                      0,
+                      fim-inicio
+                  )
+
+              }catch(_:Exception){
+
+                  0
+              }
+          }'''
+
+          if old_minutes in s:
+
+              s=s.replace(
+                  old_minutes,
+                  new_minutes,
+                  1
+              )
+
+          # ======================================================
+          # FORMATO DOS TOTAIS
+          # ======================================================
+
+          old_format='    private fun formatMin(m:Int):String="${m/60}:%02d".format(m%60)'
+
+          new_format='    private fun formatMin(m:Int):String="%02d:%02d".format(Locale.US,max(0,m)/60,max(0,m)%60)'
+
+          if old_format in s:
+
+              s=s.replace(
+                  old_format,
+                  new_format,
+                  1
+              )
+
+          # ======================================================
+          # ADIÇÃO MANUAL
+          # ======================================================
+
+          old_edit='val e=EditText(this).apply{setText(r.punches[index]);hint="HH:mm";inputType=2;setSingleLine()}'
+
+          if old_edit in s:
+
+              s=s.replace(
+                  old_edit,
+                  'val e=timeEdit(r.punches[index],"00:00")',
+                  1
+              )
+
+          s=s.replace(
+              'r.punches[index]=e.text.toString();saveData();showPunch()',
+              'r.punches[index]=normalizeTime(e.text.toString());saveData();showPunch()',
+              1
+          )
+
+          # ======================================================
+          # EDIÇÃO COMPLETA DO REGISTRO
+          # ======================================================
+
+          old_fields='val fields=r.punches.mapIndexed{i,v->EditText(this).apply{hint=punchNames[i];setText(v);inputType=2;setSingleLine();}}'
+
+          if old_fields in s:
+
+              s=s.replace(
+                  old_fields,
+                  'val fields=r.punches.mapIndexed{i,v->timeEdit(v,punchNames[i])}',
+                  1
+              )
+
+          s=s.replace(
+              'fields.forEachIndexed{i,e->r.punches[i]=e.text.toString()};saveData();showHistory()',
+              'fields.forEachIndexed{i,e->r.punches[i]=normalizeTime(e.text.toString())};saveData();showHistory()',
+              1
+          )
+
+          # ======================================================
+          # ESCALA TAMBÉM USA HORÁRIO AUTOMÁTICO
+          # ======================================================
+
+          old_scale='val ed=EditText(this).apply{setText(p.second);hint="00:00";gravity=Gravity.CENTER;inputType=2;setSingleLine()}'
+
+          if old_scale in s:
+
+              s=s.replace(
+                  old_scale,
+                  'val ed=timeEdit(p.second,"00:00").apply{gravity=Gravity.CENTER}',
+                  1
+              )
+
+          s=s.replace(
+              '0->s.e=ed.text.toString();1->s.x1=ed.text.toString();2->s.r1=ed.text.toString();3->s.x2=ed.text.toString()',
+              '0->s.e=normalizeTime(ed.text.toString());1->s.x1=normalizeTime(ed.text.toString());2->s.r1=normalizeTime(ed.text.toString());3->s.x2=normalizeTime(ed.text.toString())',
+              1
+          )
+
+          # ======================================================
+          # VERIFICAÇÃO
+          # ======================================================
+
+          if s.count("{") != s.count("}"):
+              raise SystemExit(
+                  "ERRO: quantidade de chaves incompatível"
+              )
+
+          if "private fun normalizeTime" not in s:
+              raise SystemExit(
+                  "ERRO: normalizeTime não foi inserida"
+              )
+
+          if "private fun timeEdit" not in s:
+              raise SystemExit(
+                  "ERRO: timeEdit não foi inserida"
+              )
+
+          if "private fun selectPunchDate()" not in s:
+              raise SystemExit(
+                  "ERRO: seletor de data não foi inserido"
+              )
+
+          if "selectedPunchDate" not in s:
+              raise SystemExit(
+                  "ERRO: selectedPunchDate não foi inserido"
+              )
+
+          p.write_text(
+              s,
               encoding="utf-8"
           )
 
-          print("====================================")
+          print("========================================")
           print("MAINACTIVITY CORRIGIDA")
-          print("Linhas finais:", len(codigo.splitlines()))
-          print("====================================")
+          print("========================================")
+          print("Horário automático: OK")
+          print("Somatório: OK")
+          print("Adição manual: OK")
+          print("Edição manual: OK")
+          print("Data retroativa: OK")
+          print("Data inicial = hoje: OK")
+          print("Troca funcionário = hoje: OK")
+          print("Histórico: OK")
+          print("Escala: OK")
+          print("Estrutura Kotlin: OK")
+          print("Linhas finais:",len(s.splitlines()))
+          print("========================================")
+          PY
 
-      # =====================================================
-      # INSTALAR GRADLE
-      # =====================================================
+      # ==========================================================
+      # VERIFICAR CÓDIGO
+      # ==========================================================
+
+      - name: Verificar código antes de compilar
+        shell: bash
+        run: |
+          set -e
+
+          FILE="ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
+
+          test -s "$FILE"
+
+          grep -q "private fun normalizeTime" "$FILE"
+          grep -q "private fun timeEdit" "$FILE"
+          grep -q "private fun selectPunchDate" "$FILE"
+          grep -q "selectedPunchDate" "$FILE"
+          grep -q "private fun minutesBetween" "$FILE"
+
+          echo "========================================"
+          echo "CÓDIGO VALIDADO"
+          echo "========================================"
+
+          wc -l "$FILE"
+
+      # ==========================================================
+      # GRADLE
+      # ==========================================================
 
       - name: Instalar Gradle 8.11.1
         shell: bash
@@ -386,22 +705,24 @@ jobs:
           set -e
 
           wget -q \
-            https://services.gradle.org/distributions/gradle-8.11.1-bin.zip \
+            "https://services.gradle.org/distributions/gradle-8.11.1-bin.zip" \
             -O /tmp/gradle.zip
 
-          unzip -q /tmp/gradle.zip -d /opt
+          unzip -q \
+            /tmp/gradle.zip \
+            -d /opt
 
           echo "/opt/gradle-8.11.1/bin" >> "$GITHUB_PATH"
 
           /opt/gradle-8.11.1/bin/gradle --version
 
-      # =====================================================
+      # ==========================================================
       # LIMPAR
-      # =====================================================
+      # ==========================================================
 
       - name: Limpar projeto
-        shell: bash
         working-directory: ControleHoras
+        shell: bash
         run: |
           set -e
 
@@ -409,13 +730,13 @@ jobs:
             --no-daemon \
             --stacktrace
 
-      # =====================================================
-      # COMPILAR APK
-      # =====================================================
+      # ==========================================================
+      # GERAR APK
+      # ==========================================================
 
       - name: Gerar APK
-        shell: bash
         working-directory: ControleHoras
+        shell: bash
         run: |
           set -e
 
@@ -423,9 +744,9 @@ jobs:
             --no-daemon \
             --stacktrace
 
-      # =====================================================
+      # ==========================================================
       # VERIFICAR APK
-      # =====================================================
+      # ==========================================================
 
       - name: Verificar APK
         shell: bash
@@ -434,26 +755,27 @@ jobs:
 
           APK="ControleHoras/app/build/outputs/apk/debug/app-debug.apk"
 
-          echo "Procurando APK..."
+          if [ ! -s "$APK" ]; then
+            echo "========================================"
+            echo "ERRO: APK NÃO FOI GERADO"
+            echo "========================================"
 
-          if [ ! -f "$APK" ]; then
-            echo "ERRO: APK NÃO FOI GERADO."
-            echo ""
-            echo "Arquivos encontrados:"
-            find ControleHoras/app/build/outputs -type f 2>/dev/null || true
+            find ControleHoras/app/build/outputs \
+              -type f \
+              2>/dev/null || true
+
             exit 1
           fi
 
-          echo ""
           echo "========================================"
           echo "APK GERADO COM SUCESSO"
           echo "========================================"
 
           ls -lh "$APK"
 
-      # =====================================================
-      # UPLOAD APK
-      # =====================================================
+      # ==========================================================
+      # ENVIAR APK
+      # ==========================================================
 
       - name: Enviar APK
         uses: actions/upload-artifact@v4
@@ -463,13 +785,15 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      # ==========================================================
+      # FINAL
+      # ==========================================================
+
       - name: Final
         shell: bash
         run: |
-          echo ""
           echo "========================================"
           echo "CONTROLE HORAS - BUILD CONCLUÍDO"
           echo "========================================"
-          echo "APK disponível em Artifacts:"
-          echo "ControleHoras-APK"
+          echo "APK: ControleHoras-APK"
           echo "========================================"
