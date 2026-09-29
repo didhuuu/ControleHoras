@@ -1,22 +1,27 @@
 name: ControleHoras APK
+
 on:
   workflow_dispatch:
   push:
     branches:
       - main
+
 permissions:
   contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Baixar projeto
         uses: actions/checkout@v4
+
       - name: Configurar Java 17
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
+
       - name: Extrair projeto
         shell: bash
         run: |
@@ -29,14 +34,18 @@ jobs:
           test -f ControleHoras/app/src/main/AndroidManifest.xml
           test -f ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt
           echo "PROJETO ORIGINAL OK"
+
       - name: Aplicar exatamente a base da versão 70
         shell: python
         run: |
           from pathlib import Path
           from urllib.request import urlopen
           import subprocess, tempfile
+
           url="https://raw.githubusercontent.com/didhuuu/ControleHoras/6381d26e525e1f9eeb91af17cdb9fed66293c1f2/.github/workflows/build.yml"
+
           workflow=urlopen(url,timeout=30).read().decode("utf-8")
+
           def extract_step(name,next_name):
               start=workflow.index(f"      - name: {name}")
               end=workflow.index(f"      - name: {next_name}",start)
@@ -44,269 +53,1088 @@ jobs:
               marker="        run: |\n"
               pos=block.index(marker)+len(marker)
               lines=block[pos:].splitlines()
-              return "\n".join(line[10:] if line.startswith("          ") else line for line in lines)+"\n"
-          scripts=[extract_step("Aplicar versão 36","Adicionar seleção de data"),extract_step("Adicionar seleção de data","Validar código")]
+              return "\n".join(
+                  line[10:] if line.startswith("          ") else line
+                  for line in lines
+              )+"\n"
+
+          scripts=[
+              extract_step("Aplicar versão 36","Adicionar seleção de data"),
+              extract_step("Adicionar seleção de data","Validar código")
+          ]
+
           for i,script in enumerate(scripts):
               p=Path(tempfile.gettempdir())/f"base70_{i}.py"
               p.write_text(script,encoding="utf-8")
               subprocess.run(["python",str(p)],check=True)
+
           print("BASE DA VERSÃO 70 APLICADA")
+
       - name: Aplicar correções finais da Base 70, edição por rolagem e ícone
         shell: python
         run: |
           from pathlib import Path
           import base64
+
           root=Path('ControleHoras')
           src=root/'app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt'
           manifest=root/'app/src/main/AndroidManifest.xml'
           code=src.read_text(encoding='utf-8')
+
+          # Extra interval state
           if 'private val extra2Enabled' not in code:
-              anchors=['    private val weekModes=linkedMapOf<String,String>()\n','    private val weekModes = linkedMapOf<String,String>()\n']
+              anchors=[
+                  '    private val weekModes=linkedMapOf<String,String>()\n',
+                  '    private val weekModes = linkedMapOf<String,String>()\n'
+              ]
+
               for a in anchors:
                   if a in code:
-                      code=code.replace(a,a+'    private val extra2Enabled=mutableSetOf<String>()\n    private val extra2ReturnEnabled=mutableSetOf<String>()\n',1)
+                      code=code.replace(
+                          a,
+                          a+
+                          '    private val extra2Enabled=mutableSetOf<String>()\n'
+                          '    private val extra2ReturnEnabled=mutableSetOf<String>()\n',
+                          1
+                      )
                       break
               else:
                   raise SystemExit('ERRO: weekModes não encontrado')
+
           if 'prefs.getString("extra2Enabled"' not in code:
               anchor='        scale.clear()\n'
-              if anchor not in code: raise SystemExit('ERRO: scale.clear não encontrado')
+
+              if anchor not in code:
+                  raise SystemExit('ERRO: scale.clear não encontrado')
+
               block='''        extra2Enabled.clear()
                   extra2ReturnEnabled.clear()
                   try{
                       val ja=JSONArray(prefs.getString("extra2Enabled","[]") ?: "[]")
                       for(i in 0 until ja.length()) extra2Enabled.add(ja.optString(i))
+
                       val jb=JSONArray(prefs.getString("extra2ReturnEnabled","[]") ?: "[]")
                       for(i in 0 until jb.length()) extra2ReturnEnabled.add(jb.optString(i))
                   }catch(_:Exception){}
+
           '''
+
               code=code.replace(anchor,block+anchor,1)
+
               anchor='        e.apply()\n'
-              if anchor not in code: raise SystemExit('ERRO: e.apply não encontrado')
+
+              if anchor not in code:
+                  raise SystemExit('ERRO: e.apply não encontrado')
+
               block='''        val extraJson=JSONArray()
                   extra2Enabled.forEach{extraJson.put(it)}
                   e.putString("extra2Enabled",extraJson.toString())
+
                   val extraReturnJson=JSONArray()
                   extra2ReturnEnabled.forEach{extraReturnJson.put(it)}
                   e.putString("extra2ReturnEnabled",extraReturnJson.toString())
           '''
+
               code=code.replace(anchor,block+anchor,1)
+
+          # Helpers
           if 'private fun extraKey' not in code:
               anchor='    private fun today()=iso.format(Date())\n'
-              if anchor not in code: raise SystemExit('ERRO: today não encontrado')
+
+              if anchor not in code:
+                  raise SystemExit('ERRO: today não encontrado')
+
               block='''    private fun extraKey(empId:Long,date:String)=empId.toString()+"|"+date
               private fun extraEnabled(empId:Long,date:String)=extra2Enabled.contains(extraKey(empId,date))
               private fun extraReturnEnabled(empId:Long,date:String)=extra2ReturnEnabled.contains(extraKey(empId,date))
+
               private fun setExtraEnabled(empId:Long,date:String,value:Boolean){
                   val k=extraKey(empId,date)
-                  if(value) extra2Enabled.add(k) else {extra2Enabled.remove(k);extra2ReturnEnabled.remove(k)}
+                  if(value) extra2Enabled.add(k)
+                  else {
+                      extra2Enabled.remove(k)
+                      extra2ReturnEnabled.remove(k)
+                  }
                   saveData()
               }
+
               private fun setExtraReturnEnabled(empId:Long,date:String,value:Boolean){
                   val k=extraKey(empId,date)
-                  if(value && extra2Enabled.contains(k)) extra2ReturnEnabled.add(k) else extra2ReturnEnabled.remove(k)
+                  if(value && extra2Enabled.contains(k))
+                      extra2ReturnEnabled.add(k)
+                  else
+                      extra2ReturnEnabled.remove(k)
+
                   saveData()
               }
+
           '''
+
               code=code.replace(anchor,block+anchor,1)
+
+          # Replace only Ponto screen and its registration helpers.
+          # Other tabs remain untouched.
           start=code.find('    private fun showPunch()')
           end=code.find('    private fun showHistory()',start)
-          if start<0 or end<0: raise SystemExit('ERRO: showPunch/showHistory não encontrados')
+
+          if start<0 or end<0:
+              raise SystemExit('ERRO: showPunch/showHistory não encontrados')
+
           show='''    private fun showPunch(){
                   val box=page("Bater Ponto")
-                  if(employees.isEmpty()){box.addView(infoCard("Nenhum funcionário cadastrado.\\nCadastre o primeiro em Funcionários."));return}
-                  val emp=employees.firstOrNull{it.id==selectedEmployeeId}?:employees.first().also{selectedEmployeeId=it.id}
+
+                  if(employees.isEmpty()){
+                      box.addView(
+                          infoCard(
+                              "Nenhum funcionário cadastrado.\\nCadastre o primeiro em Funcionários."
+                          )
+                      )
+                      return
+                  }
+
+                  val emp=employees.firstOrNull{it.id==selectedEmployeeId}
+                      ?:employees.first().also{selectedEmployeeId=it.id}
+
                   box.addView(card().apply{
-                      val line=LinearLayout(context).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(16),dp(12),dp(16),dp(12))}
-                      line.addView(label("Funcionário"))
-                      val spinner=Spinner(context)
-                      spinner.adapter=ArrayAdapter(context,android.R.layout.simple_spinner_dropdown_item,employees.map{it.name})
-                      spinner.setSelection(employees.indexOfFirst{it.id==selectedEmployeeId}.coerceAtLeast(0))
-                      spinner.onItemSelectedListener=object:AdapterView.OnItemSelectedListener{
-                          override fun onNothingSelected(p:AdapterView<*>?){ }
-                          override fun onItemSelected(p:AdapterView<*>?,v:View?,pos:Int,id:Long){
-                              if(employees[pos].id!=selectedEmployeeId){selectedEmployeeId=employees[pos].id;selectedPunchDate=today();showPunch()}
-                          }
+                      val line=LinearLayout(context).apply{
+                          orientation=LinearLayout.VERTICAL
+                          setPadding(dp(16),dp(12),dp(16),dp(12))
                       }
+
+                      line.addView(label("Funcionário"))
+
+                      val spinner=Spinner(context)
+
+                      spinner.adapter=ArrayAdapter(
+                          context,
+                          android.R.layout.simple_spinner_dropdown_item,
+                          employees.map{it.name}
+                      )
+
+                      spinner.setSelection(
+                          employees
+                              .indexOfFirst{it.id==selectedEmployeeId}
+                              .coerceAtLeast(0)
+                      )
+
+                      spinner.onItemSelectedListener=
+                          object:AdapterView.OnItemSelectedListener{
+
+                              override fun onNothingSelected(
+                                  p:AdapterView<*>?
+                              ){}
+
+                              override fun onItemSelected(
+                                  p:AdapterView<*>?,
+                                  v:View?,
+                                  pos:Int,
+                                  id:Long
+                              ){
+                                  if(employees[pos].id!=selectedEmployeeId){
+                                      selectedEmployeeId=employees[pos].id
+                                      selectedPunchDate=today()
+                                      showPunch()
+                                  }
+                              }
+                          }
+
                       line.addView(spinner)
-                      line.addView(TextView(context).apply{text="Salário mensal   ${money.format(emp.salary)}";textSize=14f;setTextColor(muted);setPadding(0,dp(8),0,0)})
+
+                      line.addView(
+                          TextView(context).apply{
+                              text="Salário mensal   ${money.format(emp.salary)}"
+                              textSize=14f
+                              setTextColor(muted)
+                              setPadding(0,dp(8),0,0)
+                          }
+                      )
+
                       addView(line)
+
                   },0,0,0,dp(10))
+
                   val dateCard=card()
-                  val dateLine=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(dp(14),dp(8),dp(14),dp(8))}
-                  dateLine.addView(TextView(this).apply{text="📅";textSize=25f},LinearLayout.LayoutParams(dp(45),dp(55)))
-                  dateLine.addView(TextView(this).apply{text="DATA\\n${df.format(parseIso(selectedPunchDate))}";textSize=16f;setTypeface(null,Typeface.BOLD);setTextColor(this@MainActivity.text)},LinearLayout.LayoutParams(0,dp(60),1f))
-                  dateLine.addView(Button(this).apply{text="ALTERAR";isAllCaps=false;setOnClickListener{choosePunchDate()}},LinearLayout.LayoutParams(dp(105),dp(52)))
+
+                  val dateLine=LinearLayout(this).apply{
+                      orientation=LinearLayout.HORIZONTAL
+                      gravity=Gravity.CENTER_VERTICAL
+                      setPadding(dp(14),dp(8),dp(14),dp(8))
+                  }
+
+                  dateLine.addView(
+                      TextView(this).apply{
+                          text="📅"
+                          textSize=25f
+                      },
+                      LinearLayout.LayoutParams(dp(45),dp(55))
+                  )
+
+                  dateLine.addView(
+                      TextView(this).apply{
+                          text="DATA\\n${df.format(parseIso(selectedPunchDate))}"
+                          textSize=16f
+                          setTypeface(null,Typeface.BOLD)
+                          setTextColor(this@MainActivity.text)
+                      },
+                      LinearLayout.LayoutParams(0,dp(60),1f)
+                  )
+
+                  dateLine.addView(
+                      Button(this).apply{
+                          text="ALTERAR"
+                          isAllCaps=false
+                          setOnClickListener{
+                              choosePunchDate()
+                          }
+                      },
+                      LinearLayout.LayoutParams(dp(105),dp(52))
+                  )
+
                   dateCard.addView(dateLine)
-                  box.addView(dateCard,LinearLayout.LayoutParams(-1,dp(82)).apply{bottomMargin=dp(8)})
-                  box.addView(Button(this).apply{
-                      text="✎  REGISTRO MANUAL";isAllCaps=false;textSize=14f
-                      setOnClickListener{showManualWheel(emp.id)}
-                  },LinearLayout.LayoutParams(-1,dp(54)).apply{bottomMargin=dp(10)})
+
+                  box.addView(
+                      dateCard,
+                      LinearLayout.LayoutParams(-1,dp(82)).apply{
+                          bottomMargin=dp(8)
+                      }
+                  )
+
+                  box.addView(
+                      Button(this).apply{
+                          text="✎  REGISTRO MANUAL"
+                          isAllCaps=false
+                          textSize=14f
+                          setOnClickListener{
+                              showManualWheel(emp.id)
+                          }
+                      },
+                      LinearLayout.LayoutParams(-1,dp(54)).apply{
+                          bottomMargin=dp(10)
+                      }
+                  )
+
                   val rec=getRecord(emp.id,selectedPunchDate)
                   val extra=extraEnabled(emp.id,selectedPunchDate)
                   val next=nextPunchIndex(rec,extra)
-                  box.addView(Button(this).apply{
-                      text=if(next<0)"PONTO DO DIA COMPLETO" else "▶  REGISTRAR PRÓXIMA BATIDA\\n${punchNames[next]}"
-                      textSize=15f;setTextColor(Color.WHITE);isAllCaps=false;isEnabled=next>=0
-                      background(green,dp(12),dp(12),dp(12),dp(12))
-                      setOnClickListener{registerPunch(emp.id)}
-                  },LinearLayout.LayoutParams(-1,dp(72)).apply{bottomMargin=dp(10)})
-                  box.addView(TextView(this).apply{text="BATIDAS DO DIA";textSize=13f;setTypeface(null,Typeface.BOLD);setTextColor(muted);setPadding(dp(4),dp(2),0,dp(6))})
+
+                  box.addView(
+                      Button(this).apply{
+                          text=
+                              if(next<0)
+                                  "PONTO DO DIA COMPLETO"
+                              else
+                                  "▶  REGISTRAR PRÓXIMA BATIDA\\n${punchNames[next]}"
+
+                          textSize=15f
+                          setTextColor(Color.WHITE)
+                          isAllCaps=false
+                          isEnabled=next>=0
+
+                          background(
+                              green,
+                              dp(12),
+                              dp(12),
+                              dp(12),
+                              dp(12)
+                          )
+
+                          setOnClickListener{
+                              registerPunch(emp.id)
+                          }
+                      },
+                      LinearLayout.LayoutParams(-1,dp(72)).apply{
+                          bottomMargin=dp(10)
+                      }
+                  )
+
+                  box.addView(
+                      TextView(this).apply{
+                          text="BATIDAS DO DIA"
+                          textSize=13f
+                          setTypeface(null,Typeface.BOLD)
+                          setTextColor(muted)
+                          setPadding(dp(4),dp(2),0,dp(6))
+                      }
+                  )
+
                   addPunchRow(box,rec,0,punchNames[0])
                   addPunchRow(box,rec,1,punchNames[1])
                   addPunchRow(box,rec,2,punchNames[2])
                   addPunchRow(box,rec,5,punchNames[5])
-                  box.addView(TextView(this).apply{text="INTERVALO 2 (OPCIONAL)";textSize=13f;setTypeface(null,Typeface.BOLD);setTextColor(muted);setPadding(dp(4),dp(8),0,dp(4))})
-                  addExtraSwitch(box,emp.id,selectedPunchDate,0,rec)
-                  addExtraSwitch(box,emp.id,selectedPunchDate,1,rec)
-                  val total=calculate(rec,extra)
-                  box.addView(card().apply{
-                      addView(TextView(context).apply{text="TOTAL TRABALHADO";textSize=13f;setTypeface(null,Typeface.BOLD);setTextColor(muted)})
-                      addView(TextView(context).apply{text=total;textSize=28f;setTypeface(null,Typeface.BOLD);setTextColor(blue);setPadding(0,dp(4),0,0)})
-                  },LinearLayout.LayoutParams(-1,dp(95)).apply{topMargin=dp(10)})
-                  addView(box)
+
+                  box.addView(
+                      TextView(this).apply{
+                          text="INTERVALO 2 (OPCIONAL)"
+                          textSize=13f
+                          setTypeface(null,Typeface.BOLD)
+                          setTextColor(muted)
+                          setPadding(dp(4),dp(8),0,dp(4))
+                      }
+                  )
+
+                  addExtraSwitch(
+                      box,
+                      emp.id,
+                      selectedPunchDate,
+                      0,
+                      rec
+                  )
+
+                  addExtraSwitch(
+                      box,
+                      emp.id,
+                      selectedPunchDate,
+                      1,
+                      rec
+                  )
+
+                  val calc=calculate(rec)
+
+                  val cards=LinearLayout(this).apply{
+                      orientation=LinearLayout.HORIZONTAL
+                  }
+
+                  cards.addView(
+                      metricCard(
+                          "Horas trabalhadas",
+                          formatMin(calc.worked),
+                          blue
+                      ),
+                      LinearLayout.LayoutParams(0,dp(82),1f).apply{
+                          rightMargin=dp(6)
+                      }
+                  )
+
+                  cards.addView(
+                      metricCard(
+                          "Horas extras",
+                          formatMin(calc.extra60+calc.extra100),
+                          green
+                      ),
+                      LinearLayout.LayoutParams(0,dp(82),1f).apply{
+                          leftMargin=dp(6)
+                      }
+                  )
+
+                  box.addView(cards)
               }
-          '''
-          code=code[:start]+show+code[end:]
-          if 'private fun showEditWheel' not in code:
-              anchor='    private fun showManualWheel'
-              p=code.find(anchor)
-              if p<0: raise SystemExit('ERRO: showManualWheel não encontrado')
-              wheel='''    private fun showEditWheel(rec:EmployeeRecord,index:Int){
-                  if(index<0 || index>=rec.punches.size)return
-                  val parts=rec.punches[index].split(":")
-                  val h0=parts.getOrNull(0)?.toIntOrNull()?.coerceIn(0,23)?:0
-                  val m0=parts.getOrNull(1)?.toIntOrNull()?.coerceIn(0,59)?:0
-                  val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(20),dp(10),dp(20),0)}
-                  val wheels=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER}
-                  val hour=NumberPicker(this).apply{minValue=0;maxValue=23;value=h0;wrapSelectorWheel=true}
-                  val minute=NumberPicker(this).apply{minValue=0;maxValue=59;value=m0;wrapSelectorWheel=true}
-                  wheels.addView(hour)
-                  wheels.addView(TextView(this).apply{text=":";textSize=28f;gravity=Gravity.CENTER;setPadding(dp(5),0,dp(5),0)})
-                  wheels.addView(minute)
-                  box.addView(wheels)
-                  AlertDialog.Builder(this).setTitle("Editar horário").setView(box).setNegativeButton("Cancelar",null).setPositiveButton("Salvar"){_,_->
-                      rec.punches[index]="%02d:%02d".format(Locale.US,hour.value,minute.value)
+
+              private fun addPunchRow(
+                  box:LinearLayout,
+                  rec:PunchDay,
+                  index:Int,
+                  name:String
+              ){
+                  val row=LinearLayout(this).apply{
+                      orientation=LinearLayout.HORIZONTAL
+                      gravity=Gravity.CENTER_VERTICAL
+                      setPadding(dp(12),dp(4),dp(10),dp(4))
+                      background(
+                          Color.WHITE,
+                          dp(12),
+                          dp(12),
+                          dp(12),
+                          dp(12)
+                      )
+                      elevation=dp(1).toFloat()
+                  }
+
+                  row.addView(
+                      TextView(this).apply{
+                          text=(index+1).toString()
+                          textSize=16f
+                          gravity=Gravity.CENTER
+                          setTypeface(null,Typeface.BOLD)
+                          background(
+                              0xFFEAF0F7.toInt(),
+                              30,
+                              30,
+                              30,
+                              30
+                          )
+                      },
+                      LinearLayout.LayoutParams(dp(42),dp(42))
+                  )
+
+                  row.addView(
+                      TextView(this).apply{
+                          text=name
+                          textSize=15f
+                          setTextColor(this@MainActivity.text)
+                          setPadding(dp(12),0,0,0)
+                      },
+                      LinearLayout.LayoutParams(0,dp(52),1f)
+                  )
+
+                  row.addView(
+                      TextView(this).apply{
+                          text=rec.punches[index].ifBlank{"--:--"}
+                          textSize=15f
+                          setTextColor(
+                              if(rec.punches[index].isBlank())
+                                  muted
+                              else
+                                  darkBlue
+                          )
+                          setTypeface(null,Typeface.BOLD)
+                          gravity=Gravity.CENTER
+                      }
+                  )
+
+                  row.setOnClickListener{
+                      showEditWheel(rec,index)
+                  }
+
+                  box.addView(
+                      row,
+                      LinearLayout.LayoutParams(-1,dp(58)).apply{
+                          bottomMargin=dp(7)
+                      }
+                  )
+              }
+
+              private fun addExtraSwitch(
+                  box:LinearLayout,
+                  empId:Long,
+                  date:String,
+                  which:Int,
+                  rec:PunchDay
+              ){
+                  val enabled=
+                      if(which==0)
+                          extraEnabled(empId,date)
+                      else
+                          extraReturnEnabled(empId,date)
+
+                  val index=
+                      if(which==0)
+                          3
+                      else
+                          4
+
+                  val title=
+                      if(which==0)
+                          "Saída intervalo 2"
+                      else
+                          "Retorno intervalo 2"
+
+                  val row=LinearLayout(this).apply{
+                      orientation=LinearLayout.HORIZONTAL
+                      gravity=Gravity.CENTER_VERTICAL
+                      setPadding(dp(12),dp(5),dp(10),dp(5))
+                      background(
+                          Color.WHITE,
+                          dp(12),
+                          dp(12),
+                          dp(12),
+                          dp(12)
+                      )
+                      elevation=dp(1).toFloat()
+                  }
+
+                  row.addView(
+                      TextView(this).apply{
+                          text=(index+1).toString()
+                          textSize=16f
+                          gravity=Gravity.CENTER
+                          setTypeface(null,Typeface.BOLD)
+                          background(
+                              0xFFEAF0F7.toInt(),
+                              30,
+                              30,
+                              30,
+                              30
+                          )
+                      },
+                      LinearLayout.LayoutParams(dp(42),dp(42))
+                  )
+
+                  row.addView(
+                      TextView(this).apply{
+                          text=title
+                          textSize=15f
+                          setTextColor(this@MainActivity.text)
+                          setPadding(dp(12),0,0,0)
+                      },
+                      LinearLayout.LayoutParams(0,dp(52),1f)
+                  )
+
+                  val sw=Switch(this).apply{
+                      isChecked=enabled
+                      text=if(isChecked)"ATIVO" else "ATIVAR"
+                  }
+
+                  if(which==1)
+                      sw.isEnabled=extraEnabled(empId,date)
+
+                  sw.setOnCheckedChangeListener{_,checked->
+                      if(which==0)
+                          setExtraEnabled(empId,date,checked)
+                      else
+                          setExtraReturnEnabled(empId,date,checked)
+
+                      showPunch()
+                  }
+
+                  row.addView(sw)
+
+                  box.addView(
+                      row,
+                      LinearLayout.LayoutParams(-1,dp(62)).apply{
+                          bottomMargin=dp(7)
+                      }
+                  )
+
+                  if(enabled)
+                      addPunchRow(box,rec,index,title)
+              }
+
+              private fun nextPunchIndex(
+                  r:PunchDay,
+                  extra:Boolean
+              ):Int{
+                  if(r.punches[0].isBlank())return 0
+                  if(r.punches[1].isBlank())return 1
+                  if(r.punches[2].isBlank())return 2
+
+                  if(extra && r.punches[3].isBlank())
+                      return 3
+
+                  if(
+                      extra &&
+                      extraReturnEnabled(r.employeeId,r.date) &&
+                      r.punches[4].isBlank()
+                  )
+                      return 4
+
+                  if(r.punches[5].isBlank())
+                      return 5
+
+                  return -1
+              }
+
+              private fun registerPunch(empId:Long){
+                  val r=getRecord(empId,selectedPunchDate)
+
+                  val n=nextPunchIndex(
+                      r,
+                      extraEnabled(empId,selectedPunchDate)
+                  )
+
+                  if(n<0)return
+
+                  if(selectedPunchDate==today()){
+                      r.punches[n]=nowTime()
                       saveData()
                       showPunch()
-                  }.show()
+                      return
+                  }
+
+                  val e=timeEdit("",punchNames[n])
+
+                  AlertDialog.Builder(this)
+                      .setTitle("Lançar ${punchNames[n]}")
+                      .setMessage(df.format(parseIso(selectedPunchDate)))
+                      .setView(e)
+                      .setNegativeButton("Cancelar",null)
+                      .setPositiveButton("Salvar"){_,_->
+                          val t=normalizeTime(e.text.toString())
+
+                          if(t.isNotBlank()){
+                              r.punches[n]=t
+                              saveData()
+                              showPunch()
+                          }else{
+                              Toast.makeText(
+                                  this,
+                                  "Horário inválido.",
+                                  Toast.LENGTH_LONG
+                              ).show()
+                          }
+                      }
+                      .show()
               }
-          '''
-              code=code[:p]+wheel+code[p:]
-          if 'private fun showManualWheel' not in code:
-              raise SystemExit('ERRO: showManualWheel não existe')
-          if 'row.setOnClickListener{showEditWheel(rec,index)}' not in code:
-              anchor='    private fun addPunchRow'
-              p=code.find(anchor)
-              if p<0: raise SystemExit('ERRO: addPunchRow não encontrado')
-              row='''    private fun addPunchRow(box:LinearLayout,rec:EmployeeRecord,index:Int,title:String){
-                  val row=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(dp(14),dp(8),dp(14),dp(8))}
-                  row.addView(TextView(this).apply{text=title;textSize=14f;setTypeface(null,Typeface.BOLD)},LinearLayout.LayoutParams(0,dp(58),1f))
+
+              private fun showEditWheel(
+                  rec:PunchDay,
+                  index:Int
+              ){
+                  if(rec.punches[index].isBlank()){
+                      Toast.makeText(
+                          this,
+                          "Esse registro ainda está vazio. Use REGISTRO MANUAL.",
+                          Toast.LENGTH_LONG
+                      ).show()
+                      return
+                  }
+
+                  val parts=rec.punches[index].split(":")
+
+                  val currentHour=
+                      parts.getOrNull(0)
+                          ?.toIntOrNull()
+                          ?.coerceIn(0,23)
+                          ?:0
+
+                  val currentMinute=
+                      parts.getOrNull(1)
+                          ?.toIntOrNull()
+                          ?.coerceIn(0,59)
+                          ?:0
+
+                  val wrap=LinearLayout(this).apply{
+                      orientation=LinearLayout.VERTICAL
+                      gravity=Gravity.CENTER_HORIZONTAL
+                      setPadding(dp(10),0,dp(10),0)
+                  }
+
+                  wrap.addView(
+                      TextView(this).apply{
+                          text="${punchNames[index]}\\n${df.format(parseIso(rec.date))}"
+                          gravity=Gravity.CENTER
+                          textSize=16f
+                          setTypeface(null,Typeface.BOLD)
+                          setTextColor(darkBlue)
+                          setPadding(0,dp(4),0,dp(8))
+                      }
+                  )
+
+                  val wheels=LinearLayout(this).apply{
+                      orientation=LinearLayout.HORIZONTAL
+                      gravity=Gravity.CENTER
+                  }
+
+                  val hour=NumberPicker(this).apply{
+                      minValue=0
+                      maxValue=23
+                      value=currentHour
+                      wrapSelectorWheel=true
+                      descendantFocusability=
+                          NumberPicker.FOCUS_BLOCK_DESCENDANTS
+                  }
+
+                  val minute=NumberPicker(this).apply{
+                      minValue=0
+                      maxValue=59
+                      value=currentMinute
+                      wrapSelectorWheel=true
+                      descendantFocusability=
+                          NumberPicker.FOCUS_BLOCK_DESCENDANTS
+                  }
+
+                  val sep=TextView(this).apply{
+                      text=":"
+                      textSize=28f
+                      gravity=Gravity.CENTER
+                  }
+
+                  wheels.addView(
+                      hour,
+                      LinearLayout.LayoutParams(dp(88),dp(150))
+                  )
+
+                  wheels.addView(
+                      sep,
+                      LinearLayout.LayoutParams(dp(35),dp(150))
+                  )
+
+                  wheels.addView(
+                      minute,
+                      LinearLayout.LayoutParams(dp(88),dp(150))
+                  )
+
+                  wrap.addView(wheels)
+
                   val value=TextView(this).apply{
-                      text=rec.punches.getOrNull(index).orEmpty().ifBlank{"--:--"}
-                      textSize=21f
+                      text="%02d:%02d".format(
+                          Locale.US,
+                          hour.value,
+                          minute.value
+                      )
+                      textSize=24f
                       setTypeface(null,Typeface.BOLD)
                       setTextColor(blue)
                       gravity=Gravity.CENTER
+                      setPadding(0,dp(5),0,dp(5))
                   }
-                  row.addView(value,LinearLayout.LayoutParams(dp(95),dp(58)))
-                  row.setOnClickListener{showEditWheel(rec,index)}
-                  box.addView(row,LinearLayout.LayoutParams(-1,dp(66)).apply{bottomMargin=dp(4)})
+
+                  val listener=
+                      NumberPicker.OnValueChangeListener{_,_,_->
+                          value.text="%02d:%02d".format(
+                              Locale.US,
+                              hour.value,
+                              minute.value
+                          )
+                      }
+
+                  hour.setOnValueChangedListener(listener)
+                  minute.setOnValueChangedListener(listener)
+
+                  wrap.addView(value)
+
+                  val dialog=
+                      AlertDialog.Builder(this)
+                          .setTitle("Editar registro")
+                          .setView(wrap)
+                          .setNegativeButton("Cancelar",null)
+                          .setPositiveButton("SALVAR",null)
+                          .create()
+
+                  dialog.setOnShowListener{
+                      dialog
+                          .getButton(AlertDialog.BUTTON_POSITIVE)
+                          .setOnClickListener{
+                              rec.punches[index]=
+                                  "%02d:%02d".format(
+                                      Locale.US,
+                                      hour.value,
+                                      minute.value
+                                  )
+
+                              saveData()
+                              dialog.dismiss()
+                              showPunch()
+                          }
+                  }
+
+                  dialog.show()
               }
-          '''
-              q=code.find(anchor)
-              if q<0: raise SystemExit('ERRO addPunchRow')
-              # Preserve original if it exists; only inject listener into existing function.
-              # The final validation below checks the listener.
-              endfun=code.find('\n    private fun ',q+len(anchor))
-              if endfun<0: endfun=len(code)
-              section=code[q:endfun]
-              if 'row.setOnClickListener' not in section:
-                  section=section.replace('box.addView(row', 'row.setOnClickListener{showEditWheel(rec,index)}\n                  box.addView(row',1)
-                  code=code[:q]+section+code[endfun:]
-          if 'private fun nextPunchIndex(rec:EmployeeRecord,extra:Boolean)' not in code:
-              anchor='    private fun calculate'
-              p=code.find(anchor)
-              if p<0: raise SystemExit('ERRO: calculate não encontrado')
-              fn='''    private fun nextPunchIndex(rec:EmployeeRecord,extra:Boolean):Int{
-                  val indexes=if(extra) intArrayOf(0,1,2,5,3,4) else intArrayOf(0,1,2,5)
-                  for(i in indexes) if(rec.punches.getOrNull(i).isNullOrBlank()) return i
-                  return -1
+
+              private fun showManualWheel(empId:Long){
+                  val r=getRecord(empId,selectedPunchDate)
+
+                  val n=nextPunchIndex(
+                      r,
+                      extraEnabled(empId,selectedPunchDate)
+                  )
+
+                  if(n<0){
+                      Toast.makeText(
+                          this,
+                          "As batidas disponíveis deste dia já estão preenchidas.",
+                          Toast.LENGTH_LONG
+                      ).show()
+                      return
+                  }
+
+                  val wrap=LinearLayout(this).apply{
+                      orientation=LinearLayout.VERTICAL
+                      gravity=Gravity.CENTER_HORIZONTAL
+                      setPadding(dp(10),0,dp(10),0)
+                  }
+
+                  wrap.addView(
+                      TextView(this).apply{
+                          text="${punchNames[n]}\\n${df.format(parseIso(selectedPunchDate))}"
+                          gravity=Gravity.CENTER
+                          textSize=16f
+                          setTypeface(null,Typeface.BOLD)
+                          setTextColor(darkBlue)
+                          setPadding(0,dp(4),0,dp(8))
+                      }
+                  )
+
+                  val wheels=LinearLayout(this).apply{
+                      orientation=LinearLayout.HORIZONTAL
+                      gravity=Gravity.CENTER
+                  }
+
+                  val now=Calendar.getInstance()
+
+                  val hour=NumberPicker(this).apply{
+                      minValue=0
+                      maxValue=23
+                      value=now.get(Calendar.HOUR_OF_DAY)
+                      wrapSelectorWheel=true
+                      descendantFocusability=
+                          NumberPicker.FOCUS_BLOCK_DESCENDANTS
+                  }
+
+                  val minute=NumberPicker(this).apply{
+                      minValue=0
+                      maxValue=59
+                      value=now.get(Calendar.MINUTE)
+                      wrapSelectorWheel=true
+                      descendantFocusability=
+                          NumberPicker.FOCUS_BLOCK_DESCENDANTS
+                  }
+
+                  val sep=TextView(this).apply{
+                      text=":"
+                      textSize=28f
+                      gravity=Gravity.CENTER
+                  }
+
+                  wheels.addView(
+                      hour,
+                      LinearLayout.LayoutParams(dp(88),dp(150))
+                  )
+
+                  wheels.addView(
+                      sep,
+                      LinearLayout.LayoutParams(dp(35),dp(150))
+                  )
+
+                  wheels.addView(
+                      minute,
+                      LinearLayout.LayoutParams(dp(88),dp(150))
+                  )
+
+                  wrap.addView(wheels)
+
+                  val value=TextView(this).apply{
+                      text="%02d:%02d".format(
+                          Locale.US,
+                          hour.value,
+                          minute.value
+                      )
+                      textSize=24f
+                      setTypeface(null,Typeface.BOLD)
+                      setTextColor(blue)
+                      gravity=Gravity.CENTER
+                      setPadding(0,dp(5),0,dp(5))
+                  }
+
+                  val listener=
+                      NumberPicker.OnValueChangeListener{_,_,_->
+                          value.text="%02d:%02d".format(
+                              Locale.US,
+                              hour.value,
+                              minute.value
+                          )
+                      }
+
+                  hour.setOnValueChangedListener(listener)
+                  minute.setOnValueChangedListener(listener)
+
+                  wrap.addView(value)
+
+                  val dialog=
+                      AlertDialog.Builder(this)
+                          .setTitle("Registro manual")
+                          .setView(wrap)
+                          .setNegativeButton("Cancelar",null)
+                          .setPositiveButton("REGISTRAR",null)
+                          .create()
+
+                  dialog.setOnShowListener{
+                      dialog
+                          .getButton(AlertDialog.BUTTON_POSITIVE)
+                          .setOnClickListener{
+                              r.punches[n]=
+                                  "%02d:%02d".format(
+                                      Locale.US,
+                                      hour.value,
+                                      minute.value
+                                  )
+
+                              saveData()
+                              dialog.dismiss()
+                              showPunch()
+                          }
+                  }
+
+                  dialog.show()
               }
+
           '''
-              code=code[:p]+fn+code[p:]
+
+          code=code[:start]+show+code[end:]
+
+          # Calculation: standard 4 punches,
+          # optional interval 2 only when activated/filled.
+          cstart=code.find(
+              '    private fun calculate(r:PunchDay):Calc{'
+          )
+
+          cend=code.find(
+              '    private fun minutesBetween',
+              cstart
+          )
+
+          if cstart<0 or cend<0:
+              raise SystemExit('ERRO: calculate não encontrado')
+
+          calc='''    private fun calculate(r:PunchDay):Calc{
+                  var worked=
+                      minutesBetween(r.punches[0],r.punches[1])+
+                      minutesBetween(r.punches[2],r.punches[5])
+
+                  val extra2=
+                      r.punches[3].isNotBlank()||
+                      r.punches[4].isNotBlank()
+
+                  if(extra2)
+                      worked=
+                          minutesBetween(r.punches[0],r.punches[1])+
+                          minutesBetween(r.punches[2],r.punches[3])+
+                          minutesBetween(r.punches[4],r.punches[5])
+
+                  val date=parseIso(r.date)
+
+                  if(!modeForDay(date))
+                      return Calc(worked,0,0,worked)
+
+                  val expected=
+                      durationMinutes(weeklyTarget)/
+                      (if(modeForDate(date)=="MS")6 else 5)
+
+                  val extra=max(0,worked-expected)
+
+                  return Calc(
+                      worked,
+                      expected,
+                      extra,
+                      0
+                  )
+              }
+
+          '''
+
+          code=code[:cstart]+calc+code[cend:]
+
+          # Responsive Android window/insets.
+          imports=
+              'import androidx.core.view.WindowCompat\n'+
+              'import androidx.core.view.ViewCompat\n'+
+              'import androidx.core.view.WindowInsetsCompat\n'
+
+          if 'import androidx.core.view.WindowCompat' not in code:
+              code=code.replace(
+                  'import androidx.core.content.FileProvider\n',
+                  'import androidx.core.content.FileProvider\n'+imports,
+                  1
+              )
+
           if 'WindowCompat.setDecorFitsSystemWindows(window,false)' not in code:
               anchor='        buildShell()\n'
-              if anchor not in code: raise SystemExit('ERRO: buildShell não encontrado')
+
+              if anchor not in code:
+                  raise SystemExit('ERRO: buildShell não encontrado')
+
               inset='''        WindowCompat.setDecorFitsSystemWindows(window,false)
                   window.statusBarColor=blue
                   window.navigationBarColor=Color.WHITE
-                  window.decorView.systemUiVisibility=View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
-                  ViewCompat.setOnApplyWindowInsetsListener(root){v,insets->
-                      val bars=insets.getInsets(WindowInsetsCompat.Type.systemBars())
-                      v.setPadding(v.paddingLeft,bars.top,v.paddingRight,bars.bottom)
+                  window.decorView.systemUiVisibility=
+                      View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+
+                  ViewCompat.setOnApplyWindowInsetsListener(
+                      root
+                  ){v,insets->
+                      val bars=
+                          insets.getInsets(
+                              WindowInsetsCompat.Type.systemBars()
+                          )
+
+                      v.setPadding(
+                          v.paddingLeft,
+                          bars.top,
+                          v.paddingRight,
+                          bars.bottom
+                      )
+
                       insets
                   }
+
                   ViewCompat.requestApplyInsets(root)
           '''
-              code=code.replace(anchor,anchor+inset,1)
-          icon_b64='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'
+
+              code=code.replace(
+                  anchor,
+                  anchor+inset,
+                  1
+              )
+
+          # Ícone incorporado no próprio build.
+          icon_b64='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'
+
           icon=root/'app/src/main/res/drawable/controlehoras_icon.jpg'
           icon.write_bytes(base64.b64decode(icon_b64))
+
           m=manifest.read_text(encoding='utf-8')
+
           if 'android:icon="@drawable/controlehoras_icon"' not in m:
-              m=m.replace('<application','<application
-        android:icon="@drawable/controlehoras_icon"
-        android:roundIcon="@drawable/controlehoras_icon"',1)
+              m=m.replace(
+                  '<application',
+                  '<application\n        android:icon="@drawable/controlehoras_icon"\n        android:roundIcon="@drawable/controlehoras_icon"',
+                  1
+              )
+
           manifest.write_text(m,encoding='utf-8')
+
           src.write_text(code,encoding='utf-8')
+
           print('CORREÇÕES FINAIS APLICADAS')
+
       - name: Validar código e ícone
         shell: bash
         run: |
           set -e
+
           FILE="ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
+
           test -s "$FILE"
           test -s "ControleHoras/app/src/main/res/drawable/controlehoras_icon.jpg"
+
           grep -q 'extra2Enabled' "$FILE"
           grep -q 'showManualWheel' "$FILE"
           grep -q 'showEditWheel' "$FILE"
           grep -q 'nextPunchIndex' "$FILE"
           grep -q 'WindowCompat.setDecorFitsSystemWindows' "$FILE"
           grep -q 'controlehoras_icon' ControleHoras/app/src/main/AndroidManifest.xml
-          if grep -q 'Button(context)' "$FILE"; then echo "ERRO Button(context)"; exit 1; fi
+
+          if grep -q 'Button(context)' "$FILE"; then
+            echo "ERRO Button(context)"
+            exit 1
+          fi
+
           echo "VALIDAÇÃO OK"
+
       - name: Instalar Gradle 8.11.1
         shell: bash
         run: |
           set -e
+
           wget -q https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
           unzip -q gradle-8.11.1-bin.zip
+
           echo "$PWD/gradle-8.11.1/bin" >> "$GITHUB_PATH"
+
           "$PWD/gradle-8.11.1/bin/gradle" --version
+
       - name: Limpar projeto
         working-directory: ControleHoras
         shell: bash
         run: gradle clean --no-daemon
+
       - name: Gerar APK
         working-directory: ControleHoras
         shell: bash
         run: |
           set -e
+
           gradle assembleDebug --no-daemon --stacktrace
+
           APK="app/build/outputs/apk/debug/app-debug.apk"
+
           test -s "$APK"
+
           ls -lh "$APK"
+
       - name: Verificar APK
         working-directory: ControleHoras
         shell: bash
         run: |
           set -e
+
           APK="app/build/outputs/apk/debug/app-debug.apk"
+
           test -s "$APK"
+
           unzip -t "$APK" >/dev/null
+
           echo "APK VALIDADO"
+
       - name: Publicar APK
         uses: actions/upload-artifact@v4
         with:
