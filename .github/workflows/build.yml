@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Baixar projeto
         uses: actions/checkout@v4
 
@@ -27,13 +28,16 @@ jobs:
         shell: bash
         run: |
           set -e
+
           rm -rf ControleHoras
           unzip -q -o ControleHoras.zip
+
           test -f ControleHoras/settings.gradle.kts
           test -f ControleHoras/build.gradle.kts
           test -f ControleHoras/app/build.gradle.kts
           test -f ControleHoras/app/src/main/AndroidManifest.xml
           test -f ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt
+
           echo "PROJETO ORIGINAL OK"
 
       - name: Aplicar exatamente a versão 36
@@ -106,7 +110,7 @@ jobs:
               s = s.replace(old, new, 1)
 
           # =====================================================
-          # 1. DATA SELECIONADA
+          # DATA SELECIONADA
           # =====================================================
 
           m = re.search(
@@ -130,7 +134,7 @@ jobs:
           )
 
           # =====================================================
-          # 2. AO ABRIR O APP COMEÇA EM HOJE
+          # AO ABRIR COMEÇA EM HOJE
           # =====================================================
 
           replace_once(
@@ -141,7 +145,7 @@ jobs:
           )
 
           # =====================================================
-          # 3. TROCAR FUNCIONÁRIO VOLTA PARA HOJE
+          # AO TROCAR FUNCIONÁRIO VOLTA PARA HOJE
           # =====================================================
 
           old_employee = (
@@ -165,7 +169,7 @@ jobs:
           )
 
           # =====================================================
-          # 4. SELEÇÃO DE DATA
+          # FUNÇÃO PARA ESCOLHER DATA
           # =====================================================
 
           marker = (
@@ -215,7 +219,12 @@ jobs:
           )
 
           # =====================================================
-          # 5. BOTÃO ALTERAR DATA
+          # CARTÃO DA DATA
+          #
+          # IMPORTANTE:
+          # Não usamos Button aqui.
+          # Usamos TextView clicável para evitar o erro
+          # de Context que ocorreu na compilação.
           # =====================================================
 
           old_date = (
@@ -228,17 +237,14 @@ jobs:
           )
 
           new_date = (
-              '            line.addView(TextView(context).apply { '
-              'text = "Data do ponto\\n${df.format(parseIso(selectedPunchDate))}"; '
+              '            line.addView(TextView(this@MainActivity).apply { '
+              'text = "Data do ponto\\n${df.format(parseIso(selectedPunchDate))}\\nTOQUE PARA ALTERAR"; '
               'textSize = 16f; '
               'setTextColor(this@MainActivity.text); '
-              'setTypeface(null, Typeface.BOLD) '
-              '}, LinearLayout.LayoutParams(0, dp(60), 1f))\n'
-              '            line.addView(Button(this@MainActivity).apply { '
-              'text = "ALTERAR DATA"; '
-              'isAllCaps = false; '
+              'setTypeface(null, Typeface.BOLD); '
+              'gravity = Gravity.CENTER_VERTICAL; '
               'setOnClickListener { choosePunchDate() } '
-              '})'
+              '}, LinearLayout.LayoutParams(0, dp(60), 1f))'
           )
 
           replace_once(
@@ -248,7 +254,7 @@ jobs:
           )
 
           # =====================================================
-          # 6. SHOWPUNCH USA A DATA ESCOLHIDA
+          # SHOWPUNCH USA A DATA SELECIONADA
           # =====================================================
 
           inicio = s.find(
@@ -269,7 +275,7 @@ jobs:
 
           if "getRecord(emp.id, today())" not in show:
               raise SystemExit(
-                  "ERRO: registros de showPunch não encontrados"
+                  "ERRO: registro de hoje não encontrado"
               )
 
           show = show.replace(
@@ -278,13 +284,13 @@ jobs:
           )
 
           # =====================================================
-          # 7. BATIDA
+          # REGISTRAR BATIDA
           #
           # HOJE:
           # usa a hora atual.
           #
           # DATA ANTERIOR:
-          # abre campo para digitar a hora.
+          # permite informar manualmente o horário.
           # =====================================================
 
           pattern = (
@@ -332,9 +338,7 @@ jobs:
           s = s[:inicio] + show + s[fim:]
 
           # =====================================================
-          # 8. VALIDAÇÃO
-          #
-          # A ESCALA NÃO É ALTERADA.
+          # VALIDAÇÕES
           # =====================================================
 
           required = [
@@ -342,7 +346,8 @@ jobs:
               'private fun choosePunchDate()',
               'datePicker.maxDate=System.currentTimeMillis()',
               'getRecord(emp.id, selectedPunchDate)',
-              'selectedPunchDate==today()'
+              'selectedPunchDate==today()',
+              'setOnClickListener { choosePunchDate() }'
           ]
 
           for item in required:
@@ -361,9 +366,7 @@ jobs:
               encoding="utf-8"
           )
 
-          print(
-              "DATA RETROATIVA APLICADA"
-          )
+          print("DATA RETROATIVA APLICADA")
 
       - name: Validar código final
         shell: python
@@ -401,9 +404,12 @@ jobs:
                   "ERRO DE VALIDACAO: chaves incompatíveis"
               )
 
-          print(
-              "CÓDIGO FINAL VALIDADO"
-          )
+          if "Button(context)" in s:
+              raise SystemExit(
+                  "ERRO DE VALIDACAO: Button(context) encontrado"
+              )
+
+          print("CÓDIGO FINAL VALIDADO")
 
       - name: Instalar Gradle 8.11.1
         shell: bash
