@@ -115,18 +115,18 @@ jobs:
               )
 
           # ==================================================
-          # 1. CRIAR VARIÁVEL DA DATA SELECIONADA
+          # 1 - VARIAVEL DA DATA
           # ==================================================
 
           replace_once(
               "    private var selectedEmployeeId = 0L\n",
               "    private var selectedEmployeeId = 0L\n"
               "    private var selectedPunchDate = \"\"\n",
-              "variável selectedPunchDate"
+              "selectedPunchDate"
           )
 
           # ==================================================
-          # 2. AO ABRIR O APP, COMEÇA EM HOJE
+          # 2 - AO ABRIR O APP = HOJE
           # ==================================================
 
           replace_once(
@@ -139,168 +139,171 @@ jobs:
           )
 
           # ==================================================
-          # 3. AO TROCAR FUNCIONÁRIO, VOLTA PARA HOJE
+          # 3 - TROCAR FUNCIONARIO = HOJE
           # ==================================================
 
           replace_once(
               "selectedEmployeeId = employees[pos].id; showPunch()",
               "selectedEmployeeId = employees[pos].id; "
               "selectedPunchDate = today(); showPunch()",
-              "troca funcionário"
+              "troca funcionario"
           )
 
           # ==================================================
-          # 4. FUNÇÃO PARA ESCOLHER A DATA
+          # 4 - FUNCAO PARA ESCOLHER DATA
           # ==================================================
 
           marcador_data = (
               "    private fun today()=iso.format(Date())\n"
           )
 
-          funcao_data = '''    private fun choosePunchDate(){
-        val cal=Calendar.getInstance()
+          linhas_data = [
+              "    private fun choosePunchDate(){",
+              "        val cal=Calendar.getInstance()",
+              "",
+              "        try{",
+              "            cal.time=iso.parse(selectedPunchDate) ?: Date()",
+              "        }catch(_:Exception){}",
+              "",
+              "        DatePickerDialog(",
+              "            this@MainActivity,",
+              "            {_,year,month,day->",
+              "",
+              "                val escolhida=Calendar.getInstance().apply{",
+              "                    set(Calendar.YEAR,year)",
+              "                    set(Calendar.MONTH,month)",
+              "                    set(Calendar.DAY_OF_MONTH,day)",
+              "                    set(Calendar.HOUR_OF_DAY,0)",
+              "                    set(Calendar.MINUTE,0)",
+              "                    set(Calendar.SECOND,0)",
+              "                    set(Calendar.MILLISECOND,0)",
+              "                }",
+              "",
+              "                val hoje=Calendar.getInstance().apply{",
+              "                    set(Calendar.HOUR_OF_DAY,0)",
+              "                    set(Calendar.MINUTE,0)",
+              "                    set(Calendar.SECOND,0)",
+              "                    set(Calendar.MILLISECOND,0)",
+              "                }",
+              "",
+              "                if(!escolhida.after(hoje)){",
+              "                    selectedPunchDate=iso.format(escolhida.time)",
+              "                    showPunch()",
+              "                }",
+              "            },",
+              "            cal.get(Calendar.YEAR),",
+              "            cal.get(Calendar.MONTH),",
+              "            cal.get(Calendar.DAY_OF_MONTH)",
+              "        ).apply{",
+              "            datePicker.maxDate=System.currentTimeMillis()",
+              "        }.show()",
+              "    }",
+              ""
+          ]
 
-        try{
-            cal.time=iso.parse(selectedPunchDate) ?: Date()
-        }catch(_:Exception){}
-
-        DatePickerDialog(
-            this@MainActivity,
-            {_,year,month,day->
-
-                val escolhida=Calendar.getInstance().apply{
-                    set(Calendar.YEAR,year)
-                    set(Calendar.MONTH,month)
-                    set(Calendar.DAY_OF_MONTH,day)
-                    set(Calendar.HOUR_OF_DAY,0)
-                    set(Calendar.MINUTE,0)
-                    set(Calendar.SECOND,0)
-                    set(Calendar.MILLISECOND,0)
-                }
-
-                val hoje=Calendar.getInstance().apply{
-                    set(Calendar.HOUR_OF_DAY,0)
-                    set(Calendar.MINUTE,0)
-                    set(Calendar.SECOND,0)
-                    set(Calendar.MILLISECOND,0)
-                }
-
-                if(!escolhida.after(hoje)){
-                    selectedPunchDate=iso.format(escolhida.time)
-                    showPunch()
-                }
-            },
-            cal.get(Calendar.YEAR),
-            cal.get(Calendar.MONTH),
-            cal.get(Calendar.DAY_OF_MONTH)
-        ).apply{
-            datePicker.maxDate=System.currentTimeMillis()
-        }.show()
-    }
-
-'''
+          funcao_data = "\n".join(linhas_data)
 
           replace_once(
               marcador_data,
               marcador_data + funcao_data,
-              "função de data"
+              "funcao data"
           )
 
           # ==================================================
-          # 5. SHOWPUNCH PASSA A USAR A DATA ESCOLHIDA
+          # 5 - REGISTRO USA A DATA ESCOLHIDA
           # ==================================================
 
           replace_once(
               "val rec = getRecord(emp.id, today())",
               "val rec = getRecord(emp.id, selectedPunchDate)",
-              "registro da data"
+              "registro selecionado"
           )
 
           replace_once(
               "val r = getRecord(emp.id, today())",
               "val r = getRecord(emp.id, selectedPunchDate)",
-              "batida da data"
+              "batida selecionada"
           )
 
           # ==================================================
-          # 6. TEXTO DA DATA NO CARTÃO
+          # 6 - CARTAO DA DATA
           # ==================================================
 
           replace_once(
               'text = "Hoje\\n${df.format(Date())}"; textSize = 16f; setTextColor(text); setTypeface(null, Typeface.BOLD)',
               'text = "Data do ponto\\n${df.format(parseIso(selectedPunchDate))}"; textSize = 16f; setTextColor(this@MainActivity.text); setTypeface(null, Typeface.BOLD); setOnClickListener { choosePunchDate() }',
-              "cartão da data"
+              "cartao data"
           )
 
           # ==================================================
-          # 7. BOTÃO DE REGISTRO
-          #
-          # HOJE:
-          # registra automaticamente a hora atual.
-          #
-          # DATA ANTERIOR:
-          # abre campo para digitar a hora.
+          # 7 - REGISTRO DE HOJE OU DATA ANTERIOR
           # ==================================================
 
-          antigo_botao = '''                if (n >= 0) {
-                    r.punches[n] = nowTime()
-                    saveData()
-                    showPunch()
-                }'''
+          antigo_botao = "\n".join([
+              "                if (n >= 0) {",
+              "                    r.punches[n] = nowTime()",
+              "                    saveData()",
+              "                    showPunch()",
+              "                }"
+          ])
 
-          novo_botao = '''                if (n >= 0) {
+          linhas_botao = [
+              "                if (n >= 0) {",
+              "",
+              "                    if (selectedPunchDate == today()) {",
+              "",
+              "                        r.punches[n] = nowTime()",
+              "",
+              "                        saveData()",
+              "",
+              "                        showPunch()",
+              "",
+              "                    } else {",
+              "",
+              "                        val entrada = timeEdit(",
+              "                            \"\",",
+              "                            punchNames[n]",
+              "                        )",
+              "",
+              "                        AlertDialog.Builder(",
+              "                            this@MainActivity",
+              "                        )",
+              "                            .setTitle(",
+              "                                punchNames[n]",
+              "                            )",
+              "                            .setMessage(",
+              "                                \"Informe o horário da batida para ${df.format(parseIso(selectedPunchDate))}.\"",
+              "                            )",
+              "                            .setView(entrada)",
+              "                            .setNegativeButton(",
+              "                                \"Cancelar\",",
+              "                                null",
+              "                            )",
+              "                            .setPositiveButton(",
+              "                                \"Salvar\"",
+              "                            ) { _, _ ->",
+              "",
+              "                                val horario =",
+              "                                    normalizeTime(",
+              "                                        entrada.text.toString()",
+              "                                    )",
+              "",
+              "                                if (horario.isNotBlank()) {",
+              "",
+              "                                    r.punches[n] =",
+              "                                        horario",
+              "",
+              "                                    saveData()",
+              "",
+              "                                    showPunch()",
+              "                                }",
+              "                            }",
+              "                            .show()",
+              "                    }",
+              "                }"
+          ]
 
-                    if (selectedPunchDate == today()) {
-
-                        r.punches[n] = nowTime()
-
-                        saveData()
-
-                        showPunch()
-
-                    } else {
-
-                        val entrada = timeEdit(
-                            "",
-                            punchNames[n]
-                        )
-
-                        AlertDialog.Builder(
-                            this@MainActivity
-                        )
-                            .setTitle(
-                                punchNames[n]
-                            )
-                            .setMessage(
-                                "Informe o horário da batida para ${df.format(parseIso(selectedPunchDate))}."
-                            )
-                            .setView(entrada)
-                            .setNegativeButton(
-                                "Cancelar",
-                                null
-                            )
-                            .setPositiveButton(
-                                "Salvar"
-                            ) { _, _ ->
-
-                                val horario =
-                                    normalizeTime(
-                                        entrada.text.toString()
-                                    )
-
-                                if (horario.isNotBlank()) {
-
-                                    r.punches[n] =
-                                        horario
-
-                                    saveData()
-
-                                    showPunch()
-                                }
-                            }
-                            .show()
-                    }
-                }'''
+          novo_botao = "\n".join(linhas_botao)
 
           replace_once(
               antigo_botao,
@@ -309,7 +312,7 @@ jobs:
           )
 
           # ==================================================
-          # 8. GARANTIAS
+          # 8 - VALIDACOES
           # ==================================================
 
           obrigatorios = [
@@ -341,12 +344,12 @@ jobs:
               encoding="utf-8"
           )
 
-          print("======================================")
+          print("====================================")
           print("DATA RETROATIVA APLICADA")
-          print("VERSÃO 36 PRESERVADA")
+          print("VERSAO 36 PRESERVADA")
           print("ESCALA PRESERVADA")
-          print("CÓDIGO PRONTO PARA COMPILAÇÃO")
-          print("======================================")
+          print("CODIGO PRONTO")
+          print("====================================")
 
       - name: Validar código
         shell: bash
@@ -368,7 +371,7 @@ jobs:
             exit 1
           fi
 
-          echo "CÓDIGO VALIDADO"
+          echo "CODIGO VALIDADO"
 
       - name: Instalar Gradle 8.11.1
         shell: bash
