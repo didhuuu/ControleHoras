@@ -234,7 +234,7 @@ jobs:
               'setTextColor(this@MainActivity.text); '
               'setTypeface(null, Typeface.BOLD) '
               '}, LinearLayout.LayoutParams(0, dp(60), 1f))\n'
-              '            line.addView(Button(context).apply { '
+              '            line.addView(Button(this@MainActivity).apply { '
               'text = "ALTERAR DATA"; '
               'isAllCaps = false; '
               'setOnClickListener { choosePunchDate() } '
