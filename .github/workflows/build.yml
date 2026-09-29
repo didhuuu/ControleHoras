@@ -552,10 +552,6 @@ jobs:
                       }
                   )
 
-                  # ==================================================
-                  # REGISTRO MANUAL
-                  # ==================================================
-
                   box.addView(
                       Button(this).apply{
 
@@ -595,10 +591,6 @@ jobs:
                           rec,
                           extra
                       )
-
-                  # ==================================================
-                  # PRÓXIMA BATIDA
-                  # ==================================================
 
                   box.addView(
                       Button(this).apply{
@@ -695,10 +687,6 @@ jobs:
                       punchNames[5]
                   )
 
-                  # ==================================================
-                  # INTERVALO 2
-                  # ==================================================
-
                   box.addView(
                       TextView(this).apply{
 
@@ -740,10 +728,6 @@ jobs:
                       1,
                       rec
                   )
-
-                  # ==================================================
-                  # SOMATÓRIO
-                  # ==================================================
 
                   val calc=
                       calculate(rec)
@@ -789,10 +773,6 @@ jobs:
 
                   box.addView(cards)
               }
-
-              # ======================================================
-              # LINHA DE BATIDA
-              # ======================================================
 
               private fun addPunchRow(
                   box:LinearLayout,
@@ -916,7 +896,6 @@ jobs:
                       }
                   )
 
-                  # Clicar na batida abre rolagem para editar
                   row.setOnClickListener{
                       showEditWheel(
                           rec,
@@ -934,10 +913,6 @@ jobs:
                       }
                   )
               }
-
-              # ======================================================
-              # SWITCH INTERVALO 2
-              # ======================================================
 
               private fun addExtraSwitch(
                   box:LinearLayout,
@@ -1117,10 +1092,6 @@ jobs:
                       )
               }
 
-              # ======================================================
-              # PRÓXIMA BATIDA
-              # ======================================================
-
               private fun nextPunchIndex(
                   r:PunchDay,
                   extra:Boolean
@@ -1164,10 +1135,6 @@ jobs:
 
                   return -1
               }
-
-              # ======================================================
-              # REGISTRAR BATIDA
-              # ======================================================
 
               private fun registerPunch(
                   empId:Long
@@ -1256,10 +1223,6 @@ jobs:
                       }
                       .show()
               }
-
-              # ======================================================
-              # EDITAR BATIDA COM ROLAGEM
-              # ======================================================
 
               private fun showEditWheel(
                   rec:PunchDay,
@@ -1357,14 +1320,10 @@ jobs:
                       NumberPicker(this).apply{
 
                           minValue=0
-
                           maxValue=23
+                          value=currentHour
 
-                          value=
-                              currentHour
-
-                          wrapSelectorWheel=
-                              true
+                          wrapSelectorWheel=true
 
                           descendantFocusability=
                               NumberPicker.FOCUS_BLOCK_DESCENDANTS
@@ -1374,14 +1333,10 @@ jobs:
                       NumberPicker(this).apply{
 
                           minValue=0
-
                           maxValue=59
+                          value=currentMinute
 
-                          value=
-                              currentMinute
-
-                          wrapSelectorWheel=
-                              true
+                          wrapSelectorWheel=true
 
                           descendantFocusability=
                               NumberPicker.FOCUS_BLOCK_DESCENDANTS
@@ -1391,11 +1346,8 @@ jobs:
                       TextView(this).apply{
 
                           text=":"
-
                           textSize=28f
-
-                          gravity=
-                              Gravity.CENTER
+                          gravity=Gravity.CENTER
                       }
 
                   wheels.addView(
@@ -1523,10 +1475,6 @@ jobs:
                   dialog.show()
               }
 
-              # ======================================================
-              # REGISTRO MANUAL COM ROLAGEM
-              # ======================================================
-
               private fun showManualWheel(
                   empId:Long
               ){
@@ -1620,7 +1568,6 @@ jobs:
                       NumberPicker(this).apply{
 
                           minValue=0
-
                           maxValue=23
 
                           value=
@@ -1628,8 +1575,7 @@ jobs:
                                   Calendar.HOUR_OF_DAY
                               )
 
-                          wrapSelectorWheel=
-                              true
+                          wrapSelectorWheel=true
 
                           descendantFocusability=
                               NumberPicker.FOCUS_BLOCK_DESCENDANTS
@@ -1639,7 +1585,6 @@ jobs:
                       NumberPicker(this).apply{
 
                           minValue=0
-
                           maxValue=59
 
                           value=
@@ -1647,8 +1592,7 @@ jobs:
                                   Calendar.MINUTE
                               )
 
-                          wrapSelectorWheel=
-                              true
+                          wrapSelectorWheel=true
 
                           descendantFocusability=
                               NumberPicker.FOCUS_BLOCK_DESCENDANTS
@@ -1658,11 +1602,8 @@ jobs:
                       TextView(this).apply{
 
                           text=":"
-
                           textSize=28f
-
-                          gravity=
-                              Gravity.CENTER
+                          gravity=Gravity.CENTER
                       }
 
                   wheels.addView(
@@ -1898,7 +1839,7 @@ jobs:
           )
 
           # ============================================================
-          # IMPORTS PARA SISTEMA / INSETS
+          # IMPORTS
           # ============================================================
 
           imports = (
@@ -1920,7 +1861,7 @@ jobs:
               )
 
           # ============================================================
-          # SISTEMA DE BARRAS / ÁREA SEGURA
+          # SISTEMA DE BARRAS
           # ============================================================
 
           if (
@@ -1978,7 +1919,7 @@ jobs:
               )
 
           # ============================================================
-          # ÍCONE DIDHUUU EMBUTIDO
+          # ÍCONE
           # ============================================================
 
           icon_b64 = (
@@ -1989,6 +1930,13 @@ jobs:
           icon = (
               root /
               "app/src/main/res/drawable/controlehoras_icon.jpg"
+          )
+
+          # CORREÇÃO:
+          # cria a pasta drawable antes de gravar o ícone.
+          icon.parent.mkdir(
+              parents=True,
+              exist_ok=True
           )
 
           icon.write_bytes(
