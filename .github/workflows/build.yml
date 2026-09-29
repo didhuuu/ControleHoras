@@ -15,24 +15,15 @@ jobs:
 
     steps:
 
-      # ============================================================
-      # 1 - BAIXAR O REPOSITÓRIO
-      # ============================================================
       - name: Baixar projeto
         uses: actions/checkout@v4
 
-      # ============================================================
-      # 2 - JAVA 17
-      # ============================================================
       - name: Configurar Java 17
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
-      # ============================================================
-      # 3 - EXTRAIR O ZIP ORIGINAL
-      # ============================================================
       - name: Extrair ControleHoras.zip
         shell: bash
         run: |
@@ -42,163 +33,95 @@ jobs:
 
           unzip -q -o ControleHoras.zip
 
-          echo "Projeto extraído."
-
-          test -f ControleHoras/app/build.gradle.kts
           test -f ControleHoras/settings.gradle.kts
           test -f ControleHoras/build.gradle.kts
+          test -f ControleHoras/app/build.gradle.kts
           test -f ControleHoras/app/src/main/AndroidManifest.xml
           test -f ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt
 
-          echo "Estrutura do projeto OK."
+          echo "PROJETO EXTRAÍDO OK"
 
-      # ============================================================
-      # 4 - CORRIGIR A MAINACTIVITY ORIGINAL
-      #
-      # NÃO SUBSTITUI A INTERFACE.
-      # NÃO CRIA UMA NOVA MAINACTIVITY.
-      # ALTERA SOMENTE OS TRECHOS NECESSÁRIOS.
-      # ============================================================
       - name: Corrigir MainActivity original
         shell: bash
         run: |
           set -e
 
-          python3 <<'PY'
+          python3 - <<'PY'
           from pathlib import Path
+          import re
 
           arquivo = Path(
               "ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
           )
 
           if not arquivo.exists():
-              raise SystemExit(
-                  "ERRO: MainActivity.kt não foi encontrada."
-              )
+              raise SystemExit("ERRO: MainActivity.kt não encontrada.")
 
           codigo = arquivo.read_text(encoding="utf-8")
 
           print("========================================")
-          print("MAINACTIVITY ORIGINAL")
+          print("ANALISANDO MAINACTIVITY ORIGINAL")
           print("========================================")
-          print("Linhas originais:", len(codigo.splitlines()))
+          print("Linhas:", len(codigo.splitlines()))
           print("Bytes:", len(codigo.encode("utf-8")))
 
-          # --------------------------------------------------------
-          # CORREÇÃO 1
-          # Salário:
-          #
-          # ORIGINAL:
-          # setText(if(existing!=null)existing.salary.toString():"")
-          #
-          # CORRETO:
-          # setText(if(existing!=null)existing.salary.toString() else "")
-          # --------------------------------------------------------
+          # -------------------------------------------------------
+          # 1. CORRIGIR SALÁRIO
+          # -------------------------------------------------------
 
-          original = (
-              'setText(if(existing!=null)existing.salary.toString():"")'
-          )
+          antigo = 'setText(if(existing!=null)existing.salary.toString():"")'
 
-          correto = (
-              'setText(if(existing!=null)existing.salary.toString() else "")'
-          )
+          novo = 'setText(if(existing!=null)existing.salary.toString() else "")'
 
-          if original not in codigo:
-              raise SystemExit(
-                  "ERRO: trecho do salário não encontrado."
-              )
+          if antigo in codigo:
+              codigo = codigo.replace(antigo, novo, 1)
+              print("OK - salário corrigido")
+          else:
+              print("AVISO - salário já estava corrigido")
 
-          codigo = codigo.replace(
-              original,
-              correto,
-              1
-          )
-
-          print("OK: salário corrigido.")
-
-          # --------------------------------------------------------
-          # CORREÇÃO 2
-          # setTextColor(text)
-          #
-          # Dentro do TextView.apply, "text" pode ser a propriedade
-          # do próprio TextView.
-          #
-          # Usamos explicitamente a variável da MainActivity.
-          # --------------------------------------------------------
+          # -------------------------------------------------------
+          # 2. CORRIGIR setTextColor(text)
+          # -------------------------------------------------------
 
           quantidade = codigo.count("setTextColor(text)")
 
-          if quantidade > 0:
+          if quantidade:
               codigo = codigo.replace(
                   "setTextColor(text)",
                   "setTextColor(this@MainActivity.text)"
               )
 
           print(
-              "OK: setTextColor corrigido:",
+              "OK - setTextColor:",
               quantidade,
-              "ocorrência(s)."
+              "correções"
           )
 
-          # --------------------------------------------------------
-          # CORREÇÃO 3
-          #
-          # Alguns addView antigos usam quatro números depois da View.
-          # A forma mais segura é usar LayoutParams.
-          # --------------------------------------------------------
+          # -------------------------------------------------------
+          # 3. CORRIGIR HISTÓRICO MENSAL
+          # -------------------------------------------------------
 
-          codigo = codigo.replace(
-              "addView(card().apply {",
-              "addView(card().apply {",
-              1
-          )
-
-          # --------------------------------------------------------
-          # CORREÇÃO 4
-          # Histórico mensal.
-          #
-          # Os registros são gravados como:
-          # yyyy-MM-dd
-          #
-          # Portanto o filtro mensal deve usar:
-          # yyyy-MM
-          # --------------------------------------------------------
-
-          antigo_historico = (
+          antigo = (
               'it.date.endsWith('
               'SimpleDateFormat("MM-yyyy", Locale.US).format(Date())'
               ')'
           )
 
-          novo_historico = (
+          novo = (
               'it.date.startsWith('
               'SimpleDateFormat("yyyy-MM", Locale.US).format(Date())'
               ')'
           )
 
-          if antigo_historico in codigo:
-              codigo = codigo.replace(
-                  antigo_historico,
-                  novo_historico
-              )
-              print("OK: histórico mensal corrigido.")
+          if antigo in codigo:
+              codigo = codigo.replace(antigo, novo, 1)
+              print("OK - histórico mensal corrigido")
           else:
-              print(
-                  "AVISO: filtro antigo do histórico não encontrado."
-              )
+              print("AVISO - filtro antigo do histórico não encontrado")
 
-          # --------------------------------------------------------
-          # CORREÇÃO 5
-          # Função normalizeTime
-          #
-          # Aceita:
-          # 0800
-          # 08:00
-          # 8:00
-          #
-          # E devolve sempre:
-          # 08:00
-          # --------------------------------------------------------
+          # -------------------------------------------------------
+          # 4. ADICIONAR normalizeTime E timeEdit
+          # -------------------------------------------------------
 
           marcador = (
               '    private fun getRecord(empId:Long,date:String):PunchDay{'
@@ -206,154 +129,107 @@ jobs:
 
           if marcador not in codigo:
               raise SystemExit(
-                  "ERRO: função getRecord não encontrada."
+                  "ERRO: getRecord não encontrado."
               )
 
           if "private fun normalizeTime(" not in codigo:
 
-              helpers = r'''    private fun normalizeTime(value:String):String{
-              val digits=value.filter{it.isDigit()}.take(4)
+              helper_lines = [
+                  "    private fun normalizeTime(value:String):String{",
+                  "        val digits=value.filter{it.isDigit()}.take(4)",
+                  "",
+                  "        if(digits.length!=4)return \"\"",
+                  "",
+                  "        val hour=digits.substring(0,2).toIntOrNull()?:return \"\"",
+                  "        val minute=digits.substring(2,4).toIntOrNull()?:return \"\"",
+                  "",
+                  "        if(hour !in 0..23)return \"\"",
+                  "        if(minute !in 0..59)return \"\"",
+                  "",
+                  "        return \"%02d:%02d\".format(Locale.US,hour,minute)",
+                  "    }",
+                  "",
+                  "    private fun timeEdit(initial:String=\"\",hintText:String=\"00:00\"):EditText{",
+                  "",
+                  "        val e=EditText(this).apply{",
+                  "            hint=hintText",
+                  "            inputType=2",
+                  "            setSingleLine()",
+                  "",
+                  "            val normalized=normalizeTime(initial)",
+                  "",
+                  "            if(normalized.isNotEmpty()){",
+                  "                setText(normalized)",
+                  "            }",
+                  "        }",
+                  "",
+                  "        var changing=false",
+                  "",
+                  "        e.addTextChangedListener(object:android.text.TextWatcher{",
+                  "",
+                  "            override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int){}",
+                  "",
+                  "            override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){}",
+                  "",
+                  "            override fun afterTextChanged(editable:android.text.Editable?){",
+                  "",
+                  "                if(changing)return",
+                  "",
+                  "                val digits=editable?.toString()?.filter{it.isDigit()}?.take(4).orEmpty()",
+                  "",
+                  "                val formatted=when{",
+                  "                    digits.isEmpty()->\"\"",
+                  "                    digits.length<=2->digits",
+                  "                    else->digits.substring(0,2)+\":\"+digits.substring(2)",
+                  "                }",
+                  "",
+                  "                if(formatted!=editable?.toString()){",
+                  "                    changing=true",
+                  "                    e.setText(formatted)",
+                  "                    e.setSelection(e.text.length)",
+                  "                    changing=false",
+                  "                }",
+                  "            }",
+                  "        })",
+                  "",
+                  "        e.setOnFocusChangeListener{_,hasFocus->",
+                  "            if(!hasFocus){",
+                  "                val normalized=normalizeTime(e.text.toString())",
+                  "",
+                  "                if(normalized.isNotEmpty()){",
+                  "                    e.setText(normalized)",
+                  "                    e.setSelection(e.text.length)",
+                  "                }",
+                  "            }",
+                  "        }",
+                  "",
+                  "        return e",
+                  "    }",
+                  "",
+              ]
 
-              if(digits.length!=4)return ""
-
-              val hour=digits.substring(0,2).toIntOrNull()?:return ""
-              val minute=digits.substring(2,4).toIntOrNull()?:return ""
-
-              if(hour !in 0..23)return ""
-              if(minute !in 0..59)return ""
-
-              return "%02d:%02d".format(
-                  Locale.US,
-                  hour,
-                  minute
-              )
-          }
-
-          private fun timeEdit(
-              initial:String="",
-              hintText:String="00:00"
-          ):EditText{
-
-              val e=EditText(this).apply{
-                  hint=hintText
-                  inputType=2
-                  setSingleLine()
-
-                  val normalized=normalizeTime(initial)
-
-                  if(normalized.isNotEmpty()){
-                      setText(normalized)
-                  }
-              }
-
-              var changing=false
-
-              e.addTextChangedListener(
-                  object:android.text.TextWatcher{
-
-                      override fun beforeTextChanged(
-                          s:CharSequence?,
-                          start:Int,
-                          count:Int,
-                          after:Int
-                      ){}
-
-                      override fun onTextChanged(
-                          s:CharSequence?,
-                          start:Int,
-                          before:Int,
-                          count:Int
-                      ){}
-
-                      override fun afterTextChanged(
-                          editable:android.text.Editable?
-                      ){
-
-                          if(changing)return
-
-                          val digits=
-                              editable
-                                  ?.toString()
-                                  ?.filter{it.isDigit()}
-                                  ?.take(4)
-                                  .orEmpty()
-
-                          val formatted=when{
-                              digits.isEmpty()->""
-
-                              digits.length<=2->
-                                  digits
-
-                              else->
-                                  digits.substring(0,2)+":"+
-                                  digits.substring(2)
-                          }
-
-                          if(
-                              formatted!=editable?.toString()
-                          ){
-
-                              changing=true
-
-                              e.setText(formatted)
-
-                              e.setSelection(
-                                  e.text.length
-                              )
-
-                              changing=false
-                          }
-                      }
-                  }
-              )
-
-              e.setOnFocusChangeListener{_,hasFocus->
-
-                  if(!hasFocus){
-
-                      val normalized=
-                          normalizeTime(
-                              e.text.toString()
-                          )
-
-                      if(normalized.isNotEmpty()){
-
-                          e.setText(normalized)
-
-                          e.setSelection(
-                              e.text.length
-                          )
-                      }
-                  }
-              }
-
-              return e
-          }
-
-          '''
+              helper = "\n".join(helper_lines)
 
               codigo = codigo.replace(
                   marcador,
-                  helpers + marcador,
+                  helper + marcador,
                   1
               )
 
-              print("OK: funções de horário adicionadas.")
-
+              print("OK - funções de horário adicionadas")
           else:
-              print(
-                  "OK: funções de horário já existem."
-              )
+              print("OK - funções de horário já existem")
 
-          # --------------------------------------------------------
-          # CORREÇÃO 6
-          # EDIÇÃO MANUAL DO PONTO
-          # --------------------------------------------------------
+          # -------------------------------------------------------
+          # 5. EDIÇÃO MANUAL
+          # -------------------------------------------------------
 
           antigo = (
-              'val e=EditText(this).apply'
-              '{setText(r.punches[index]);'
-              'hint="HH:mm";inputType=2;setSingleLine()}'
+              'val e=EditText(this).apply{'
+              'setText(r.punches[index]);'
+              'hint="HH:mm";'
+              'inputType=2;'
+              'setSingleLine()}'
           )
 
           novo = (
@@ -364,27 +240,14 @@ jobs:
           )
 
           if antigo in codigo:
-
-              codigo = codigo.replace(
-                  antigo,
-                  novo,
-                  1
-              )
-
-              print(
-                  "OK: edição manual de horário corrigida."
-              )
-
+              codigo = codigo.replace(antigo, novo, 1)
+              print("OK - edição manual")
           else:
-              print(
-                  "AVISO: campo antigo de edição manual "
-                  "não encontrado."
-              )
+              print("AVISO - edição manual já corrigida")
 
-          # --------------------------------------------------------
-          # CORREÇÃO 7
-          # SALVAR PONTO MANUAL
-          # --------------------------------------------------------
+          # -------------------------------------------------------
+          # 6. SALVAR EDIÇÃO MANUAL
+          # -------------------------------------------------------
 
           antigo = (
               'r.punches[index]=e.text.toString();'
@@ -392,33 +255,27 @@ jobs:
           )
 
           novo = (
-              'r.punches[index]='
-              'normalizeTime(e.text.toString());'
+              'r.punches[index]=normalizeTime(e.text.toString());'
               'saveData();showPunch()'
           )
 
           if antigo in codigo:
+              codigo = codigo.replace(antigo, novo, 1)
+              print("OK - salvamento manual")
+          else:
+              print("AVISO - salvamento manual já corrigido")
 
-              codigo = codigo.replace(
-                  antigo,
-                  novo,
-                  1
-              )
-
-              print(
-                  "OK: salvamento manual corrigido."
-              )
-
-          # --------------------------------------------------------
-          # CORREÇÃO 8
-          # EDIÇÃO DO REGISTRO COMPLETO
-          # --------------------------------------------------------
+          # -------------------------------------------------------
+          # 7. EDIÇÃO DO HISTÓRICO
+          # -------------------------------------------------------
 
           antigo = (
               'val fields=r.punches.mapIndexed'
-              '{i,v->EditText(this).apply'
-              '{hint=punchNames[i];setText(v);'
-              'inputType=2;setSingleLine();}}'
+              '{i,v->EditText(this).apply{'
+              'hint=punchNames[i];'
+              'setText(v);'
+              'inputType=2;'
+              'setSingleLine();}}'
           )
 
           novo = (
@@ -427,21 +284,14 @@ jobs:
           )
 
           if antigo in codigo:
+              codigo = codigo.replace(antigo, novo, 1)
+              print("OK - edição do histórico")
+          else:
+              print("AVISO - campos do histórico já corrigidos")
 
-              codigo = codigo.replace(
-                  antigo,
-                  novo,
-                  1
-              )
-
-              print(
-                  "OK: edição do histórico corrigida."
-              )
-
-          # --------------------------------------------------------
-          # CORREÇÃO 9
-          # SALVAR REGISTRO COMPLETO
-          # --------------------------------------------------------
+          # -------------------------------------------------------
+          # 8. SALVAR HISTÓRICO
+          # -------------------------------------------------------
 
           antigo = (
               'fields.forEachIndexed'
@@ -451,60 +301,43 @@ jobs:
 
           novo = (
               'fields.forEachIndexed'
-              '{i,e->'
-              'r.punches[i]=normalizeTime(e.text.toString())'
-              '};saveData();showHistory()'
+              '{i,e->r.punches[i]=normalizeTime(e.text.toString())};'
+              'saveData();showHistory()'
           )
 
           if antigo in codigo:
+              codigo = codigo.replace(antigo, novo, 1)
+              print("OK - salvamento do histórico")
+          else:
+              print("AVISO - salvamento do histórico já corrigido")
 
-              codigo = codigo.replace(
-                  antigo,
-                  novo,
-                  1
-              )
-
-              print(
-                  "OK: salvamento do histórico corrigido."
-              )
-
-          # --------------------------------------------------------
-          # CORREÇÃO 10
-          # HORÁRIOS DA ESCALA
-          # --------------------------------------------------------
+          # -------------------------------------------------------
+          # 9. ESCALA
+          # -------------------------------------------------------
 
           antigo = (
-              'val ed=EditText(this).apply'
-              '{setText(p.second);hint="00:00";'
-              'gravity=Gravity.CENTER;inputType=2;'
+              'val ed=EditText(this).apply{'
+              'setText(p.second);'
+              'hint="00:00";'
+              'gravity=Gravity.CENTER;'
+              'inputType=2;'
               'setSingleLine()}'
           )
 
           novo = (
-              'val ed=timeEdit('
-              'p.second,'
-              '"00:00"'
-              ').apply{'
-              'gravity=Gravity.CENTER'
-              '}'
+              'val ed=timeEdit(p.second,"00:00").apply{'
+              'gravity=Gravity.CENTER}'
           )
 
           if antigo in codigo:
+              codigo = codigo.replace(antigo, novo, 1)
+              print("OK - escala")
+          else:
+              print("AVISO - campo da escala já corrigido")
 
-              codigo = codigo.replace(
-                  antigo,
-                  novo,
-                  1
-              )
-
-              print(
-                  "OK: escala usando campo de horário automático."
-              )
-
-          # --------------------------------------------------------
-          # CORREÇÃO 11
-          # SALVAMENTO DOS HORÁRIOS DA ESCALA
-          # --------------------------------------------------------
+          # -------------------------------------------------------
+          # 10. SALVAR ESCALA
+          # -------------------------------------------------------
 
           antigo = (
               '0->s.e=ed.text.toString();'
@@ -521,43 +354,134 @@ jobs:
           )
 
           if antigo in codigo:
+              codigo = codigo.replace(antigo, novo, 1)
+              print("OK - salvamento da escala")
+          else:
+              print("AVISO - salvamento da escala já corrigido")
 
-              codigo = codigo.replace(
-                  antigo,
-                  novo,
-                  1
-              )
-
-              print(
-                  "OK: salvamento da escala corrigido."
-              )
-
-          # --------------------------------------------------------
-          # CORREÇÃO 12
-          # MINUTES BETWEEN
+          # -------------------------------------------------------
+          # 11. MINUTES BETWEEN
           #
-          # Usa os horários normalizados.
-          # --------------------------------------------------------
+          # Usa o texto EXATO da MainActivity original.
+          # -------------------------------------------------------
 
-          inicio = codigo.find(
-              '    private fun minutesBetween(a:String,b:String):Int{'
+          antigo = (
+              '    private fun minutesBetween(a:String,b:String):Int{\n'
+              '        if(a.isBlank()||b.isBlank())return 0\n'
+              '        return try{val x=a.split(":");val y=b.split(":");'
+              'max(0,(y[0].toInt()*60+y[1].toInt())-'
+              '(x[0].toInt()*60+x[1].toInt()))}catch(_:Exception){0}\n'
+              '    }\n'
           )
 
-          fim = codigo.find(
-              '    private fun formatMin(m:Int):String=',
-              inicio
+          novo = (
+              '    private fun minutesBetween(a:String,b:String):Int{\n'
+              '\n'
+              '        val x=normalizeTime(a)\n'
+              '        val y=normalizeTime(b)\n'
+              '\n'
+              '        if(x.isBlank()||y.isBlank())return 0\n'
+              '\n'
+              '        return try{\n'
+              '\n'
+              '            val xa=x.split(":")\n'
+              '            val ya=y.split(":")\n'
+              '\n'
+              '            val inicio='
+              'xa[0].toInt()*60+xa[1].toInt()\n'
+              '            val fim='
+              'ya[0].toInt()*60+ya[1].toInt()\n'
+              '\n'
+              '            max(0,fim-inicio)\n'
+              '\n'
+              '        }catch(_:Exception){\n'
+              '            0\n'
+              '        }\n'
+              '    }\n'
           )
 
-          if inicio == -1:
+          if antigo not in codigo:
               raise SystemExit(
-                  "ERRO: minutesBetween não encontrada."
+                  "ERRO: minutesBetween original não encontrada."
               )
 
-          if fim == -1:
+          codigo = codigo.replace(
+              antigo,
+              novo,
+              1
+          )
+
+          print("OK - minutesBetween corrigido")
+
+          # -------------------------------------------------------
+          # 12. FORMATMIN
+          # -------------------------------------------------------
+
+          antigo = (
+              '    private fun formatMin(m:Int):String="'
+              '${m/60}:%02d".format(m%60)\n'
+          )
+
+          novo = (
+              '    private fun formatMin(m:Int):String='
+              '"%02d:%02d".format(Locale.US,max(0,m)/60,max(0,m)%60)\n'
+          )
+
+          if antigo not in codigo:
               raise SystemExit(
-                  "ERRO: formatMin não encontrada."
+                  "ERRO: formatMin original não encontrada."
               )
 
-          minutes_between = r'''    private fun minutesBetween(a:String,b:String):Int{
+          codigo = codigo.replace(
+              antigo,
+              novo,
+              1
+          )
 
-             
+          print("OK - formatMin corrigido")
+
+          # -------------------------------------------------------
+          # 13. VALIDAÇÃO
+          # -------------------------------------------------------
+
+          obrigatorias = [
+              "private fun normalizeTime",
+              "private fun timeEdit",
+              "private fun minutesBetween",
+              "private fun formatMin",
+              "private fun editPunch",
+              "private fun editRecord",
+              "private fun employeeDialog",
+              "private fun confirmDelete",
+              "private fun showPunch",
+              "private fun showHistory",
+              "private fun showReport",
+              "private fun showEmployees",
+              "private fun showScale"
+          ]
+
+          for funcao in obrigatorias:
+              if funcao not in codigo:
+                  raise SystemExit(
+                      "ERRO FINAL: função ausente: " + funcao
+                  )
+
+          abertas = codigo.count("{")
+          fechadas = codigo.count("}")
+
+          print("========================================")
+          print("VALIDAÇÃO")
+          print("========================================")
+          print("Linhas:", len(codigo.splitlines()))
+          print("Chaves abertas:", abertas)
+          print("Chaves fechadas:", fechadas)
+
+          if abertas != fechadas:
+              raise SystemExit(
+                  f"ERRO: chaves incompatíveis "
+                  f"{abertas}/{fechadas}"
+              )
+
+          if "%02d:%02d" not in codigo:
+              raise SystemExit(
+                  "
