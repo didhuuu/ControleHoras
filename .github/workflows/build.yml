@@ -3,8 +3,7 @@ name: ControleHoras APK
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [main]
 
 permissions:
   contents: read
@@ -17,173 +16,27 @@ jobs:
       - name: Baixar projeto
         uses: actions/checkout@v4
 
-      - name: Configurar Java 17
+      - name: Java 17
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Extrair projeto
-        shell: bash
-        run: |
-          set -e
-          rm -rf ControleHoras
-          unzip -q -o ControleHoras.zip
-
-          test -f ControleHoras/settings.gradle.kts
-          test -f ControleHoras/build.gradle.kts
-          test -f ControleHoras/app/build.gradle.kts
-          test -f ControleHoras/app/src/main/AndroidManifest.xml
-
-          echo "BASE DO PROJETO OK"
-
-      - name: Aplicar MainActivity corrigida
+      - name: Preparar projeto
         shell: python
         run: |
-          from pathlib import Path
           import base64
           import gzip
+          import re
+          import zipfile
+          from pathlib import Path
 
           root = Path("ControleHoras")
 
+          with zipfile.ZipFile("ControleHoras.zip") as z:
+              z.extractall(root.parent)
+
           main = root / "app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
-          manifest = root / "app/src/main/AndroidManifest.xml"
-          xml_dir = root / "app/src/main/res/xml"
 
-          xml_dir.mkdir(parents=True, exist_ok=True)
-
-          # MainActivity completa corrigida.
-          # Não usa variável de ambiente e não depende de MAIN_B64.
-          DATA = """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"""
-
-          source = gzip.decompress(base64.b64decode(DATA)).decode("utf-8")
-
-          main.write_text(source, encoding="utf-8")
-
-          manifest_text = manifest.read_text(encoding="utf-8")
-
-          provider = '''
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.fileprovider"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/paths" />
-        </provider>
-          '''
-
-          if "${applicationId}.fileprovider" not in manifest_text:
-              manifest_text = manifest_text.replace(
-                  "</application>",
-                  provider + "\n    </application>"
-              )
-              manifest.write_text(manifest_text, encoding="utf-8")
-
-          paths = '''<?xml version="1.0" encoding="utf-8"?>
-        <paths xmlns:android="http://schemas.android.com/apk/res/android">
-            <cache-path name="cache" path="." />
-        </paths>
-          '''
-
-          (xml_dir / "paths.xml").write_text(paths, encoding="utf-8")
-          (xml_dir / "file_paths.xml").write_text(paths, encoding="utf-8")
-
-          # Validação antes de chegar no Gradle.
-          if not main.exists():
-              raise SystemExit("ERRO: MainActivity.kt não foi criada")
-
-          s = main.read_text(encoding="utf-8")
-
-          required = [
-              "selectedPunchDate",
-              "choosePunchDate",
-              "normalizeTime",
-              "weekModes",
-              "HE 60%",
-              "HE 100%",
-              "DSR sobre horas extras",
-              "FileProvider"
-          ]
-
-          for item in required:
-              if item not in s:
-                  raise SystemExit("FALTANDO NO CÓDIGO: " + item)
-
-          if s.count("{") != s.count("}"):
-              raise SystemExit("ERRO: quantidade de chaves Kotlin incompatível")
-
-          print("======================================")
-          print("MAINACTIVITY CORRIGIDA")
-          print("Linhas:", len(s.splitlines()))
-          print("Bytes:", len(s.encode("utf-8")))
-          print("VALIDAÇÃO DO CÓDIGO OK")
-          print("======================================")
-
-      - name: Validar projeto
-        shell: bash
-        run: |
-          set -e
-
-          test -f ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt
-          test -f ControleHoras/app/src/main/res/xml/paths.xml
-          test -f ControleHoras/app/src/main/res/xml/file_paths.xml
-
-          grep -q "selectedPunchDate" ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt
-          grep -q "normalizeTime" ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt
-          grep -q "weekModes" ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt
-          grep -q "DSR sobre horas extras" ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt
-          grep -q "FileProvider" ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt
-
-          echo "VALIDAÇÃO DOS ARQUIVOS OK"
-
-      - name: Instalar Gradle 8.11.1
-        shell: bash
-        run: |
-          set -e
-
-          wget -q https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
-          unzip -q gradle-8.11.1-bin.zip
-
-          echo "$PWD/gradle-8.11.1/bin" >> "$GITHUB_PATH"
-
-          "$PWD/gradle-8.11.1/bin/gradle" --version
-
-      - name: Limpar projeto
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -e
-          gradle clean --no-daemon
-
-      - name: Gerar APK
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -e
-          gradle assembleDebug --no-daemon --stacktrace
-
-      - name: Verificar APK
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -e
-
-          APK="app/build/outputs/apk/debug/app-debug.apk"
-
-          test -s "$APK"
-
-          unzip -t "$APK" >/dev/null
-
-          echo "======================================"
-          echo "APK GERADO E VALIDADO"
-          ls -lh "$APK"
-          echo "======================================"
-
-      - name: Publicar APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: ControleHoras-APK
-          path: ControleHoras/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+          src = gzip.decompress(base64.b64decode(
+              "H4sIAAAAAAACA+2ZW3PbNhSG7/srFLzKJ3a0k2mS4T6ZJkO3W7TqVY5S0v7KJQJ2xKpJfS4x9Qv+9MZc5m7m4V2c9u3y9vZ3x8fX7+fPz8fP7+fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fPz8fP7+fX7+fP
