@@ -102,12 +102,10 @@ jobs:
               ) + "\n"
 
           scripts = [
-
               extract_step(
                   "Aplicar versão 36",
                   "Adicionar seleção de data"
               ),
-
               extract_step(
                   "Adicionar seleção de data",
                   "Validar código"
@@ -135,18 +133,6 @@ jobs:
 
       # ============================================================
       # APLICAR FUNCIONALIDADES DA VERSÃO ATUAL
-      #
-      # Aqui usamos a etapa que já contém:
-      #
-      # - intervalo 2
-      # - persistência
-      # - registro manual
-      # - rolagem de horário
-      # - edição de horário
-      # - cálculo
-      # - barra do sistema
-      # - ícone DIDHUUU
-      # - manifesto
       # ============================================================
 
       - name: Aplicar funcionalidades completas
@@ -218,12 +204,7 @@ jobs:
           )
 
       # ============================================================
-      # CORREÇÕES DEFINITIVAS DO MAINACTIVITY
-      #
-      # CORRIGE:
-      #
-      # 1. punchNames inexistente
-      # 2. addView com parâmetros inválidos
+      # CORRIGIR MAINACTIVITY
       # ============================================================
 
       - name: Corrigir MainActivity definitivamente
@@ -246,7 +227,7 @@ jobs:
           )
 
           # ========================================================
-          # CORREÇÃO 1 - PUNCHNAMES
+          # PUNCHNAMES
           # ========================================================
 
           if "private val punchNames" not in code:
@@ -262,13 +243,9 @@ jobs:
               '''
 
               anchors = [
-
                   '    private val extra2ReturnEnabled=mutableSetOf<String>()\n',
-
                   '    private val extra2Enabled=mutableSetOf<String>()\n',
-
                   '    private val weekModes=linkedMapOf<String,String>()\n',
-
                   '    private val weekModes = linkedMapOf<String,String>()\n'
               ]
 
@@ -285,7 +262,6 @@ jobs:
                       )
 
                       inserted = True
-
                       break
 
               if not inserted:
@@ -294,7 +270,7 @@ jobs:
                   )
 
           # ========================================================
-          # CORREÇÃO 2 - ADDVIEW INVÁLIDO
+          # CORRIGIR ADDVIEW
           # ========================================================
 
           pattern = (
@@ -302,9 +278,9 @@ jobs:
               r'0,\s*'
               r'0,\s*'
               r'0,\s*'
-              r'dp10\s*'
+              r'dp\(10\)\s*'
               r'\)\s*'
-              r'val dateCard\s*=\s*card'
+              r'val dateCard\s*=\s*card\(\)'
           )
 
           replacement = '''},
@@ -328,15 +304,11 @@ jobs:
           if count == 0:
 
               print(
-                  "AVISO: addView inválido não encontrado."
-              )
-
-              print(
-                  "Isso significa que ele já pode estar corrigido."
+                  "AVISO: addView já está corrigido ou não precisa de correção."
               )
 
           # ========================================================
-          # GARANTIR FORMATO DAS BATIDAS
+          # GARANTIR PUNCHNAMES
           # ========================================================
 
           if "private val punchNames" not in code:
@@ -344,10 +316,6 @@ jobs:
               raise SystemExit(
                   "ERRO FINAL: punchNames ainda não existe"
               )
-
-          # ========================================================
-          # SALVAR
-          # ========================================================
 
           file.write_text(
               code,
@@ -359,7 +327,7 @@ jobs:
           )
 
       # ============================================================
-      # VALIDAR CÓDIGO ANTES DO GRADLE
+      # VALIDAR CÓDIGO E ÍCONE
       # ============================================================
 
       - name: Validar código e ícone
@@ -369,67 +337,142 @@ jobs:
 
           FILE="ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
 
-          echo "Verificando MainActivity..."
+          echo "========================================"
+          echo "VALIDANDO PROJETO"
+          echo "========================================"
 
           test -s "$FILE"
 
-          echo "Verificando ícone..."
-
           test -s \
             "ControleHoras/app/src/main/res/drawable/controlehoras_icon.jpg"
-
-          echo "Verificando intervalo 2..."
 
           grep -q \
             'extra2Enabled' \
             "$FILE"
 
-          echo "Verificando registro manual..."
-
           grep -q \
             'showManualWheel' \
             "$FILE"
-
-          echo "Verificando edição..."
 
           grep -q \
             'showEditWheel' \
             "$FILE"
 
-          echo "Verificando próxima batida..."
-
           grep -q \
             'nextPunchIndex' \
             "$FILE"
-
-          echo "Verificando punchNames..."
 
           grep -q \
             'punchNames' \
             "$FILE"
 
-          echo "Verificando barras do sistema..."
-
           grep -q \
             'WindowCompat.setDecorFitsSystemWindows' \
             "$FILE"
-
-          echo "Verificando ícone no Manifest..."
 
           grep -q \
             'controlehoras_icon' \
             ControleHoras/app/src/main/AndroidManifest.xml
 
-          echo "Procurando Button(context)..."
-
           if grep -q 'Button(context)' "$FILE"; then
-
-            echo "ERRO: Button(context) encontrado"
-
-            exit 1
-
+              echo "ERRO: Button(context) encontrado"
+              exit 1
           fi
 
-          echo "VALIDAÇÃO DO CÓDIGO OK"
+          echo "VALIDAÇÃO OK"
 
-      # =================================================
+      # ============================================================
+      # INSTALAR GRADLE
+      # ============================================================
+
+      - name: Instalar Gradle 8.11.1
+        shell: bash
+        run: |
+          set -e
+
+          wget -q \
+            https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
+
+          unzip -q \
+            gradle-8.11.1-bin.zip
+
+          echo \
+            "$PWD/gradle-8.11.1/bin" \
+            >> "$GITHUB_PATH"
+
+          "$PWD/gradle-8.11.1/bin/gradle" \
+            --version
+
+      # ============================================================
+      # LIMPAR PROJETO
+      # ============================================================
+
+      - name: Limpar projeto
+        working-directory: ControleHoras
+        shell: bash
+        run: |
+          set -e
+
+          gradle clean --no-daemon
+
+      # ============================================================
+      # GERAR APK
+      # ============================================================
+
+      - name: Gerar APK
+        working-directory: ControleHoras
+        shell: bash
+        run: |
+          set -e
+
+          echo "========================================"
+          echo "INICIANDO GERACAO DO APK"
+          echo "========================================"
+
+          gradle assembleDebug \
+            --no-daemon \
+            --stacktrace
+
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+
+          if [ ! -s "$APK" ]; then
+              echo "ERRO: APK NÃO FOI GERADO"
+              exit 1
+          fi
+
+          echo "========================================"
+          echo "APK GERADO COM SUCESSO"
+          echo "========================================"
+
+          ls -lh "$APK"
+
+      # ============================================================
+      # VERIFICAR APK
+      # ============================================================
+
+      - name: Verificar APK
+        working-directory: ControleHoras
+        shell: bash
+        run: |
+          set -e
+
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+
+          test -s "$APK"
+
+          unzip -t \
+            "$APK" \
+            >/dev/null
+
+          echo "APK VALIDADO COM SUCESSO"
+
+      # ============================================================
+      # PUBLICAR APK
+      # ============================================================
+
+      - name: Publicar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ControleHoras-APK
+          path: ControleHoras/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
