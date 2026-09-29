@@ -12,6 +12,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
 
       - name: Baixar projeto
@@ -29,6 +30,7 @@ jobs:
           set -e
 
           rm -rf ControleHoras
+
           unzip -q -o ControleHoras.zip
 
           test -f ControleHoras/settings.gradle.kts
@@ -44,7 +46,8 @@ jobs:
         run: |
           from pathlib import Path
           from urllib.request import urlopen
-          import subprocess, tempfile
+          import subprocess
+          import tempfile
 
           url="https://raw.githubusercontent.com/didhuuu/ControleHoras/6381d26e525e1f9eeb91af17cdb9fed66293c1f2/.github/workflows/build.yml"
 
@@ -98,63 +101,74 @@ jobs:
               )
 
               subprocess.run(
-                  ["python",str(p)],
+                  [
+                      "python",
+                      str(p)
+                  ],
                   check=True
               )
 
           print("BASE DA VERSÃO 70 APLICADA")
 
-      - name: Aplicar correções finais da Base 70, edição por rolagem e ícone
+      - name: Aplicar correções do ControleHoras
         shell: python
         run: |
           from pathlib import Path
           import base64
 
-          root=Path('ControleHoras')
+          root=Path("ControleHoras")
 
-          src=root/'app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt'
+          src=root/"app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
 
-          manifest=root/'app/src/main/AndroidManifest.xml'
+          manifest=root/"app/src/main/AndroidManifest.xml"
 
           code=src.read_text(
-              encoding='utf-8'
+              encoding="utf-8"
           )
 
-          # Extra interval state
-          if 'private val extra2Enabled' not in code:
+          # ============================================================
+          # INTERVALO 2
+          # ============================================================
+
+          if "private val extra2Enabled" not in code:
 
               anchors=[
-                  '    private val weekModes=linkedMapOf<String,String>()\n',
-                  '    private val weekModes = linkedMapOf<String,String>()\n'
+                  "    private val weekModes=linkedMapOf<String,String>()\n",
+                  "    private val weekModes = linkedMapOf<String,String>()\n"
               ]
 
-              for a in anchors:
+              for anchor in anchors:
 
-                  if a in code:
+                  if anchor in code:
 
                       code=code.replace(
-                          a,
-                          a+
-                          '    private val extra2Enabled=mutableSetOf<String>()\n'
-                          '    private val extra2ReturnEnabled=mutableSetOf<String>()\n',
+                          anchor,
+                          anchor+
+                          "    private val extra2Enabled=mutableSetOf<String>()\n"+
+                          "    private val extra2ReturnEnabled=mutableSetOf<String>()\n",
                           1
                       )
 
                       break
 
               else:
+
                   raise SystemExit(
-                      'ERRO: weekModes não encontrado'
+                      "ERRO: weekModes não encontrado"
                   )
 
-          # Carregar intervalo 2
+          # ============================================================
+          # CARREGAR INTERVALO 2
+          # ============================================================
+
           if 'prefs.getString("extra2Enabled"' not in code:
 
-              anchor='        scale.clear()\n'
+              anchor="        scale.clear()\n"
 
               if anchor not in code:
+
                   raise SystemExit(
-                      'ERRO: scale.clear não encontrado'
+                      "ERRO: scale.clear não encontrado"
                   )
 
               block='''        extra2Enabled.clear()
@@ -196,11 +210,12 @@ jobs:
                   1
               )
 
-              anchor='        e.apply()\n'
+              anchor="        e.apply()\n"
 
               if anchor not in code:
+
                   raise SystemExit(
-                      'ERRO: e.apply não encontrado'
+                      "ERRO: e.apply não encontrado"
                   )
 
               block='''        val extraJson=JSONArray()
@@ -233,14 +248,18 @@ jobs:
                   1
               )
 
-          # Helpers
-          if 'private fun extraKey' not in code:
+          # ============================================================
+          # FUNÇÕES DO INTERVALO 2
+          # ============================================================
 
-              anchor='    private fun today()=iso.format(Date())\n'
+          if "private fun extraKey" not in code:
+
+              anchor="    private fun today()=iso.format(Date())\n"
 
               if anchor not in code:
+
                   raise SystemExit(
-                      'ERRO: today não encontrado'
+                      "ERRO: today não encontrado"
                   )
 
               block='''    private fun extraKey(
@@ -268,13 +287,21 @@ jobs:
                   value:Boolean
               ){
 
-                  val k=extraKey(empId,date)
+                  val k=extraKey(
+                      empId,
+                      date
+                  )
 
-                  if(value)
+                  if(value){
+
                       extra2Enabled.add(k)
-                  else{
+
+                  }else{
+
                       extra2Enabled.remove(k)
+
                       extra2ReturnEnabled.remove(k)
+
                   }
 
                   saveData()
@@ -286,15 +313,23 @@ jobs:
                   value:Boolean
               ){
 
-                  val k=extraKey(empId,date)
+                  val k=extraKey(
+                      empId,
+                      date
+                  )
 
                   if(
                       value &&
                       extra2Enabled.contains(k)
-                  )
+                  ){
+
                       extra2ReturnEnabled.add(k)
-                  else
+
+                  }else{
+
                       extra2ReturnEnabled.remove(k)
+
+                  }
 
                   saveData()
               }
@@ -307,30 +342,36 @@ jobs:
                   1
               )
 
-          # Ponto
+          # ============================================================
+          # TELA BATER PONTO
+          # ============================================================
+
           start=code.find(
-              '    private fun showPunch()'
+              "    private fun showPunch()"
           )
 
           end=code.find(
-              '    private fun showHistory()',
+              "    private fun showHistory()",
               start
           )
 
           if start<0 or end<0:
+
               raise SystemExit(
-                  'ERRO: showPunch/showHistory não encontrados'
+                  "ERRO: showPunch/showHistory não encontrados"
               )
 
           show='''    private fun showPunch(){
 
-                  val box=page("Bater Ponto")
+                  val box=page(
+                      "Bater Ponto"
+                  )
 
                   if(employees.isEmpty()){
 
                       box.addView(
                           infoCard(
-                              "Nenhum funcionário cadastrado.\\\\n" +
+                              "Nenhum funcionário cadastrado.\\\\n"+
                               "Cadastre o primeiro em Funcionários."
                           )
                       )
@@ -351,6 +392,7 @@ jobs:
 
                           val line=
                               LinearLayout(context).apply{
+
                                   orientation=
                                       LinearLayout.VERTICAL
 
@@ -363,10 +405,13 @@ jobs:
                               }
 
                           line.addView(
-                              label("Funcionário")
+                              label(
+                                  "Funcionário"
+                              )
                           )
 
-                          val spinner=Spinner(context)
+                          val spinner=
+                              Spinner(context)
 
                           spinner.adapter=
                               ArrayAdapter(
@@ -414,17 +459,24 @@ jobs:
                                   }
                               }
 
-                          line.addView(spinner)
+                          line.addView(
+                              spinner
+                          )
 
                           line.addView(
                               TextView(context).apply{
+
                                   text=
                                       "Salário mensal   "+
-                                      money.format(emp.salary)
+                                      money.format(
+                                          emp.salary
+                                      )
 
                                   textSize=14f
 
-                                  setTextColor(muted)
+                                  setTextColor(
+                                      muted
+                                  )
 
                                   setPadding(
                                       0,
@@ -435,16 +487,20 @@ jobs:
                               }
                           )
 
-                          addView(line)
-
+                          addView(
+                              line
+                          )
                       },
-                      0,
-                      0,
-                      0,
-                      dp(10)
+                      LinearLayout.LayoutParams(
+                          -1,
+                          -2
+                      ).apply{
+                          bottomMargin=dp(10)
+                      }
                   )
 
-                  val dateCard=card()
+                  val dateCard=
+                      card()
 
                   val dateLine=
                       LinearLayout(this).apply{
@@ -465,8 +521,11 @@ jobs:
 
                   dateLine.addView(
                       TextView(this).apply{
+
                           text="📅"
+
                           textSize=25f
+
                       },
                       LinearLayout.LayoutParams(
                           dp(45),
@@ -522,7 +581,9 @@ jobs:
                       )
                   )
 
-                  dateCard.addView(dateLine)
+                  dateCard.addView(
+                      dateLine
+                  )
 
                   box.addView(
                       dateCard,
@@ -537,14 +598,17 @@ jobs:
                   box.addView(
                       Button(this).apply{
 
-                          text="✎  REGISTRO MANUAL"
+                          text=
+                              "✎  REGISTRO MANUAL"
 
                           isAllCaps=false
 
                           textSize=14f
 
                           setOnClickListener{
-                              showManualWheel(emp.id)
+                              showManualWheel(
+                                  emp.id
+                              )
                           }
 
                       },
@@ -586,7 +650,9 @@ jobs:
 
                           textSize=15f
 
-                          setTextColor(Color.WHITE)
+                          setTextColor(
+                              Color.WHITE
+                          )
 
                           isAllCaps=false
 
@@ -602,9 +668,11 @@ jobs:
                           )
 
                           setOnClickListener{
+
                               registerPunch(
                                   emp.id
                               )
+
                           }
 
                       },
@@ -619,7 +687,8 @@ jobs:
                   box.addView(
                       TextView(this).apply{
 
-                          text="BATIDAS DO DIA"
+                          text=
+                              "BATIDAS DO DIA"
 
                           textSize=13f
 
@@ -628,7 +697,9 @@ jobs:
                               Typeface.BOLD
                           )
 
-                          setTextColor(muted)
+                          setTextColor(
+                              muted
+                          )
 
                           setPadding(
                               dp(4),
@@ -671,7 +742,8 @@ jobs:
                   box.addView(
                       TextView(this).apply{
 
-                          text="INTERVALO 2 (OPCIONAL)"
+                          text=
+                              "INTERVALO 2 (OPCIONAL)"
 
                           textSize=13f
 
@@ -680,7 +752,9 @@ jobs:
                               Typeface.BOLD
                           )
 
-                          setTextColor(muted)
+                          setTextColor(
+                              muted
+                          )
 
                           setPadding(
                               dp(4),
@@ -708,10 +782,14 @@ jobs:
                       rec
                   )
 
-                  val calc=calculate(rec)
+                  val calc=
+                      calculate(
+                          rec
+                      )
 
                   val cards=
                       LinearLayout(this).apply{
+
                           orientation=
                               LinearLayout.HORIZONTAL
                       }
@@ -719,7 +797,9 @@ jobs:
                   cards.addView(
                       metricCard(
                           "Horas trabalhadas",
-                          formatMin(calc.worked),
+                          formatMin(
+                              calc.worked
+                          ),
                           blue
                       ),
                       LinearLayout.LayoutParams(
@@ -749,7 +829,9 @@ jobs:
                       }
                   )
 
-                  box.addView(cards)
+                  box.addView(
+                      cards
+                  )
               }
 
               private fun addPunchRow(
@@ -857,8 +939,7 @@ jobs:
 
                           setTextColor(
                               if(
-                                  rec.punches[index]
-                                      .isBlank()
+                                  rec.punches[index].isBlank()
                               )
                                   muted
                               else
@@ -877,10 +958,12 @@ jobs:
                   )
 
                   row.setOnClickListener{
+
                       showEditWheel(
                           rec,
                           index
                       )
+
                   }
 
                   box.addView(
@@ -915,7 +998,10 @@ jobs:
                           )
 
                   val index=
-                      if(which==0)3 else 4
+                      if(which==0)
+                          3
+                      else
+                          4
 
                   val title=
                       if(which==0)
@@ -1011,7 +1097,8 @@ jobs:
                   val sw=
                       Switch(this).apply{
 
-                          isChecked=enabled
+                          isChecked=
+                              enabled
 
                           text=
                               if(isChecked)
@@ -1047,7 +1134,9 @@ jobs:
                       showPunch()
                   }
 
-                  row.addView(sw)
+                  row.addView(
+                      sw
+                  )
 
                   box.addView(
                       row,
@@ -1139,7 +1228,8 @@ jobs:
                       today()
                   ){
 
-                      r.punches[n]=nowTime()
+                      r.punches[n]=
+                          nowTime()
 
                       saveData()
 
@@ -1156,7 +1246,8 @@ jobs:
 
                   AlertDialog.Builder(this)
                       .setTitle(
-                          "Lançar ${punchNames[n]}"
+                          "Lançar "+
+                          punchNames[n]
                       )
                       .setMessage(
                           df.format(
@@ -1172,7 +1263,9 @@ jobs:
                       )
                       .setPositiveButton(
                           "Salvar"
-                      ){_,_->
+                      ){
+                          _,
+                          _->
 
                           val t=
                               normalizeTime(
@@ -1195,7 +1288,6 @@ jobs:
                                   Toast.LENGTH_LONG
                               ).show()
                           }
-
                       }
                       .show()
               }
@@ -1219,8 +1311,7 @@ jobs:
                   }
 
                   val parts=
-                      rec.punches[index]
-                          .split(":")
+                      rec.punches[index].split(":")
 
                   val currentHour=
                       parts.getOrNull(0)
@@ -1255,10 +1346,8 @@ jobs:
                       TextView(this).apply{
 
                           text=
-                              "${punchNames[index]}\n"+
-                              df.format(
-                                  parseIso(rec.date)
-                              )
+                              "${punchNames[index]}\\n"+
+                              "${df.format(parseIso(rec.date))}"
 
                           gravity=
                               Gravity.CENTER
@@ -1280,7 +1369,6 @@ jobs:
                               0,
                               dp(8)
                           )
-
                       }
                   )
 
@@ -1299,10 +1387,7 @@ jobs:
 
                           minValue=0
                           maxValue=23
-
-                          value=
-                              currentHour
-
+                          value=currentHour
                           wrapSelectorWheel=true
 
                           descendantFocusability=
@@ -1315,19 +1400,13 @@ jobs:
 
                           minValue=0
                           maxValue=59
-
-                          value=
-                              currentMinute
-
+                          value=currentMinute
                           wrapSelectorWheel=true
 
                           descendantFocusability=
                               NumberPicker
                                   .FOCUS_BLOCK_DESCENDANTS
                       }
-
-                  styleWheel(hour)
-                  styleWheel(minute)
 
                   val sep=
                       TextView(this).apply{
@@ -1364,7 +1443,9 @@ jobs:
                       )
                   )
 
-                  wrap.addView(wheels)
+                  wrap.addView(
+                      wheels
+                  )
 
                   val value=
                       TextView(this).apply{
@@ -1399,17 +1480,18 @@ jobs:
                       }
 
                   val listener=
-                      NumberPicker
-                          .OnValueChangeListener{
-                              _,_,_->
+                      NumberPicker.OnValueChangeListener{
+                          _,
+                          _,
+                          _->
 
-                              value.text=
-                                  "%02d:%02d".format(
-                                      Locale.US,
-                                      hour.value,
-                                      minute.value
-                                  )
-                          }
+                          value.text=
+                              "%02d:%02d".format(
+                                  Locale.US,
+                                  hour.value,
+                                  minute.value
+                              )
+                      }
 
                   hour.setOnValueChangedListener(
                       listener
@@ -1419,14 +1501,18 @@ jobs:
                       listener
                   )
 
-                  wrap.addView(value)
+                  wrap.addView(
+                      value
+                  )
 
                   val dialog=
                       AlertDialog.Builder(this)
                           .setTitle(
                               "Editar registro"
                           )
-                          .setView(wrap)
+                          .setView(
+                              wrap
+                          )
                           .setNegativeButton(
                               "Cancelar",
                               null
@@ -1512,12 +1598,8 @@ jobs:
                       TextView(this).apply{
 
                           text=
-                              "${punchNames[n]}\n"+
-                              df.format(
-                                  parseIso(
-                                      selectedPunchDate
-                                  )
-                              )
+                              "${punchNames[n]}\\n"+
+                              "${df.format(parseIso(selectedPunchDate))}"
 
                           gravity=
                               Gravity.CENTER
@@ -1591,9 +1673,6 @@ jobs:
                                   .FOCUS_BLOCK_DESCENDANTS
                       }
 
-                  styleWheel(hour)
-                  styleWheel(minute)
-
                   val sep=
                       TextView(this).apply{
 
@@ -1629,7 +1708,9 @@ jobs:
                       )
                   )
 
-                  wrap.addView(wheels)
+                  wrap.addView(
+                      wheels
+                  )
 
                   val value=
                       TextView(this).apply{
@@ -1664,17 +1745,18 @@ jobs:
                       }
 
                   val listener=
-                      NumberPicker
-                          .OnValueChangeListener{
-                              _,_,_->
+                      NumberPicker.OnValueChangeListener{
+                          _,
+                          _,
+                          _->
 
-                              value.text=
-                                  "%02d:%02d".format(
-                                      Locale.US,
-                                      hour.value,
-                                      minute.value
-                                  )
-                          }
+                          value.text=
+                              "%02d:%02d".format(
+                                  Locale.US,
+                                  hour.value,
+                                  minute.value
+                              )
+                      }
 
                   hour.setOnValueChangedListener(
                       listener
@@ -1684,14 +1766,18 @@ jobs:
                       listener
                   )
 
-                  wrap.addView(value)
+                  wrap.addView(
+                      value
+                  )
 
                   val dialog=
                       AlertDialog.Builder(this)
                           .setTitle(
                               "Registro manual"
                           )
-                          .setView(wrap)
+                          .setView(
+                              wrap
+                          )
                           .setNegativeButton(
                               "Cancelar",
                               null
@@ -1728,28 +1814,31 @@ jobs:
 
           '''
 
-          code=code[:start]+show+code[end:]
+          code=
+              code[:start]+
+              show+
+              code[end:]
 
-          # Calculation
-          cstart=
-              code.find(
-                  '    private fun calculate(r:PunchDay):Calc{'
-              )
+          # ============================================================
+          # CÁLCULO
+          # ============================================================
 
-          cend=
-              code.find(
-                  '    private fun minutesBetween',
-                  cstart
-              )
+          cstart=code.find(
+              "    private fun calculate(r:PunchDay):Calc{"
+          )
+
+          cend=code.find(
+              "    private fun minutesBetween",
+              cstart
+          )
 
           if cstart<0 or cend<0:
+
               raise SystemExit(
-                  'ERRO: calculate não encontrado'
+                  "ERRO: calculate não encontrado"
               )
 
-          calc='''    private fun calculate(
-                  r:PunchDay
-              ):Calc{
+          calc='''    private fun calculate(r:PunchDay):Calc{
 
                   var worked=
                       minutesBetween(
@@ -1783,7 +1872,9 @@ jobs:
                   }
 
                   val date=
-                      parseIso(r.date)
+                      parseIso(
+                          r.date
+                      )
 
                   if(!modeForDay(date))
                       return Calc(
@@ -1827,43 +1918,54 @@ jobs:
               calc+
               code[cend:]
 
-          # Android window/insets
+          # ============================================================
+          # BARRAS DO ANDROID
+          # ============================================================
+
           imports=
-              'import androidx.core.view.WindowCompat\n'+
-              'import androidx.core.view.ViewCompat\n'+
-              'import androidx.core.view.WindowInsetsCompat\n'
+              "import androidx.core.view.WindowCompat\n"+
+              "import androidx.core.view.ViewCompat\n"+
+              "import androidx.core.view.WindowInsetsCompat\n"
 
           if(
-              'import androidx.core.view.WindowCompat'
+              "import androidx.core.view.WindowCompat"
               not in code
           ):
 
               code=
                   code.replace(
-                      'import androidx.core.content.FileProvider\n',
-                      'import androidx.core.content.FileProvider\n'+
+                      "import androidx.core.content.FileProvider\n",
+                      "import androidx.core.content.FileProvider\n"+
                       imports,
                       1
                   )
 
           if(
-              'WindowCompat.setDecorFitsSystemWindows(window,false)'
+              "WindowCompat.setDecorFitsSystemWindows(window,false)"
               not in code
           ):
 
-              anchor='        buildShell()\n'
+              anchor=
+                  "        buildShell()\n"
 
               if anchor not in code:
+
                   raise SystemExit(
-                      'ERRO: buildShell não encontrado'
+                      "ERRO: buildShell não encontrado"
                   )
 
               inset='''        WindowCompat.setDecorFitsSystemWindows(window,false)
-                  window.statusBarColor=blue
-                  window.navigationBarColor=Color.WHITE
-                  window.decorView.systemUiVisibility=View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
 
-                  ViewCompat.setOnApplyWindowInsetsListener(root){v,insets->
+                  window.statusBarColor=blue
+
+                  window.navigationBarColor=Color.WHITE
+
+                  window.decorView.systemUiVisibility=
+                      View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+
+                  ViewCompat.setOnApplyWindowInsetsListener(
+                      root
+                  ){v,insets->
 
                       val bars=
                           insets.getInsets(
@@ -1880,7 +1982,9 @@ jobs:
                       insets
                   }
 
-                  ViewCompat.requestApplyInsets(root)
+                  ViewCompat.requestApplyInsets(
+                      root
+                  )
 
           '''
 
@@ -1891,12 +1995,16 @@ jobs:
                       1
                   )
 
-          # ÍCONE CORRETO:
-          # relógio + calendário + CONTROLE DE HORAS
+          # ============================================================
+          # ÍCONE CORRETO
+          # RELÓGIO + CALENDÁRIO / CONTROLE DE HORAS
+          # ============================================================
 
-          icon_b64='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'
+          icon_b64='''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'''
 
-          icon=root/'app/src/main/res/drawable/controlehoras_icon.jpg'
+          icon=
+              root/
+              "app/src/main/res/drawable/controlehoras_icon.jpg"
 
           icon.parent.mkdir(
               parents=True,
@@ -1904,38 +2012,42 @@ jobs:
           )
 
           icon.write_bytes(
-              base64.b64decode(icon_b64)
+              base64.b64decode(
+                  icon_b64
+              )
           )
 
-          m=manifest.read_text(
-              encoding='utf-8'
-          )
+          m=
+              manifest.read_text(
+                  encoding="utf-8"
+              )
 
           if(
               'android:icon="@drawable/controlehoras_icon"'
               not in m
           ):
 
-              m=m.replace(
-                  '<application',
-                  '<application\n'
-                  '        android:icon="@drawable/controlehoras_icon"\n'
-                  '        android:roundIcon="@drawable/controlehoras_icon"',
-                  1
-              )
+              m=
+                  m.replace(
+                      "<application",
+                      "<application\n"+
+                      '        android:icon="@drawable/controlehoras_icon"\n'+
+                      '        android:roundIcon="@drawable/controlehoras_icon"',
+                      1
+                  )
 
           manifest.write_text(
               m,
-              encoding='utf-8'
+              encoding="utf-8"
           )
 
           src.write_text(
               code,
-              encoding='utf-8'
+              encoding="utf-8"
           )
 
           print(
-              'CORREÇÕES FINAIS APLICADAS'
+              "CORREÇÕES FINAIS APLICADAS"
           )
 
       - name: Corrigir visual do relógio de rolagem
@@ -1951,15 +2063,15 @@ jobs:
               encoding="utf-8"
           )
 
-          # Rodas menores no celular
+          # Garante que o relógio não fique gigante
           code=code.replace(
-              'LinearLayout.LayoutParams(dp(88),dp(150))',
-              'LinearLayout.LayoutParams(dp(72),dp(126))'
+              "LinearLayout.LayoutParams(dp(88),dp(150))",
+              "LinearLayout.LayoutParams(dp(72),dp(126))"
           )
 
           code=code.replace(
-              'LinearLayout.LayoutParams(dp(35),dp(150))',
-              'LinearLayout.LayoutParams(dp(28),dp(126))'
+              "LinearLayout.LayoutParams(dp(35),dp(150))",
+              "LinearLayout.LayoutParams(dp(28),dp(126))"
           )
 
           code=code.replace(
@@ -1967,37 +2079,63 @@ jobs:
               'text=":";textSize=22f;gravity=Gravity.CENTER'
           )
 
-          # Estilo das rodas
-          if(
-              'private fun styleWheel(picker:NumberPicker)'
-              not in code
-          ):
+          # Estilo visual das rodas
+          if "private fun styleWheel(picker:NumberPicker)" not in code:
 
-              marker=
-                  '              private fun showEditWheel(rec:PunchDay,index:Int){\n'
-
-              helper=(
-                  '              private fun styleWheel(picker:NumberPicker){\n'
-                  '                  picker.setBackgroundColor(Color.TRANSPARENT)\n'
-                  '                  picker.wrapSelectorWheel=true\n'
-                  '                  picker.descendantFocusability=NumberPicker.FOCUS_BLOCK_DESCENDANTS\n'
-                  '                  picker.post{\n'
-                  '                      for(i in 0 until picker.childCount){\n'
-                  '                          val child=picker.getChildAt(i)\n'
-                  '                          if(child is TextView){\n'
-                  '                              child.setTextColor(darkBlue)\n'
-                  '                              child.textSize=21f\n'
-                  '                              child.gravity=Gravity.CENTER\n'
-                  '                              child.setTypeface(null,Typeface.BOLD)\n'
-                  '                          }\n'
-                  '                      }\n'
-                  '                  }\n'
-                  '              }\n\n'
+              marker=(
+                  "              private fun showEditWheel("
               )
 
+              helper='''              private fun styleWheel(
+                  picker:NumberPicker
+              ){
+
+                  picker.setBackgroundColor(
+                      Color.TRANSPARENT
+                  )
+
+                  picker.wrapSelectorWheel=true
+
+                  picker.descendantFocusability=
+                      NumberPicker.FOCUS_BLOCK_DESCENDANTS
+
+                  picker.post{
+
+                      for(
+                          i in 0 until picker.childCount
+                      ){
+
+                          val child=
+                              picker.getChildAt(i)
+
+                          if(
+                              child is TextView
+                          ){
+
+                              child.setTextColor(
+                                  darkBlue
+                              )
+
+                              child.textSize=21f
+
+                              child.gravity=
+                                  Gravity.CENTER
+
+                              child.setTypeface(
+                                  null,
+                                  Typeface.BOLD
+                              )
+                          }
+                      }
+                  }
+              }
+
+'''
+
               if marker not in code:
+
                   raise SystemExit(
-                      'ERRO: showEditWheel não encontrado'
+                      "ERRO: showEditWheel não encontrado"
                   )
 
               code=
@@ -2007,33 +2145,77 @@ jobs:
                       1
                   )
 
-          target=
-              "                  val minute=NumberPicker(this).apply{minValue=0;maxValue=59;value=currentMinute;wrapSelectorWheel=true;descendantFocusability=NumberPicker.FOCUS_BLOCK_DESCENDANTS}\n"
+          # Aplica estilo à roda de edição
+          minute_edit=(
+              "                  val minute=\n"+
+              "                      NumberPicker(this).apply{\n\n"+
+              "                          minValue=0\n"+
+              "                          maxValue=59\n"
+          )
 
-          if target in code:
+          if minute_edit in code:
 
-              code=
-                  code.replace(
-                      target,
-                      target+
-                      '                  styleWheel(hour)\n'
-                      '                  styleWheel(minute)\n',
-                      1
+              pos=code.find(
+                  minute_edit,
+                  code.find(
+                      "private fun showEditWheel"
+                  )
+              )
+
+              if pos>=0:
+
+                  end=code.find(
+                      "                  val sep=",
+                      pos
                   )
 
-          target2=
-              "                  val minute=NumberPicker(this).apply{minValue=0;maxValue=59;value=now.get(Calendar.MINUTE);wrapSelectorWheel=true;descendantFocusability=NumberPicker.FOCUS_BLOCK_DESCENDANTS}\n"
+                  trecho=code[pos:end]
 
-          if target2 in code:
+                  if "styleWheel(hour)" not in trecho:
 
-              code=
-                  code.replace(
-                      target2,
-                      target2+
-                      '                  styleWheel(hour)\n'
-                      '                  styleWheel(minute)\n',
-                      1
-                  )
+                      trecho=trecho.rstrip()+
+                          "\n\n                  styleWheel(hour)\n"+
+                          "                  styleWheel(minute)\n\n"
+
+                      code=
+                          code[:pos]+
+                          trecho+
+                          code[end:]
+
+          # Aplica estilo à roda de registro manual
+          pos=code.find(
+              "private fun showManualWheel"
+          )
+
+          if pos>=0:
+
+              minute_pos=code.find(
+                  "                  val minute=",
+                  pos
+              )
+
+              sep_pos=code.find(
+                  "                  val sep=",
+                  minute_pos
+              )
+
+              if(
+                  minute_pos>=0 and
+                  sep_pos>=0
+              ):
+
+                  trecho=code[minute_pos:sep_pos]
+
+                  if "styleWheel(hour)" not in trecho:
+
+                      trecho=trecho.rstrip()+
+                          "\n\n                  styleWheel(hour)\n"+
+                          "                  styleWheel(minute)\n\n"
+
+                      code=
+                          code[:minute_pos]+
+                          trecho+
+                          code[sep_pos:]
 
           file.write_text(
               code,
@@ -2054,25 +2236,47 @@ jobs:
           ICON="ControleHoras/app/src/main/res/drawable/controlehoras_icon.jpg"
 
           test -s "$FILE"
+
           test -s "$ICON"
 
-          grep -q 'extra2Enabled' "$FILE"
-          grep -q 'showManualWheel' "$FILE"
-          grep -q 'showEditWheel' "$FILE"
-          grep -q 'nextPunchIndex' "$FILE"
-          grep -q 'styleWheel' "$FILE"
-
           grep -q \
-            'WindowCompat.setDecorFitsSystemWindows' \
+            "extra2Enabled" \
             "$FILE"
 
           grep -q \
-            'controlehoras_icon' \
+            "showManualWheel" \
+            "$FILE"
+
+          grep -q \
+            "showEditWheel" \
+            "$FILE"
+
+          grep -q \
+            "nextPunchIndex" \
+            "$FILE"
+
+          grep -q \
+            "punchNames" \
+            "$FILE"
+
+          grep -q \
+            "styleWheel" \
+            "$FILE"
+
+          grep -q \
+            "WindowCompat.setDecorFitsSystemWindows" \
+            "$FILE"
+
+          grep -q \
+            "controlehoras_icon" \
             ControleHoras/app/src/main/AndroidManifest.xml
 
-          if grep -q 'Button(context)' "$FILE"; then
+          if grep -q "Button(context)" "$FILE"; then
+
             echo "ERRO: Button(context)"
+
             exit 1
+
           fi
 
           echo "VALIDAÇÃO OK"
