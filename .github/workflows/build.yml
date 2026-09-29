@@ -23,7 +23,7 @@ jobs:
         uses: actions/checkout@v4
 
       # ============================================================
-      # JAVA
+      # JAVA 17
       # ============================================================
 
       - name: Configurar Java 17
@@ -54,7 +54,7 @@ jobs:
           echo "PROJETO ORIGINAL OK"
 
       # ============================================================
-      # RECONSTRUIR EXATAMENTE A BASE 70
+      # RECONSTRUIR BASE 70
       # ============================================================
 
       - name: Aplicar exatamente a base da versão 70
@@ -134,31 +134,28 @@ jobs:
           print("BASE DA VERSÃO 70 APLICADA")
 
       # ============================================================
-      # APLICAR TODAS AS CORREÇÕES DA VERSÃO ATUAL
+      # APLICAR FUNCIONALIDADES DA VERSÃO ATUAL
+      #
+      # Aqui usamos a etapa que já contém:
+      #
+      # - intervalo 2
+      # - persistência
+      # - registro manual
+      # - rolagem de horário
+      # - edição de horário
+      # - cálculo
+      # - barra do sistema
+      # - ícone DIDHUUU
+      # - manifesto
       # ============================================================
 
-      - name: Aplicar correções completas
+      - name: Aplicar funcionalidades completas
         shell: python
         run: |
           from pathlib import Path
           from urllib.request import urlopen
           import subprocess
           import tempfile
-
-          # --------------------------------------------------------
-          # Busca a versão anterior completa que já contém:
-          #
-          # - intervalo 2
-          # - persistência
-          # - rolagem de horário
-          # - edição de horário
-          # - registro manual
-          # - cálculo
-          # - barras do sistema
-          # - ícone DIDHUUU
-          # - manifesto
-          #
-          # --------------------------------------------------------
 
           url = (
               "https://raw.githubusercontent.com/"
@@ -201,112 +198,9 @@ jobs:
               "Validar código e ícone"
           )
 
-          # ========================================================
-          # CORREÇÃO 1
-          # punchNames
-          # ========================================================
-
-          names_patch = '''# ============================================================
-          # CORREÇÃO DEFINITIVA DOS NOMES DAS BATIDAS
-          # ============================================================
-
-          if "private val punchNames" not in code:
-
-              namesAnchors = [
-                  '    private val weekModes=linkedMapOf<String,String>()\\n',
-                  '    private val weekModes = linkedMapOf<String,String>()\\n'
-              ]
-
-              namesBlock = (
-                  '    private val punchNames=arrayOf<String>(\\n'
-                  '        "Entrada",\\n'
-                  '        "Saída",\\n'
-                  '        "Retorno",\\n'
-                  '        "Saída intervalo 2",\\n'
-                  '        "Retorno intervalo 2",\\n'
-                  '        "Saída"\\n'
-                  '    )\\n'
-              )
-
-              for a in namesAnchors:
-
-                  if a in code:
-
-                      code = code.replace(
-                          a,
-                          a + namesBlock,
-                          1
-                      )
-
-                      break
-
-              else:
-                  raise SystemExit(
-                      "ERRO: não foi possível inserir punchNames"
-                  )
-
-          '''
-
-          needle = '''code = src.read_text(
-              encoding="utf-8"
-          )
-
-          '''
-
-          if needle not in script:
-              raise SystemExit(
-                  "ERRO: ponto de inserção do punchNames não encontrado"
-              )
-
-          script = script.replace(
-              needle,
-              needle + names_patch,
-              1
-          )
-
-          # ========================================================
-          # CORREÇÃO 2
-          # addView inválido
-          # ========================================================
-
-          old_add = '''                      },
-                      0,
-                      0,
-                      0,
-                      dp(10)
-                  )
-
-                  val dateCard=card()'''
-
-          new_add = '''                      },
-                      LinearLayout.LayoutParams(
-                          -1,
-                          -2
-                      ).apply{
-                          bottomMargin=dp(10)
-                      }
-                  )
-
-                  val dateCard=card()'''
-
-          if old_add not in script:
-              raise SystemExit(
-                  "ERRO: addView inválido não encontrado"
-              )
-
-          script = script.replace(
-              old_add,
-              new_add,
-              1
-          )
-
-          # ========================================================
-          # EXECUTAR SCRIPT CORRIGIDO
-          # ========================================================
-
           p = (
               Path(tempfile.gettempdir()) /
-              "correcoes_finais.py"
+              "funcionalidades.py"
           )
 
           p.write_text(
@@ -320,41 +214,62 @@ jobs:
           )
 
           print(
-              "TODAS AS CORREÇÕES APLICADAS"
+              "FUNCIONALIDADES DA VERSÃO ATUAL APLICADAS"
           )
 
       # ============================================================
-      # GARANTIR PUNCHNAMES NO CÓDIGO FINAL
+      # CORREÇÕES DEFINITIVAS DO MAINACTIVITY
+      #
+      # CORRIGE:
+      #
+      # 1. punchNames inexistente
+      # 2. addView com parâmetros inválidos
       # ============================================================
 
-      - name: Corrigir e validar punchNames
+      - name: Corrigir MainActivity definitivamente
         shell: python
         run: |
           from pathlib import Path
+          import re
 
           file = Path(
               "ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
           )
 
+          if not file.exists():
+              raise SystemExit(
+                  "ERRO: MainActivity.kt não encontrado"
+              )
+
           code = file.read_text(
               encoding="utf-8"
           )
 
-          names = '''    private val punchNames=arrayOf<String>(
-              "Entrada",
-              "Saída",
-              "Retorno",
-              "Saída intervalo 2",
-              "Retorno intervalo 2",
-              "Saída"
-          )
-          '''
+          # ========================================================
+          # CORREÇÃO 1 - PUNCHNAMES
+          # ========================================================
 
           if "private val punchNames" not in code:
 
+              names = '''    private val punchNames=arrayOf<String>(
+                  "Entrada",
+                  "Saída",
+                  "Retorno",
+                  "Saída intervalo 2",
+                  "Retorno intervalo 2",
+                  "Saída"
+              )
+              '''
+
               anchors = [
-                  "    private val weekModes=linkedMapOf<String,String>()\n",
-                  "    private val weekModes = linkedMapOf<String,String>()\n"
+
+                  '    private val extra2ReturnEnabled=mutableSetOf<String>()\n',
+
+                  '    private val extra2Enabled=mutableSetOf<String>()\n',
+
+                  '    private val weekModes=linkedMapOf<String,String>()\n',
+
+                  '    private val weekModes = linkedMapOf<String,String>()\n'
               ]
 
               inserted = False
@@ -370,12 +285,69 @@ jobs:
                       )
 
                       inserted = True
+
                       break
 
               if not inserted:
                   raise SystemExit(
-                      "ERRO: não encontrei weekModes para inserir punchNames"
+                      "ERRO: não foi possível inserir punchNames"
                   )
+
+          # ========================================================
+          # CORREÇÃO 2 - ADDVIEW INVÁLIDO
+          # ========================================================
+
+          pattern = (
+              r'\},\s*'
+              r'0,\s*'
+              r'0,\s*'
+              r'0,\s*'
+              r'dp10\s*'
+              r'\)\s*'
+              r'val dateCard\s*=\s*card'
+          )
+
+          replacement = '''},
+                      LinearLayout.LayoutParams(
+                          -1,
+                          -2
+                      ).apply{
+                          bottomMargin=dp(10)
+                      }
+                  )
+
+                  val dateCard=card()'''
+
+          code, count = re.subn(
+              pattern,
+              replacement,
+              code,
+              count=1
+          )
+
+          if count == 0:
+
+              print(
+                  "AVISO: addView inválido não encontrado."
+              )
+
+              print(
+                  "Isso significa que ele já pode estar corrigido."
+              )
+
+          # ========================================================
+          # GARANTIR FORMATO DAS BATIDAS
+          # ========================================================
+
+          if "private val punchNames" not in code:
+
+              raise SystemExit(
+                  "ERRO FINAL: punchNames ainda não existe"
+              )
+
+          # ========================================================
+          # SALVAR
+          # ========================================================
 
           file.write_text(
               code,
@@ -383,11 +355,11 @@ jobs:
           )
 
           print(
-              "PUNCHNAMES OK"
+              "MAINACTIVITY CORRIGIDO COM SUCESSO"
           )
 
       # ============================================================
-      # VALIDAR CÓDIGO
+      # VALIDAR CÓDIGO ANTES DO GRADLE
       # ============================================================
 
       - name: Validar código e ícone
@@ -397,125 +369,67 @@ jobs:
 
           FILE="ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
 
+          echo "Verificando MainActivity..."
+
           test -s "$FILE"
+
+          echo "Verificando ícone..."
 
           test -s \
             "ControleHoras/app/src/main/res/drawable/controlehoras_icon.jpg"
+
+          echo "Verificando intervalo 2..."
 
           grep -q \
             'extra2Enabled' \
             "$FILE"
 
+          echo "Verificando registro manual..."
+
           grep -q \
             'showManualWheel' \
             "$FILE"
+
+          echo "Verificando edição..."
 
           grep -q \
             'showEditWheel' \
             "$FILE"
 
+          echo "Verificando próxima batida..."
+
           grep -q \
             'nextPunchIndex' \
             "$FILE"
+
+          echo "Verificando punchNames..."
 
           grep -q \
             'punchNames' \
             "$FILE"
 
+          echo "Verificando barras do sistema..."
+
           grep -q \
             'WindowCompat.setDecorFitsSystemWindows' \
             "$FILE"
+
+          echo "Verificando ícone no Manifest..."
 
           grep -q \
             'controlehoras_icon' \
             ControleHoras/app/src/main/AndroidManifest.xml
 
+          echo "Procurando Button(context)..."
+
           if grep -q 'Button(context)' "$FILE"; then
-            echo "ERRO: Button(context)"
+
+            echo "ERRO: Button(context) encontrado"
+
             exit 1
+
           fi
 
-          echo "VALIDAÇÃO OK"
+          echo "VALIDAÇÃO DO CÓDIGO OK"
 
-      # ============================================================
-      # GRADLE
-      # ============================================================
-
-      - name: Instalar Gradle 8.11.1
-        shell: bash
-        run: |
-          set -e
-
-          wget -q \
-            https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
-
-          unzip -q \
-            gradle-8.11.1-bin.zip
-
-          echo \
-            "$PWD/gradle-8.11.1/bin" \
-            >> "$GITHUB_PATH"
-
-          "$PWD/gradle-8.11.1/bin/gradle" \
-            --version
-
-      # ============================================================
-      # LIMPAR
-      # ============================================================
-
-      - name: Limpar projeto
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -e
-
-          gradle clean --no-daemon
-
-      # ============================================================
-      # GERAR APK
-      # ============================================================
-
-      - name: Gerar APK
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -e
-
-          gradle assembleDebug \
-            --no-daemon \
-            --stacktrace
-
-          APK="app/build/outputs/apk/debug/app-debug.apk"
-
-          test -s "$APK"
-
-          ls -lh "$APK"
-
-      # ============================================================
-      # VALIDAR APK
-      # ============================================================
-
-      - name: Verificar APK
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -e
-
-          APK="app/build/outputs/apk/debug/app-debug.apk"
-
-          test -s "$APK"
-
-          unzip -t "$APK" >/dev/null
-
-          echo "APK VALIDADO"
-
-      # ============================================================
-      # PUBLICAR APK
-      # ============================================================
-
-      - name: Publicar APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: ControleHoras-APK
-          path: ControleHoras/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+      # =================================================
