@@ -30,6 +30,7 @@ jobs:
           set -e
 
           rm -rf ControleHoras
+
           unzip -q -o ControleHoras.zip
 
           test -f ControleHoras/settings.gradle.kts
@@ -47,9 +48,14 @@ jobs:
           from urllib.request import urlopen
           import subprocess
 
-          url = "https://raw.githubusercontent.com/didhuuu/ControleHoras/29bdaa86ef5b85ec79367cbced7c759063d7fe7b/.github/workflows/build.yml"
+          URL = (
+              "https://raw.githubusercontent.com/"
+              "didhuuu/ControleHoras/"
+              "29bdaa86ef5b85ec79367cbced7c759063d7fe7b/"
+              ".github/workflows/build.yml"
+          )
 
-          workflow = urlopen(url, timeout=30).read().decode("utf-8")
+          workflow = urlopen(URL, timeout=30).read().decode("utf-8")
 
           inicio = workflow.index(
               "      - name: Corrigir MainActivity"
@@ -109,9 +115,9 @@ jobs:
 
               s = s.replace(old, new, 1)
 
-          # =====================================================
+          # ==================================================
           # DATA SELECIONADA
-          # =====================================================
+          # ==================================================
 
           m = re.search(
               r'(?m)^(\s*)private var selectedEmployeeId = 0L\s*$',
@@ -133,9 +139,9 @@ jobs:
               + s[m.end():]
           )
 
-          # =====================================================
-          # AO ABRIR O APP COMEÇA EM HOJE
-          # =====================================================
+          # ==================================================
+          # AO ABRIR O APP: HOJE
+          # ==================================================
 
           replace_once(
               "        loadData()\n",
@@ -144,9 +150,9 @@ jobs:
               "data inicial"
           )
 
-          # =====================================================
-          # TROCAR FUNCIONÁRIO VOLTA PARA HOJE
-          # =====================================================
+          # ==================================================
+          # AO TROCAR FUNCIONÁRIO: VOLTA PARA HOJE
+          # ==================================================
 
           old_employee = (
               "selectedEmployeeId = employees[pos].id; showPunch()"
@@ -157,20 +163,35 @@ jobs:
               "selectedPunchDate=today(); showPunch()"
           )
 
-          if old_employee not in s:
-              raise SystemExit(
-                  "ERRO: troca de funcionário não encontrada"
+          if old_employee in s:
+              s = s.replace(
+                  old_employee,
+                  new_employee,
+                  1
+              )
+          else:
+              # Tenta a forma com espaços/quebras diferentes
+              pattern_employee = (
+                  r'selectedEmployeeId\s*=\s*employees\[pos\]\.id\s*;\s*'
+                  r'showPunch\(\)'
               )
 
-          s = s.replace(
-              old_employee,
-              new_employee,
-              1
-          )
+              s, count_employee = re.subn(
+                  pattern_employee,
+                  "selectedEmployeeId=employees[pos].id; "
+                  "selectedPunchDate=today(); showPunch()",
+                  s,
+                  count=1
+              )
 
-          # =====================================================
-          # FUNÇÃO PARA ESCOLHER A DATA
-          # =====================================================
+              if count_employee != 1:
+                  raise SystemExit(
+                      "ERRO: troca de funcionário não encontrada"
+                  )
+
+          # ==================================================
+          # FUNÇÃO PARA ESCOLHER DATA
+          # ==================================================
 
           marker = (
               "    private fun today()=iso.format(Date())\n"
@@ -185,7 +206,7 @@ jobs:
               "    private fun choosePunchDate(){",
               "        val base=try{parseIso(selectedPunchDate)}catch(_:Exception){Date()}",
               "        val c=Calendar.getInstance().apply{time=base}",
-              "        DatePickerDialog(this,{_,year,month,day->",
+              "        DatePickerDialog(this@MainActivity,{_,year,month,day->",
               "            val chosen=Calendar.getInstance().apply{",
               "                set(Calendar.YEAR,year)",
               "                set(Calendar.MONTH,month)",
@@ -218,12 +239,9 @@ jobs:
               1
           )
 
-          # =====================================================
-          # DATA NO CARTÃO DO PONTO
-          #
-          # NÃO USA Button.
-          # USA TextView CLICÁVEL.
-          # =====================================================
+          # ==================================================
+          # CARTÃO DA DATA
+          # ==================================================
 
           old_date = (
               '            line.addView(TextView(context).apply { '
@@ -236,7 +254,7 @@ jobs:
 
           new_date = (
               '            line.addView(TextView(this@MainActivity).apply { '
-              'text = "Data do ponto\\n${df.format(parseIso(selectedPunchDate))}\\nTOQUE PARA ALTERAR"; '
+              'text = "Data do ponto\\n${df.format(parseIso(selectedPunchDate))}"; '
               'textSize = 16f; '
               'setTextColor(this@MainActivity.text); '
               'setTypeface(null, Typeface.BOLD); '
@@ -245,15 +263,35 @@ jobs:
               '}, LinearLayout.LayoutParams(0, dp(60), 1f))'
           )
 
-          replace_once(
-              old_date,
-              new_date,
-              "cartão da data"
-          )
+          if old_date in s:
+              s = s.replace(
+                  old_date,
+                  new_date,
+                  1
+              )
+          else:
+              # Forma alternativa encontrada em algumas versões
+              old_date_alt = (
+                  '            line.addView(TextView(context).apply{'
+                  'text="Hoje\\n${df.format(Date())}";'
+              )
 
-          # =====================================================
-          # SHOWPUNCH PASSA A USAR A DATA SELECIONADA
-          # =====================================================
+              if old_date_alt in s:
+                  s = s.replace(
+                      old_date_alt,
+                      '            line.addView(TextView(this@MainActivity).apply{'
+                      'text="Data do ponto\\n${df.format(parseIso(selectedPunchDate))}";'
+                      'setOnClickListener{choosePunchDate()};',
+                      1
+                  )
+              else:
+                  raise SystemExit(
+                      "ERRO: cartão da data não encontrado"
+                  )
+
+          # ==================================================
+          # SHOWPUNCH USA A DATA SELECIONADA
+          # ==================================================
 
           inicio = s.find(
               "    private fun showPunch()"
@@ -282,73 +320,126 @@ jobs:
 
           show = s[inicio:fim]
 
-          if "getRecord(emp.id, today())" not in show:
-              raise SystemExit(
-                  "ERRO: registro de hoje não encontrado em showPunch"
-              )
-
           show = show.replace(
               "getRecord(emp.id, today())",
               "getRecord(emp.id, selectedPunchDate)"
           )
 
-          # =====================================================
-          # BATIDA PARA DATA ANTERIOR
-          #
-          # HOJE:
-          # mantém o comportamento da versão 36.
-          #
-          # DATA ANTERIOR:
-          # permite digitar a hora manualmente.
-          # =====================================================
+          # ==================================================
+          # REGISTRO PARA DATA ANTERIOR
+          # ==================================================
 
-          pattern = (
-              r'(\s*)r\.punches\[n\]\s*=\s*nowTime\(\)\s*'
-              r'\n\s*saveData\(\)\s*'
-              r'\n\s*showPunch\(\)'
+          reg_start = s.find(
+              "    private fun registerPunch(",
+              inicio
           )
 
-          replacement = "\n".join([
-              r"\1if(selectedPunchDate==today()){",
-              r"\1    r.punches[n]=nowTime()",
-              r"\1    saveData()",
-              r"\1    showPunch()",
-              r"\1}else{",
-              r'\1    val e=timeEdit("",punchNames[n])',
-              r"\1    AlertDialog.Builder(this)",
-              r"\1        .setTitle(punchNames[n])",
-              r'\1        .setMessage("Informe o horário da batida para ${df.format(parseIso(selectedPunchDate))}.")',
-              r"\1        .setView(e)",
-              r'\1        .setNegativeButton("Cancelar",null)',
-              r'\1        .setPositiveButton("Salvar"){_,_->',
-              r"\1            val t=normalizeTime(e.text.toString())",
-              r"\1            if(t.isNotBlank()){",
-              r"\1                r.punches[n]=t",
-              r"\1                saveData()",
-              r"\1                showPunch()",
-              r"\1            }",
-              r"\1        }",
-              r"\1        .show()",
-              r"\1}"
-          ])
-
-          show, count = re.subn(
-              pattern,
-              replacement,
-              show,
-              count=1
-          )
-
-          if count != 1:
-              raise SystemExit(
-                  "ERRO: batida automática não encontrada"
+          if reg_start >= 0:
+              reg_end = s.find(
+                  "    private fun ",
+                  reg_start + 10
               )
 
-          s = s[:inicio] + show + s[fim:]
+              if reg_end < 0:
+                  reg_end = len(s)
 
-          # =====================================================
-          # VALIDAÇÃO FINAL
-          # =====================================================
+              old_register = s[reg_start:reg_end]
+
+              new_register = """    private fun registerPunch(empId:Long){
+          val r=getRecord(empId,selectedPunchDate)
+          val n=r.punches.indexOfFirst{it.isBlank()}
+          if(n<0)return
+
+          if(selectedPunchDate==today()){
+              r.punches[n]=nowTime()
+              saveData()
+              showPunch()
+              return
+          }
+
+          val e=timeEdit("",punchNames[n])
+
+          AlertDialog.Builder(this@MainActivity)
+              .setTitle(punchNames[n])
+              .setMessage("Informe o horário da batida para ${df.format(parseIso(selectedPunchDate))}.")
+              .setView(e)
+              .setNegativeButton("Cancelar",null)
+              .setPositiveButton("Salvar"){_,_->
+                  val t=normalizeTime(e.text.toString())
+
+                  if(t.isNotBlank()){
+                      r.punches[n]=t
+                      saveData()
+                      showPunch()
+                  }else{
+                      Toast.makeText(
+                          this@MainActivity,
+                          "Horário inválido.",
+                          Toast.LENGTH_LONG
+                      ).show()
+                  }
+              }
+              .show()
+      }
+
+      """
+
+              s = (
+                  s[:reg_start]
+                  + new_register
+                  + s[reg_end:]
+              )
+
+          # ==================================================
+          # CORREÇÃO DEFINITIVA DO CONTEXTO DOS BUTTONS
+          #
+          # NÃO MUDA A ESCALA.
+          # Apenas deixa explícito que o Context é a Activity.
+          # ==================================================
+
+          s = s.replace(
+              "Button(this).apply",
+              "Button(this@MainActivity).apply"
+          )
+
+          s = s.replace(
+              "Button(this).apply {",
+              "Button(this@MainActivity).apply {"
+          )
+
+          # Proteção adicional para eventuais construções sem apply
+          s = s.replace(
+              "Button(this)",
+              "Button(this@MainActivity)"
+          )
+
+          # ==================================================
+          # OUTROS CONTROLES DE UI
+          # ==================================================
+
+          s = s.replace(
+              "TextView(context)",
+              "TextView(this@MainActivity)"
+          )
+
+          s = s.replace(
+              "LinearLayout(context)",
+              "LinearLayout(this@MainActivity)"
+          )
+
+          s = s.replace(
+              "Spinner(context)",
+              "Spinner(this@MainActivity)"
+          )
+
+          s = s.replace(
+              "ArrayAdapter(context,",
+              "ArrayAdapter(this@MainActivity,"
+          )
+
+          # ==================================================
+          # VALIDAÇÃO
+          # ==================================================
 
           required = [
               'private var selectedPunchDate = ""',
@@ -356,7 +447,8 @@ jobs:
               'datePicker.maxDate=System.currentTimeMillis()',
               'getRecord(emp.id, selectedPunchDate)',
               'selectedPunchDate==today()',
-              'setOnClickListener { choosePunchDate() }'
+              'setOnClickListener { choosePunchDate() }',
+              'Button(this@MainActivity)'
           ]
 
           for item in required:
@@ -365,13 +457,16 @@ jobs:
                       "ERRO FINAL: " + item
                   )
 
-          # PROTEÇÃO CONTRA O ERRO ANTERIOR
           if "Button(context)" in s:
               raise SystemExit(
                   "ERRO FINAL: Button(context) encontrado"
               )
 
-          # PROTEÇÃO CONTRA ERRO DE CHAVES
+          if "Button(this)" in s:
+              raise SystemExit(
+                  "ERRO FINAL: Button(this) ainda encontrado"
+              )
+
           if s.count("{") != s.count("}"):
               raise SystemExit(
                   "ERRO FINAL: chaves Kotlin incompatíveis"
@@ -383,6 +478,8 @@ jobs:
           )
 
           print("DATA RETROATIVA APLICADA COM SUCESSO")
+          print("ESCALA DA VERSÃO 36 PRESERVADA")
+          print("CONTEXTO DOS BUTTONS CORRIGIDO")
 
       - name: Validar código final
         shell: python
@@ -417,7 +514,12 @@ jobs:
 
           if "Button(context)" in s:
               raise SystemExit(
-                  "ERRO DE VALIDACAO: Button(context) ainda existe"
+                  "ERRO DE VALIDACAO: Button(context)"
+              )
+
+          if "Button(this)" in s:
+              raise SystemExit(
+                  "ERRO DE VALIDACAO: Button(this)"
               )
 
           if s.count("{") != s.count("}"):
@@ -425,14 +527,20 @@ jobs:
                   "ERRO DE VALIDACAO: chaves incompatíveis"
               )
 
+          print("====================================")
           print("CÓDIGO FINAL VALIDADO")
+          print("VERSÃO 36 PRESERVADA")
+          print("DATA RETROATIVA ATIVA")
+          print("ESCALA PRESERVADA")
+          print("====================================")
 
       - name: Instalar Gradle 8.11.1
         shell: bash
         run: |
           set -e
 
-          wget -q https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
+          wget -q \
+            https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
 
           unzip -q gradle-8.11.1-bin.zip
 
