@@ -83,9 +83,9 @@ jobs:
               check=True
           )
 
-          print("VERSÃO 36 APLICADA COM SUCESSO")
+          print("VERSÃO 36 APLICADA")
 
-      - name: Adicionar seleção de data retroativa
+      - name: Adicionar seleção de data
         shell: python
         run: |
           from pathlib import Path
@@ -105,7 +105,9 @@ jobs:
 
               if quantidade != 1:
                   raise SystemExit(
-                      f"ERRO {nome}: encontrado {quantidade}, esperado 1"
+                      "ERRO " + nome +
+                      ": encontrado " + str(quantidade) +
+                      ", esperado 1"
                   )
 
               codigo = codigo.replace(
@@ -115,7 +117,7 @@ jobs:
               )
 
           # ==================================================
-          # 1 - VARIAVEL DA DATA
+          # 1 - DATA SELECIONADA
           # ==================================================
 
           replace_once(
@@ -126,7 +128,7 @@ jobs:
           )
 
           # ==================================================
-          # 2 - AO ABRIR O APP = HOJE
+          # 2 - AO ABRIR = HOJE
           # ==================================================
 
           replace_once(
@@ -139,25 +141,30 @@ jobs:
           )
 
           # ==================================================
-          # 3 - TROCAR FUNCIONARIO = HOJE
+          # 3 - TROCAR FUNCIONÁRIO = HOJE
           # ==================================================
 
           replace_once(
               "selectedEmployeeId = employees[pos].id; showPunch()",
               "selectedEmployeeId = employees[pos].id; "
               "selectedPunchDate = today(); showPunch()",
-              "troca funcionario"
+              "troca funcionário"
           )
 
           # ==================================================
-          # 4 - FUNCAO PARA ESCOLHER DATA
+          # 4 - FUNÇÃO ESCOLHER DATA
           # ==================================================
 
-          marcador_data = (
+          marcador = (
               "    private fun today()=iso.format(Date())\n"
           )
 
-          linhas_data = [
+          if marcador not in codigo:
+              raise SystemExit(
+                  "ERRO: função today não encontrada"
+              )
+
+          linhas = [
               "    private fun choosePunchDate(){",
               "        val cal=Calendar.getInstance()",
               "",
@@ -201,16 +208,16 @@ jobs:
               ""
           ]
 
-          funcao_data = "\n".join(linhas_data)
+          funcao = "\n".join(linhas)
 
-          replace_once(
-              marcador_data,
-              marcador_data + funcao_data,
-              "funcao data"
+          codigo = codigo.replace(
+              marcador,
+              marcador + funcao,
+              1
           )
 
           # ==================================================
-          # 5 - REGISTRO USA A DATA ESCOLHIDA
+          # 5 - SHOWPUNCH USA A DATA SELECIONADA
           # ==================================================
 
           replace_once(
@@ -226,20 +233,50 @@ jobs:
           )
 
           # ==================================================
-          # 6 - CARTAO DA DATA
+          # 6 - ADICIONAR BOTÃO DE DATA
+          #
+          # NÃO ALTERA O CARTÃO ORIGINAL DA VERSÃO 36.
           # ==================================================
 
-          replace_once(
-              'text = "Hoje\\n${df.format(Date())}"; textSize = 16f; setTextColor(text); setTypeface(null, Typeface.BOLD)',
-              'text = "Data do ponto\\n${df.format(parseIso(selectedPunchDate))}"; textSize = 16f; setTextColor(this@MainActivity.text); setTypeface(null, Typeface.BOLD); setOnClickListener { choosePunchDate() }',
-              "cartao data"
+          marcador_registro = (
+              "        val rec = getRecord(emp.id, selectedPunchDate)\n"
+          )
+
+          if marcador_registro not in codigo:
+              raise SystemExit(
+                  "ERRO: ponto de inserção da data não encontrado"
+              )
+
+          seletor = "\n".join([
+              "        val dataButton = Button(this).apply{",
+              "            text = \"📅  DATA: ${df.format(parseIso(selectedPunchDate))}\"",
+              "            textSize = 15f",
+              "            isAllCaps = false",
+              "            setOnClickListener{",
+              "                choosePunchDate()",
+              "            }",
+              "        }",
+              "",
+              "        box.addView(",
+              "            dataButton,",
+              "            LinearLayout.LayoutParams(-1,dp(58)).apply{",
+              "                bottomMargin=dp(10)",
+              "            }",
+              "        )",
+              ""
+          ])
+
+          codigo = codigo.replace(
+              marcador_registro,
+              seletor + marcador_registro,
+              1
           )
 
           # ==================================================
-          # 7 - REGISTRO DE HOJE OU DATA ANTERIOR
+          # 7 - REGISTRO DE HOJE / REGISTRO RETROATIVO
           # ==================================================
 
-          antigo_botao = "\n".join([
+          antigo = "\n".join([
               "                if (n >= 0) {",
               "                    r.punches[n] = nowTime()",
               "                    saveData()",
@@ -247,7 +284,7 @@ jobs:
               "                }"
           ])
 
-          linhas_botao = [
+          novo_linhas = [
               "                if (n >= 0) {",
               "",
               "                    if (selectedPunchDate == today()) {",
@@ -268,9 +305,7 @@ jobs:
               "                        AlertDialog.Builder(",
               "                            this@MainActivity",
               "                        )",
-              "                            .setTitle(",
-              "                                punchNames[n]",
-              "                            )",
+              "                            .setTitle(punchNames[n])",
               "                            .setMessage(",
               "                                \"Informe o horário da batida para ${df.format(parseIso(selectedPunchDate))}.\"",
               "                            )",
@@ -281,20 +316,15 @@ jobs:
               "                            )",
               "                            .setPositiveButton(",
               "                                \"Salvar\"",
-              "                            ) { _, _ ->",
+              "                            ){_,_->",
               "",
-              "                                val horario =",
-              "                                    normalizeTime(",
-              "                                        entrada.text.toString()",
-              "                                    )",
+              "                                val horario = normalizeTime(",
+              "                                    entrada.text.toString()",
+              "                                )",
               "",
-              "                                if (horario.isNotBlank()) {",
-              "",
-              "                                    r.punches[n] =",
-              "                                        horario",
-              "",
+              "                                if(horario.isNotBlank()){",
+              "                                    r.punches[n]=horario",
               "                                    saveData()",
-              "",
               "                                    showPunch()",
               "                                }",
               "                            }",
@@ -303,16 +333,16 @@ jobs:
               "                }"
           ]
 
-          novo_botao = "\n".join(linhas_botao)
+          novo = "\n".join(novo_linhas)
 
           replace_once(
-              antigo_botao,
-              novo_botao,
+              antigo,
+              novo,
               "registro retroativo"
           )
 
           # ==================================================
-          # 8 - VALIDACOES
+          # 8 - GARANTIAS
           # ==================================================
 
           obrigatorios = [
@@ -322,13 +352,12 @@ jobs:
               'getRecord(emp.id, selectedPunchDate)',
               'selectedPunchDate == today()',
               'datePicker.maxDate=System.currentTimeMillis()',
-              'setOnClickListener { choosePunchDate() }',
               'private fun normalizeTime',
-              'private fun timeEdit'
+              'private fun timeEdit',
+              'dataButton'
           ]
 
           for item in obrigatorios:
-
               if item not in codigo:
                   raise SystemExit(
                       "ERRO FINAL: faltando " + item
@@ -336,7 +365,7 @@ jobs:
 
           if "Button(context)" in codigo:
               raise SystemExit(
-                  "ERRO FINAL: Button(context) encontrado"
+                  "ERRO FINAL: Button(context)"
               )
 
           arquivo.write_text(
@@ -344,12 +373,11 @@ jobs:
               encoding="utf-8"
           )
 
-          print("====================================")
+          print("================================")
           print("DATA RETROATIVA APLICADA")
-          print("VERSAO 36 PRESERVADA")
+          print("VERSÃO 36 PRESERVADA")
           print("ESCALA PRESERVADA")
-          print("CODIGO PRONTO")
-          print("====================================")
+          print("================================")
 
       - name: Validar código
         shell: bash
@@ -362,16 +390,17 @@ jobs:
 
           grep -q 'selectedPunchDate' "$FILE"
           grep -q 'choosePunchDate' "$FILE"
+          grep -q 'dataButton' "$FILE"
           grep -q 'datePicker.maxDate' "$FILE"
           grep -q 'private fun normalizeTime' "$FILE"
           grep -q 'private fun timeEdit' "$FILE"
 
           if grep -q 'Button(context)' "$FILE"; then
-            echo "ERRO: Button(context) encontrado"
+            echo "ERRO Button(context)"
             exit 1
           fi
 
-          echo "CODIGO VALIDADO"
+          echo "CÓDIGO VALIDADO"
 
       - name: Instalar Gradle 8.11.1
         shell: bash
