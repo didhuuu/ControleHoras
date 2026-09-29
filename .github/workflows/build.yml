@@ -134,7 +134,7 @@ jobs:
           )
 
           # =====================================================
-          # AO ABRIR COMEÇA EM HOJE
+          # AO ABRIR O APP COMEÇA EM HOJE
           # =====================================================
 
           replace_once(
@@ -145,7 +145,7 @@ jobs:
           )
 
           # =====================================================
-          # AO TROCAR FUNCIONÁRIO VOLTA PARA HOJE
+          # TROCAR FUNCIONÁRIO VOLTA PARA HOJE
           # =====================================================
 
           old_employee = (
@@ -169,7 +169,7 @@ jobs:
           )
 
           # =====================================================
-          # FUNÇÃO PARA ESCOLHER DATA
+          # FUNÇÃO PARA ESCOLHER A DATA
           # =====================================================
 
           marker = (
@@ -219,12 +219,10 @@ jobs:
           )
 
           # =====================================================
-          # CARTÃO DA DATA
+          # DATA NO CARTÃO DO PONTO
           #
-          # IMPORTANTE:
-          # Não usamos Button aqui.
-          # Usamos TextView clicável para evitar o erro
-          # de Context que ocorreu na compilação.
+          # NÃO USA Button.
+          # USA TextView CLICÁVEL.
           # =====================================================
 
           old_date = (
@@ -254,28 +252,39 @@ jobs:
           )
 
           # =====================================================
-          # SHOWPUNCH USA A DATA SELECIONADA
+          # SHOWPUNCH PASSA A USAR A DATA SELECIONADA
           # =====================================================
 
           inicio = s.find(
               "    private fun showPunch()"
           )
 
+          if inicio < 0:
+              raise SystemExit(
+                  "ERRO: showPunch não encontrada"
+              )
+
           fim = s.find(
-              "    private val punchNames",
+              "    private fun showHistory()",
               inicio
           )
 
-          if inicio < 0 or fim < 0:
+          if fim < 0:
+              fim = s.find(
+                  "    private fun showTab",
+                  inicio
+              )
+
+          if fim < 0:
               raise SystemExit(
-                  "ERRO: showPunch não encontrada"
+                  "ERRO: final de showPunch não encontrado"
               )
 
           show = s[inicio:fim]
 
           if "getRecord(emp.id, today())" not in show:
               raise SystemExit(
-                  "ERRO: registro de hoje não encontrado"
+                  "ERRO: registro de hoje não encontrado em showPunch"
               )
 
           show = show.replace(
@@ -284,13 +293,13 @@ jobs:
           )
 
           # =====================================================
-          # REGISTRAR BATIDA
+          # BATIDA PARA DATA ANTERIOR
           #
           # HOJE:
-          # usa a hora atual.
+          # mantém o comportamento da versão 36.
           #
           # DATA ANTERIOR:
-          # permite informar manualmente o horário.
+          # permite digitar a hora manualmente.
           # =====================================================
 
           pattern = (
@@ -338,7 +347,7 @@ jobs:
           s = s[:inicio] + show + s[fim:]
 
           # =====================================================
-          # VALIDAÇÕES
+          # VALIDAÇÃO FINAL
           # =====================================================
 
           required = [
@@ -356,6 +365,13 @@ jobs:
                       "ERRO FINAL: " + item
                   )
 
+          # PROTEÇÃO CONTRA O ERRO ANTERIOR
+          if "Button(context)" in s:
+              raise SystemExit(
+                  "ERRO FINAL: Button(context) encontrado"
+              )
+
+          # PROTEÇÃO CONTRA ERRO DE CHAVES
           if s.count("{") != s.count("}"):
               raise SystemExit(
                   "ERRO FINAL: chaves Kotlin incompatíveis"
@@ -366,7 +382,7 @@ jobs:
               encoding="utf-8"
           )
 
-          print("DATA RETROATIVA APLICADA")
+          print("DATA RETROATIVA APLICADA COM SUCESSO")
 
       - name: Validar código final
         shell: python
@@ -399,14 +415,14 @@ jobs:
                       "ERRO DE VALIDACAO: " + item
                   )
 
+          if "Button(context)" in s:
+              raise SystemExit(
+                  "ERRO DE VALIDACAO: Button(context) ainda existe"
+              )
+
           if s.count("{") != s.count("}"):
               raise SystemExit(
                   "ERRO DE VALIDACAO: chaves incompatíveis"
-              )
-
-          if "Button(context)" in s:
-              raise SystemExit(
-                  "ERRO DE VALIDACAO: Button(context) encontrado"
               )
 
           print("CÓDIGO FINAL VALIDADO")
