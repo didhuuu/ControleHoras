@@ -252,6 +252,46 @@ jobs:
               )
 
           # =====================================================
+          # NOVO: SEMANA QUE ATRAVESSA DOIS MESES
+          # =====================================================
+
+          if "private fun weekMonthLabel" not in codigo:
+
+              month_week_helper = "\n".join([
+                  "    private fun weekMonthLabel(date:Date):String{",
+                  "        val c=Calendar.getInstance()",
+                  "        c.time=date",
+                  "        c.set(Calendar.DAY_OF_WEEK,Calendar.MONDAY)",
+                  "",
+                  "        val inicioMes=c.get(Calendar.MONTH)",
+                  "        val inicioAno=c.get(Calendar.YEAR)",
+                  "        val inicioDia=c.get(Calendar.DAY_OF_MONTH)",
+                  "",
+                  "        c.add(Calendar.DAY_OF_MONTH,6)",
+                  "",
+                  "        val fimMes=c.get(Calendar.MONTH)",
+                  "        val fimAno=c.get(Calendar.YEAR)",
+                  "        val fimDia=c.get(Calendar.DAY_OF_MONTH)",
+                  "",
+                  "        val inicioTexto=String.format(Locale.US,\"%02d/%02d/%04d\",inicioDia,inicioMes+1,inicioAno)",
+                  "        val fimTexto=String.format(Locale.US,\"%02d/%02d/%04d\",fimDia,fimMes+1,fimAno)",
+                  "",
+                  "        if(inicioMes==fimMes && inicioAno==fimAno){",
+                  "            return \"Semana: $inicioTexto até $fimTexto\"",
+                  "        }",
+                  "",
+                  "        return \"Virada de mês: $inicioTexto → $fimTexto\"",
+                  "    }",
+                  ""
+              ])
+
+              codigo = codigo.replace(
+                  marcador,
+                  month_week_helper + marcador,
+                  1
+              )
+
+          # =====================================================
           # NORMALIZAÇÃO DE DURAÇÃO 44:00
           # =====================================================
 
@@ -287,9 +327,6 @@ jobs:
 
           # =====================================================
           # CARREGAR DADOS SEMANAIS
-          #
-          # IMPORTANTE:
-          # A carga é colocada DENTRO de loadData().
           # =====================================================
 
           if 'prefs.getString("weeklyTarget"' not in codigo:
@@ -389,7 +426,7 @@ jobs:
           )
 
           # =====================================================
-          # ESCALA
+          # ESCALA SEMANAL
           # =====================================================
 
           inicio = codigo.find("    private fun showScale() {")
@@ -432,6 +469,14 @@ jobs:
               "            })",
               "",
               "            line.addView(TextView(this).apply{",
+              "                text=weekMonthLabel(data)",
+              "                textSize=13f",
+              "                setTypeface(null,Typeface.BOLD)",
+              "                setTextColor(darkBlue)",
+              "                setPadding(0,dp(3),0,dp(5))",
+              "            })",
+              "",
+              "            line.addView(TextView(this).apply{",
               "                text=modeTitle(mode)",
               "                textSize=15f",
               "                setTypeface(null,Typeface.BOLD)",
@@ -468,7 +513,7 @@ jobs:
               "",
               "            box.addView(",
               "                row,",
-              "                LinearLayout.LayoutParams(-1,dp(245)).apply{",
+              "                LinearLayout.LayoutParams(-1,dp(275)).apply{",
               "                    bottomMargin=dp(10)",
               "                }",
               "            )",
@@ -487,7 +532,8 @@ jobs:
               "",
               "        box.addView(infoCard(",
               "            \"Padrão: Segunda a sexta = 08:48 por dia. \" +",
-              "            \"Quando selecionar Segunda a sábado, serão 07:20 por dia.\"",
+              "            \"Quando selecionar Segunda a sábado, serão 07:20 por dia. \" +",
+              "            \"Semanas que atravessarem a virada do mês serão identificadas como \\\\\\\"Virada de mês\\\\\\\".\"",
               "        ))",
               "    }",
               ""
@@ -497,6 +543,9 @@ jobs:
 
           # =====================================================
           # CÁLCULO CORRETO
+          #
+          # A data do ponto pertence somente ao mês da própria
+          # data. O modo MF/MS vem da semana correspondente.
           # =====================================================
 
           inicio = codigo.find(
@@ -535,12 +584,8 @@ jobs:
               "        }",
               "",
               "        val semanal=durationMinutes(weeklyTarget)",
-              "",
-              "        val dias=",
-              "            if(modeForDate(data)==\"MS\") 6 else 5",
-              "",
+              "        val dias=if(modeForDate(data)==\"MS\") 6 else 5",
               "        val expected=semanal/dias",
-              "",
               "        val extra=max(0,worked-expected)",
               "",
               "        return Calc(",
@@ -624,6 +669,7 @@ jobs:
               "private fun timeEdit",
               "private fun normalizeDuration",
               "private fun durationMinutes",
+              "private fun weekMonthLabel",
               "private fun weekKey",
               "private fun modeForDate",
               "private fun modeForDay",
@@ -632,7 +678,8 @@ jobs:
               "private var weeklyTarget",
               "private val weekModes",
               "Segunda a sexta — 08:48",
-              "Segunda a sábado — 07:20"
+              "Segunda a sábado — 07:20",
+              "Virada de mês"
           ]
 
           for item in obrigatorias:
@@ -667,6 +714,7 @@ jobs:
               "private fun normalizeTime",
               "private fun timeEdit",
               "private fun durationMinutes",
+              "private fun weekMonthLabel",
               "private fun weekKey",
               "private fun calculate(r:PunchDay):Calc",
               "private fun minutesBetween",
