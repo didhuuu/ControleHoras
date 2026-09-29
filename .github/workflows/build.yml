@@ -30,6 +30,7 @@ jobs:
           set -e
 
           rm -rf ControleHoras
+
           unzip -q -o ControleHoras.zip
 
           test -f ControleHoras/settings.gradle.kts
@@ -40,7 +41,7 @@ jobs:
 
           echo "PROJETO EXTRAÍDO OK"
 
-      - name: Corrigir MainActivity
+      - name: Corrigir MainActivity original
         shell: python
         run: |
           from pathlib import Path
@@ -78,41 +79,16 @@ jobs:
               'it.date.startsWith(SimpleDateFormat("yyyy-MM", Locale.US).format(Date()))'
           )
 
-          codigo = re.sub(
-              r',\s*0\s*,\s*0\s*,\s*0\s*,\s*dp\(10\)\)',
-              ', LinearLayout.LayoutParams(-1, -2).apply{bottomMargin=dp(10)})',
-              codigo
-          )
-
-          codigo = re.sub(
-              r',\s*0\s*,\s*0\s*,\s*0\s*,\s*dp\(12\)\)',
-              ', LinearLayout.LayoutParams(-1, -2).apply{bottomMargin=dp(12)})',
-              codigo
-          )
-
-          codigo = codigo.replace(
-              "}, 0, 0, 0, dp(10))",
-              "}, LinearLayout.LayoutParams(-1, -2).apply{bottomMargin=dp(10)})"
-          )
-
-          codigo = codigo.replace(
-              "}, 0, 0, 0, dp(12))",
-              "}, LinearLayout.LayoutParams(-1, -2).apply{bottomMargin=dp(12)})"
-          )
-
           # ======================================================
           # HORÁRIO DO RELÓGIO
-          # Aceita somente 00:00 até 23:59
           # ======================================================
 
-          inicio = codigo.find(
-              "    private fun getRecord(empId:Long,date:String):PunchDay{"
-          )
-
-          if inicio == -1:
-              raise SystemExit("ERRO: getRecord não encontrado.")
-
           if "private fun normalizeTime(" not in codigo:
+
+              marcador = "    private fun getRecord(empId:Long,date:String):PunchDay{"
+
+              if marcador not in codigo:
+                  raise SystemExit("ERRO: getRecord não encontrado.")
 
               helper = "\n".join([
                   "    private fun normalizeTime(value:String):String{",
@@ -176,19 +152,21 @@ jobs:
               ])
 
               codigo = codigo.replace(
-                  "    private fun getRecord(empId:Long,date:String):PunchDay{",
-                  helper + "    private fun getRecord(empId:Long,date:String):PunchDay{",
+                  marcador,
+                  helper + marcador,
                   1
               )
 
           # ======================================================
           # DURAÇÃO
           #
-          # Aqui pode existir 44:00.
-          # Não usa normalizeTime().
+          # Diferente de horário.
+          # Permite 44:00.
           # ======================================================
 
           if "private fun normalizeDuration(" not in codigo:
+
+              marcador = "    private fun getRecord(empId:Long,date:String):PunchDay{"
 
               helper = "\n".join([
                   "    private fun normalizeDuration(value:String):String{",
@@ -261,8 +239,8 @@ jobs:
               ])
 
               codigo = codigo.replace(
-                  "    private fun getRecord(empId:Long,date:String):PunchDay{",
-                  helper + "    private fun getRecord(empId:Long,date:String):PunchDay{",
+                  marcador,
+                  helper + marcador,
                   1
               )
 
@@ -284,7 +262,91 @@ jobs:
               )
 
           # ======================================================
-          # CARREGAR CARGA SEMANAL
+          # JORNADA POR SEMANA
+          #
+          # MF = segunda a sexta
+          # MS = segunda a sábado
+          # P  = personalizada
+          # ======================================================
+
+          if "private val weekModes" not in codigo:
+
+              marcador = '    private var weeklyTarget:String = "44:00"'
+
+              codigo = codigo.replace(
+                  marcador,
+                  marcador + '\n    private val weekModes=linkedMapOf<String,String>()',
+                  1
+              )
+
+          # ======================================================
+          # FUNÇÕES DE SEMANA
+          # ======================================================
+
+          if "private fun weekKey(" not in codigo:
+
+              marcador = "    private fun getRecord(empId:Long,date:String):PunchDay{"
+
+              helpers = "\n".join([
+                  "    private fun weekKey(date:Date):String{",
+                  "        val c=Calendar.getInstance().apply{",
+                  "            time=date",
+                  "            set(Calendar.HOUR_OF_DAY,0)",
+                  "            set(Calendar.MINUTE,0)",
+                  "            set(Calendar.SECOND,0)",
+                  "            set(Calendar.MILLISECOND,0)",
+                  "            set(Calendar.DAY_OF_WEEK,Calendar.MONDAY)",
+                  "        }",
+                  "        return SimpleDateFormat(\"yyyy-MM-dd\",Locale.US).format(c.time)",
+                  "    }",
+                  "",
+                  "    private fun modeForDate(date:Date):String{",
+                  "        return weekModes[weekKey(date)] ?: \"MF\"",
+                  "    }",
+                  "",
+                  "    private fun modeForDay(date:Date):Boolean{",
+                  "        val c=Calendar.getInstance().apply{time=date}",
+                  "        val day=c.get(Calendar.DAY_OF_WEEK)",
+                  "        return when(modeForDate(date)){",
+                  "            \"MS\"->day in Calendar.MONDAY..Calendar.SATURDAY",
+                  "            \"P\"->true",
+                  "            else->day in Calendar.MONDAY..Calendar.FRIDAY",
+                  "        }",
+                  "    }",
+                  "",
+                  "    private fun weekLabel(date:Date):String{",
+                  "        val c=Calendar.getInstance().apply{",
+                  "            time=date",
+                  "            set(Calendar.HOUR_OF_DAY,0)",
+                  "            set(Calendar.MINUTE,0)",
+                  "            set(Calendar.SECOND,0)",
+                  "            set(Calendar.MILLISECOND,0)",
+                  "            set(Calendar.DAY_OF_WEEK,Calendar.MONDAY)",
+                  "        }",
+                  "        val inicio=SimpleDateFormat(\"dd/MM/yyyy\",Locale.US).format(c.time)",
+                  "        c.add(Calendar.DAY_OF_MONTH,6)",
+                  "        val fim=SimpleDateFormat(\"dd/MM/yyyy\",Locale.US).format(c.time)",
+                  "        return \"$inicio até $fim\"",
+                  "    }",
+                  "",
+                  "    private fun modeTitle(mode:String):String{",
+                  "        return when(mode){",
+                  "            \"MS\"->\"Segunda a sábado — 07:20 por dia\"",
+                  "            \"P\"->\"Personalizada\"",
+                  "            else->\"Segunda a sexta — 08:48 por dia\"",
+                  "        }",
+                  "    }",
+                  ""
+              ])
+
+              codigo = codigo.replace(
+                  marcador,
+                  helpers + marcador,
+                  1
+              )
+
+          # ======================================================
+          # CARREGAR SEMANAS
           # ======================================================
 
           codigo = codigo.replace(
@@ -292,37 +354,67 @@ jobs:
               'weeklyTarget=normalizeDuration(prefs.getString("weeklyTarget","44:00")?:"44:00").ifBlank{"44:00"}'
           )
 
-          # Se ainda não existir, coloca dentro de loadData.
-          if 'prefs.getString("weeklyTarget","44:00")' not in codigo:
+          if 'prefs.getString("weekModes","{}")' not in codigo:
 
-              marcador = "    private fun loadData() {"
+              marcador = '        weeklyTarget=normalizeDuration(prefs.getString("weeklyTarget","44:00")?:"44:00").ifBlank{"44:00"}'
 
-              pos = codigo.find(marcador)
+              if marcador not in codigo:
+                  raise SystemExit("ERRO: carregamento da carga semanal não encontrado.")
 
-              if pos == -1:
-                  raise SystemExit("ERRO: loadData não encontrada.")
+              bloco = "\n".join([
+                  marcador,
+                  '        val savedWeeks=prefs.getString("weekModes","{}")?:"{}"',
+                  "        try{",
+                  "            val obj=JSONObject(savedWeeks)",
+                  "            weekModes.clear()",
+                  "            val keys=obj.keys()",
+                  "            while(keys.hasNext()){",
+                  "                val k=keys.next()",
+                  "                weekModes[k]=obj.optString(k,\"MF\")",
+                  "            }",
+                  "        }catch(_:Exception){",
+                  "            weekModes.clear()",
+                  "        }"
+              ])
 
-              linha = '        weeklyTarget=normalizeDuration(prefs.getString("weeklyTarget","44:00")?:"44:00").ifBlank{"44:00"}\n'
-
-              pos2 = codigo.find("\n",pos) + 1
-
-              codigo = codigo[:pos2] + linha + codigo[pos2:]
+              codigo = codigo.replace(
+                  marcador,
+                  bloco,
+                  1
+              )
 
           # ======================================================
-          # SALVAR CARGA SEMANAL
+          # SALVAR SEMANAS
           # ======================================================
 
-          codigo = codigo.replace(
-              'val e = prefs.edit().putString("records", ra.toString())',
-              'val e = prefs.edit().putString("records", ra.toString()).putString("weeklyTarget", weeklyTarget)',
-              1
-          )
+          if '.putString("weekModes"' not in codigo:
+
+              antigo = (
+                  'val e = prefs.edit().putString("records", ra.toString()).putString("weeklyTarget", weeklyTarget)'
+              )
+
+              novo = "\n".join([
+                  "        val weekJson=JSONObject()",
+                  "        weekModes.forEach{(k,v)->weekJson.put(k,v)}",
+                  '        val e = prefs.edit().putString("records", ra.toString()).putString("weeklyTarget", weeklyTarget).putString("weekModes",weekJson.toString())'
+              ])
+
+              if antigo not in codigo:
+                  raise SystemExit("ERRO: saveData não encontrado.")
+
+              codigo = codigo.replace(
+                  antigo,
+                  novo,
+                  1
+              )
 
           # ======================================================
           # SHOW SCALE
           # ======================================================
 
-          inicio = codigo.find("    private fun showScale() {")
+          inicio = codigo.find(
+              "    private fun showScale() {"
+          )
 
           fim = codigo.find(
               "    private fun employeeDialog",
@@ -336,155 +428,122 @@ jobs:
               "    private fun showScale() {",
               "        val box=page(\"Escala Semanal\")",
               "",
-              "        box.addView(infoCard(\"Carga semanal: informe 44:00. O aplicativo divide automaticamente a carga entre os dias marcados como TRABALHA.\"))",
+              "        box.addView(infoCard(\"Escolha a jornada de cada semana. O padrão é segunda a sexta, 08:48 por dia.\"))",
               "",
-              "        val cargaCard=card()",
-              "        val cargaLinha=LinearLayout(this).apply{",
-              "            orientation=LinearLayout.HORIZONTAL",
-              "            gravity=Gravity.CENTER_VERTICAL",
-              "            setPadding(dp(12),dp(8),dp(12),dp(8))",
-              "        }",
+              "        fun semanaCard(titulo:String,data:Date){",
               "",
-              "        cargaLinha.addView(",
-              "            TextView(this).apply{",
-              "                text=\"Carga semanal\"",
-              "                textSize=16f",
-              "                setTypeface(null,Typeface.BOLD)",
-              "                setTextColor(darkBlue)",
-              "            },",
-              "            LinearLayout.LayoutParams(0,dp(55),1f)",
-              "        )",
+              "            val key=weekKey(data)",
+              "            val mode=modeForDate(data)",
               "",
-              "        val cargaEdit=durationEdit(weeklyTarget,\"44:00\").apply{",
-              "            gravity=Gravity.CENTER",
-              "        }",
+              "            val cardSemana=card()",
               "",
-              "        cargaEdit.setOnFocusChangeListener{_,has->",
-              "            if(!has){",
-              "                val v=normalizeDuration(cargaEdit.text.toString())",
-              "                if(v.isNotBlank()){",
-              "                    weeklyTarget=v",
-              "                    cargaEdit.setText(v)",
-              "                    cargaEdit.setSelection(cargaEdit.text.length)",
-              "                    saveData()",
-              "                    showScale()",
-              "                }",
-              "            }",
-              "        }",
-              "",
-              "        cargaLinha.addView(",
-              "            cargaEdit,",
-              "            LinearLayout.LayoutParams(dp(110),dp(55))",
-              "        )",
-              "",
-              "        cargaCard.addView(cargaLinha)",
-              "",
-              "        box.addView(",
-              "            cargaCard,",
-              "            LinearLayout.LayoutParams(-1,dp(75)).apply{bottomMargin=dp(10)}",
-              "        )",
-              "",
-              "        days.forEachIndexed{i,d->",
-              "            val s=scale[d]!!",
-              "            val row=card()",
-              "",
-              "            val line=LinearLayout(this).apply{",
+              "            val linha=LinearLayout(this).apply{",
               "                orientation=LinearLayout.VERTICAL",
-              "                setPadding(dp(12),dp(8),dp(12),dp(8))",
+              "                setPadding(dp(14),dp(10),dp(14),dp(10))",
               "            }",
               "",
-              "            val top=LinearLayout(this).apply{",
-              "                orientation=LinearLayout.HORIZONTAL",
-              "                gravity=Gravity.CENTER_VERTICAL",
-              "            }",
-              "",
-              "            top.addView(",
+              "            linha.addView(",
               "                TextView(this).apply{",
-              "                    text=d",
-              "                    textSize=16f",
+              "                    text=titulo",
+              "                    textSize=18f",
               "                    setTypeface(null,Typeface.BOLD)",
               "                    setTextColor(darkBlue)",
               "                },",
-              "                LinearLayout.LayoutParams(0,dp(48),1f)",
+              "                LinearLayout.LayoutParams(-1,dp(35))",
               "            )",
               "",
-              "            val sw=Switch(this).apply{",
-              "                text=if(s.enabled)\"TRABALHA\" else \"FOLGA\"",
-              "                isChecked=s.enabled",
+              "            linha.addView(",
+              "                TextView(this).apply{",
+              "                    text=weekLabel(data)",
+              "                    textSize=13f",
+              "                    setTextColor(muted)",
+              "                },",
+              "                LinearLayout.LayoutParams(-1,dp(28))",
+              "            )",
+              "",
+              "            linha.addView(",
+              "                TextView(this).apply{",
+              "                    text=modeTitle(mode)",
+              "                    textSize=15f",
+              "                    setTypeface(null,Typeface.BOLD)",
+              "                    setTextColor(darkBlue)",
+              "                    setPadding(0,dp(6),0,dp(6))",
+              "                },",
+              "                LinearLayout.LayoutParams(-1,dp(45))",
+              "            )",
+              "",
+              "            val mf=Button(this).apply{",
+              "                text=\"Segunda a sexta — 08:48\"",
+              "                isAllCaps=false",
               "            }",
               "",
-              "            sw.setOnCheckedChangeListener{_,v->",
-              "                s.enabled=v",
-              "                sw.text=if(v)\"TRABALHA\" else \"FOLGA\"",
+              "            mf.setOnClickListener{",
+              "                weekModes[key]=\"MF\"",
               "                saveData()",
               "                showScale()",
               "            }",
               "",
-              "            top.addView(sw)",
-              "            line.addView(top)",
-              "",
-              "            if(s.enabled){",
-              "                val times=LinearLayout(this).apply{",
-              "                    orientation=LinearLayout.HORIZONTAL",
-              "                }",
-              "",
-              "                listOf(",
-              "                    \"Entrada\" to s.e,",
-              "                    \"Saída 1\" to s.x1,",
-              "                    \"Retorno 1\" to s.r1,",
-              "                    \"Saída 2\" to s.x2",
-              "                ).forEachIndexed{j,p->",
-              "",
-              "                    val ed=timeEdit(p.second,p.first).apply{",
-              "                        gravity=Gravity.CENTER",
-              "                    }",
-              "",
-              "                    ed.setOnFocusChangeListener{_,has->",
-              "                        if(!has){",
-              "                            val v=normalizeTime(ed.text.toString())",
-              "                            when(j){",
-              "                                0->s.e=v",
-              "                                1->s.x1=v",
-              "                                2->s.r1=v",
-              "                                3->s.x2=v",
-              "                            }",
-              "                            saveData()",
-              "                        }",
-              "                    }",
-              "",
-              "                    times.addView(",
-              "                        ed,",
-              "                        LinearLayout.LayoutParams(0,dp(55),1f).apply{",
-              "                            if(j<3)rightMargin=dp(4)",
-              "                        }",
-              "                    )",
-              "                }",
-              "",
-              "                line.addView(times)",
-              "",
-              "                val diasAtivos=scale.values.count{it.enabled}.coerceAtLeast(1)",
-              "                val cargaDiaria=durationMinutes(weeklyTarget)/diasAtivos",
-              "",
-              "                line.addView(",
-              "                    TextView(this).apply{",
-              "                        text=\"Carga automática do dia: ${formatMin(cargaDiaria)}\"",
-              "                        textSize=13f",
-              "                        setTextColor(muted)",
-              "                        setPadding(0,dp(5),0,0)",
-              "                    }",
-              "                )",
+              "            val ms=Button(this).apply{",
+              "                text=\"Segunda a sábado — 07:20\"",
+              "                isAllCaps=false",
               "            }",
               "",
-              "            row.addView(line)",
+              "            ms.setOnClickListener{",
+              "                weekModes[key]=\"MS\"",
+              "                saveData()",
+              "                showScale()",
+              "            }",
+              "",
+              "            val personalizado=Button(this).apply{",
+              "                text=\"Personalizada\"",
+              "                isAllCaps=false",
+              "            }",
+              "",
+              "            personalizado.setOnClickListener{",
+              "                weekModes[key]=\"P\"",
+              "                saveData()",
+              "                showScale()",
+              "            }",
+              "",
+              "            linha.addView(",
+              "                mf,",
+              "                LinearLayout.LayoutParams(-1,dp(48)).apply{bottomMargin=dp(5)}",
+              "            )",
+              "",
+              "            linha.addView(",
+              "                ms,",
+              "                LinearLayout.LayoutParams(-1,dp(48)).apply{bottomMargin=dp(5)}",
+              "            )",
+              "",
+              "            linha.addView(",
+              "                personalizado,",
+              "                LinearLayout.LayoutParams(-1,dp(48))",
+              "            )",
+              "",
+              "            cardSemana.addView(linha)",
               "",
               "            box.addView(",
-              "                row,",
-              "                LinearLayout.LayoutParams(",
-              "                    -1,",
-              "                    if(s.enabled)dp(180) else dp(70)",
-              "                ).apply{bottomMargin=dp(8)}",
+              "                cardSemana,",
+              "                LinearLayout.LayoutParams(-1,dp(225)).apply{bottomMargin=dp(12)}",
               "            )",
               "        }",
+              "",
+              "        val hoje=Date()",
+              "",
+              "        val proxima=Calendar.getInstance().apply{",
+              "            time=hoje",
+              "            set(Calendar.HOUR_OF_DAY,0)",
+              "            set(Calendar.MINUTE,0)",
+              "            set(Calendar.SECOND,0)",
+              "            set(Calendar.MILLISECOND,0)",
+              "            set(Calendar.DAY_OF_WEEK,Calendar.MONDAY)",
+              "            add(Calendar.DAY_OF_MONTH,7)",
+              "        }.time",
+              "",
+              "        semanaCard(\"Semana atual\",hoje)",
+              "        semanaCard(\"Próxima semana\",proxima)",
+              "",
+              "        box.addView(infoCard(\"44:00 semanais: segunda a sexta = 08:48 por dia. Segunda a sábado = 07:20 por dia.\"))",
               "    }",
               "",
               ""
@@ -493,7 +552,7 @@ jobs:
           codigo = codigo[:inicio] + escala + codigo[fim:]
 
           # ======================================================
-          # CÁLCULO CORRETO
+          # CÁLCULO
           # ======================================================
 
           inicio = codigo.find(
@@ -513,11 +572,8 @@ jobs:
               "",
               "        var worked=0",
               "",
-              "        // Primeiro período",
               "        worked+=minutesBetween(r.punches[0],r.punches[1])",
               "",
-              "        // Se não existe segundo intervalo,",
-              "        // a terceira batida vai diretamente até a saída final.",
               "        val segundoIntervalo=",
               "            r.punches[3].isNotBlank() ||",
               "            r.punches[4].isNotBlank()",
@@ -529,35 +585,40 @@ jobs:
               "            worked+=minutesBetween(r.punches[2],r.punches[5])",
               "        }",
               "",
-              "        val cal=Calendar.getInstance().apply{",
-              "            time=parseIso(r.date)",
-              "        }",
+              "        val data=parseIso(r.date)",
+              "        val mode=modeForDate(data)",
               "",
-              "        val key=cal.get(Calendar.DAY_OF_WEEK)",
-              "        val index=dayKeys.indexOf(key)",
-              "        val d=if(index>=0)scale[days[index]] else null",
-              "",
-              "        if(d==null || !d.enabled){",
+              "        if(mode!=\"P\" && !modeForDay(data)){",
               "            return Calc(worked,0,0,worked)",
               "        }",
               "",
-              "        // 44:00 é duração semanal, não horário do relógio.",
+              "        if(mode==\"P\"){",
+              "            val cal=Calendar.getInstance().apply{time=data}",
+              "            val key=cal.get(Calendar.DAY_OF_WEEK)",
+              "            val index=dayKeys.indexOf(key)",
+              "            val d=if(index>=0)scale[days[index]] else null",
+              "",
+              "            if(d==null || !d.enabled){",
+              "                return Calc(worked,0,0,worked)",
+              "            }",
+              "",
+              "            val expected=",
+              "                minutesBetween(d.e,d.x1)+minutesBetween(d.r1,d.x2)",
+              "",
+              "            val extra=max(0,worked-expected)",
+              "            val faltante=max(0,expected-worked)",
+              "",
+              "            return Calc(worked,expected,extra,faltante)",
+              "        }",
+              "",
               "        val semanal=durationMinutes(weeklyTarget)",
-              "",
-              "        val diasTrabalhados=",
-              "            scale.values.count{it.enabled}.coerceAtLeast(1)",
-              "",
-              "        val expected=semanal/diasTrabalhados",
+              "        val dias=if(mode==\"MS\")6 else 5",
+              "        val expected=semanal/dias",
               "",
               "        val extra=max(0,worked-expected)",
               "        val faltante=max(0,expected-worked)",
               "",
-              "        return Calc(",
-              "            worked,",
-              "            expected,",
-              "            extra,",
-              "            faltante",
-              "        )",
+              "        return Calc(worked,expected,extra,faltante)",
               "    }",
               "",
               ""
@@ -607,7 +668,7 @@ jobs:
           )
 
           if inicio == -1 or fim == -1:
-              raise SystemExit("ERRO: minutesBetween/formatMin não encontrados.")
+              raise SystemExit("ERRO: minutesBetween não encontrado.")
 
           minutos = "\n".join([
               "    private fun minutesBetween(a:String,b:String):Int{",
@@ -628,7 +689,7 @@ jobs:
           codigo = codigo[:inicio] + minutos + codigo[fim:]
 
           # ======================================================
-          # FORMATMIN
+          # FORMAT MIN
           # ======================================================
 
           inicio = codigo.find(
@@ -652,18 +713,25 @@ jobs:
               "private fun normalizeDuration",
               "private fun durationMinutes",
               "private fun durationEdit",
+              "private val weekModes",
+              "private fun weekKey",
+              "private fun modeForDate",
+              "private fun modeForDay",
               "private fun calculate(r:PunchDay):Calc",
               "private fun minutesBetween",
               'private var weeklyTarget:String = "44:00"',
-              "Carga semanal",
-              "Carga automática do dia",
-              "val segundoIntervalo",
-              "worked+=minutesBetween(r.punches[2],r.punches[5])"
+              "Semana atual",
+              "Próxima semana",
+              "Segunda a sexta — 08:48",
+              "Segunda a sábado — 07:20",
+              "Carga semanal"
           ]
 
           for item in obrigatorias:
               if item not in codigo:
-                  raise SystemExit("ERRO: item ausente: " + item)
+                  raise SystemExit(
+                      "ERRO: item ausente: " + item
+                  )
 
           abertas = codigo.count("{")
           fechadas = codigo.count("}")
@@ -674,44 +742,64 @@ jobs:
           if abertas != fechadas:
               raise SystemExit("ERRO DE CHAVES")
 
-          arquivo.write_text(codigo,encoding="utf-8")
+          arquivo.write_text(
+              codigo,
+              encoding="utf-8"
+          )
 
           print("========================================")
           print("MAINACTIVITY CORRIGIDA")
           print("========================================")
+          print("JORNADA SEMANAL CONFIGURADA")
+          print("PADRÃO: SEGUNDA A SEXTA - 08:48")
+          print("OPÇÃO: SEGUNDA A SÁBADO - 07:20")
+          print("PERSONALIZADA: DISPONÍVEL")
 
       - name: Validar código
         shell: python
         run: |
           from pathlib import Path
 
-          arquivo=Path(
+          arquivo = Path(
               "ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
           )
 
-          codigo=arquivo.read_text(encoding="utf-8")
+          codigo = arquivo.read_text(encoding="utf-8")
 
-          obrigatorias=[
+          obrigatorias = [
               "private fun normalizeTime",
               "private fun normalizeDuration",
               "private fun durationMinutes",
-              "private fun durationEdit",
+              "private val weekModes",
+              "private fun weekKey",
+              "private fun modeForDate",
+              "private fun modeForDay",
               "private fun calculate(r:PunchDay):Calc",
-              "private fun minutesBetween",
-              'private var weeklyTarget:String = "44:00"',
               "Carga semanal",
-              "Carga automática do dia",
-              "val segundoIntervalo"
+              "Semana atual",
+              "Próxima semana",
+              "Segunda a sexta — 08:48",
+              "Segunda a sábado — 07:20"
           ]
 
           for item in obrigatorias:
               if item not in codigo:
-                  raise SystemExit("ERRO: "+item)
+                  raise SystemExit(
+                      "ERRO: " + item
+                  )
 
-          if codigo.count("{") != codigo.count("}"):
-              raise SystemExit("ERRO: chaves incompatíveis")
+          abertas = codigo.count("{")
+          fechadas = codigo.count("}")
 
-          print("CÓDIGO VALIDADO")
+          print("Linhas:",len(codigo.splitlines()))
+          print("Chaves:",abertas,fechadas)
+
+          if abertas != fechadas:
+              raise SystemExit(
+                  "ERRO: quantidade de chaves diferente"
+              )
+
+          print("CÓDIGO VALIDADO COM SUCESSO")
 
       - name: Instalar Gradle 8.11.1
         shell: bash
@@ -719,6 +807,7 @@ jobs:
           set -e
 
           wget -q https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
+
           unzip -q gradle-8.11.1-bin.zip
 
           echo "$PWD/gradle-8.11.1/bin" >> "$GITHUB_PATH"
@@ -730,6 +819,7 @@ jobs:
         shell: bash
         run: |
           set -e
+
           gradle clean --no-daemon
 
       - name: Gerar APK
@@ -761,6 +851,7 @@ jobs:
           APK="app/build/outputs/apk/debug/app-debug.apk"
 
           test -s "$APK"
+
           unzip -t "$APK" >/dev/null
 
           echo "APK ÍNTEGRO"
