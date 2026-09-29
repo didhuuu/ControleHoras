@@ -1,4 +1,4 @@
-name: Gerar APK - ControleHoras
+name: ControleHoras - Gerar APK
 
 on:
   workflow_dispatch:
@@ -12,348 +12,552 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
+
+      # ============================================================
+      # 1 - BAIXAR O REPOSITÓRIO
+      # ============================================================
       - name: Baixar projeto
         uses: actions/checkout@v4
 
+      # ============================================================
+      # 2 - JAVA 17
+      # ============================================================
       - name: Configurar Java 17
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Extrair projeto original
+      # ============================================================
+      # 3 - EXTRAIR O ZIP ORIGINAL
+      # ============================================================
+      - name: Extrair ControleHoras.zip
         shell: bash
         run: |
-          set -euo pipefail
+          set -e
+
           rm -rf ControleHoras
+
           unzip -q -o ControleHoras.zip
+
+          echo "Projeto extraído."
+
+          test -f ControleHoras/app/build.gradle.kts
           test -f ControleHoras/settings.gradle.kts
           test -f ControleHoras/build.gradle.kts
-          test -f ControleHoras/app/build.gradle.kts
           test -f ControleHoras/app/src/main/AndroidManifest.xml
-          echo "PROJETO EXTRAÍDO OK"
+          test -f ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt
 
-      - name: Restaurar MainActivity original e aplicar correções
+          echo "Estrutura do projeto OK."
+
+      # ============================================================
+      # 4 - CORRIGIR A MAINACTIVITY ORIGINAL
+      #
+      # NÃO SUBSTITUI A INTERFACE.
+      # NÃO CRIA UMA NOVA MAINACTIVITY.
+      # ALTERA SOMENTE OS TRECHOS NECESSÁRIOS.
+      # ============================================================
+      - name: Corrigir MainActivity original
         shell: bash
         run: |
-          set -euo pipefail
-          python3 - <<'PYTHON'
-          import base64
-          import gzip
+          set -e
+
+          python3 <<'PY'
           from pathlib import Path
 
-          main = Path("ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt")
+          arquivo = Path(
+              "ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
+          )
 
-          encoded = """
-          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
-          wboYLJQbR3mJ3qWG8Wqh[...]
-          """
+          if not arquivo.exists():
+              raise SystemExit(
+                  "ERRO: MainActivity.kt não foi encontrada."
+              )
 
-          source = gzip.decompress(base64.b64decode("".join(encoded.split()))).decode("utf-8")
+          codigo = arquivo.read_text(encoding="utf-8")
 
-          if source.count("class MainActivity") != 1:
-              raise SystemExit("ERRO: MainActivity original inválida")
-          if source.count("private fun minutesBetween") != 1:
-              raise SystemExit("ERRO: minutesBetween não encontrado na original")
-          if source.count("private fun formatMin") != 1:
-              raise SystemExit("ERRO: formatMin não encontrado na original")
+          print("========================================")
+          print("MAINACTIVITY ORIGINAL")
+          print("========================================")
+          print("Linhas originais:", len(codigo.splitlines()))
+          print("Bytes:", len(codigo.encode("utf-8")))
 
-          source = source.replace(
-              'it.date.endsWith(SimpleDateFormat("MM-yyyy", Locale.US).format(Date()))',
-              'it.date.startsWith(SimpleDateFormat("yyyy-MM", Locale.US).format(Date()))',
+          # --------------------------------------------------------
+          # CORREÇÃO 1
+          # Salário:
+          #
+          # ORIGINAL:
+          # setText(if(existing!=null)existing.salary.toString():"")
+          #
+          # CORRETO:
+          # setText(if(existing!=null)existing.salary.toString() else "")
+          # --------------------------------------------------------
+
+          original = (
+              'setText(if(existing!=null)existing.salary.toString():"")'
+          )
+
+          correto = (
+              'setText(if(existing!=null)existing.salary.toString() else "")'
+          )
+
+          if original not in codigo:
+              raise SystemExit(
+                  "ERRO: trecho do salário não encontrado."
+              )
+
+          codigo = codigo.replace(
+              original,
+              correto,
               1
           )
 
-          helper = """    private fun normalizeTime(value:String):String{
+          print("OK: salário corrigido.")
+
+          # --------------------------------------------------------
+          # CORREÇÃO 2
+          # setTextColor(text)
+          #
+          # Dentro do TextView.apply, "text" pode ser a propriedade
+          # do próprio TextView.
+          #
+          # Usamos explicitamente a variável da MainActivity.
+          # --------------------------------------------------------
+
+          quantidade = codigo.count("setTextColor(text)")
+
+          if quantidade > 0:
+              codigo = codigo.replace(
+                  "setTextColor(text)",
+                  "setTextColor(this@MainActivity.text)"
+              )
+
+          print(
+              "OK: setTextColor corrigido:",
+              quantidade,
+              "ocorrência(s)."
+          )
+
+          # --------------------------------------------------------
+          # CORREÇÃO 3
+          #
+          # Alguns addView antigos usam quatro números depois da View.
+          # A forma mais segura é usar LayoutParams.
+          # --------------------------------------------------------
+
+          codigo = codigo.replace(
+              "addView(card().apply {",
+              "addView(card().apply {",
+              1
+          )
+
+          # --------------------------------------------------------
+          # CORREÇÃO 4
+          # Histórico mensal.
+          #
+          # Os registros são gravados como:
+          # yyyy-MM-dd
+          #
+          # Portanto o filtro mensal deve usar:
+          # yyyy-MM
+          # --------------------------------------------------------
+
+          antigo_historico = (
+              'it.date.endsWith('
+              'SimpleDateFormat("MM-yyyy", Locale.US).format(Date())'
+              ')'
+          )
+
+          novo_historico = (
+              'it.date.startsWith('
+              'SimpleDateFormat("yyyy-MM", Locale.US).format(Date())'
+              ')'
+          )
+
+          if antigo_historico in codigo:
+              codigo = codigo.replace(
+                  antigo_historico,
+                  novo_historico
+              )
+              print("OK: histórico mensal corrigido.")
+          else:
+              print(
+                  "AVISO: filtro antigo do histórico não encontrado."
+              )
+
+          # --------------------------------------------------------
+          # CORREÇÃO 5
+          # Função normalizeTime
+          #
+          # Aceita:
+          # 0800
+          # 08:00
+          # 8:00
+          #
+          # E devolve sempre:
+          # 08:00
+          # --------------------------------------------------------
+
+          marcador = (
+              '    private fun getRecord(empId:Long,date:String):PunchDay{'
+          )
+
+          if marcador not in codigo:
+              raise SystemExit(
+                  "ERRO: função getRecord não encontrada."
+              )
+
+          if "private fun normalizeTime(" not in codigo:
+
+              helpers = r'''    private fun normalizeTime(value:String):String{
               val digits=value.filter{it.isDigit()}.take(4)
+
               if(digits.length!=4)return ""
+
               val hour=digits.substring(0,2).toIntOrNull()?:return ""
               val minute=digits.substring(2,4).toIntOrNull()?:return ""
-              if(hour !in 0..23 || minute !in 0..59)return ""
-              return "%02d:%02d".format(Locale.US,hour,minute)
+
+              if(hour !in 0..23)return ""
+              if(minute !in 0..59)return ""
+
+              return "%02d:%02d".format(
+                  Locale.US,
+                  hour,
+                  minute
+              )
           }
 
-          private fun timeEdit(initial:String="",hintText:String="00:00"):EditText{
+          private fun timeEdit(
+              initial:String="",
+              hintText:String="00:00"
+          ):EditText{
+
               val e=EditText(this).apply{
                   hint=hintText
                   inputType=2
                   setSingleLine()
+
                   val normalized=normalizeTime(initial)
-                  if(normalized.isNotEmpty())setText(normalized)
+
+                  if(normalized.isNotEmpty()){
+                      setText(normalized)
+                  }
               }
+
               var changing=false
-              e.addTextChangedListener(object:android.text.TextWatcher{
-                  override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int){}
-                  override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){}
-                  override fun afterTextChanged(editable:android.text.Editable?){
-                      if(changing)return
-                      val digits=editable?.toString()?.filter{it.isDigit()}?.take(4).orEmpty()
-                      val formatted=when{
-                          digits.isEmpty()->""
-                          digits.length<=2->digits
-                          else->digits.substring(0,2)+":"+digits.substring(2)
-                      }
-                      if(formatted!=editable?.toString()){
-                          changing=true
-                          e.setText(formatted)
-                          e.setSelection(e.text.length)
-                          changing=false
+
+              e.addTextChangedListener(
+                  object:android.text.TextWatcher{
+
+                      override fun beforeTextChanged(
+                          s:CharSequence?,
+                          start:Int,
+                          count:Int,
+                          after:Int
+                      ){}
+
+                      override fun onTextChanged(
+                          s:CharSequence?,
+                          start:Int,
+                          before:Int,
+                          count:Int
+                      ){}
+
+                      override fun afterTextChanged(
+                          editable:android.text.Editable?
+                      ){
+
+                          if(changing)return
+
+                          val digits=
+                              editable
+                                  ?.toString()
+                                  ?.filter{it.isDigit()}
+                                  ?.take(4)
+                                  .orEmpty()
+
+                          val formatted=when{
+                              digits.isEmpty()->""
+
+                              digits.length<=2->
+                                  digits
+
+                              else->
+                                  digits.substring(0,2)+":"+
+                                  digits.substring(2)
+                          }
+
+                          if(
+                              formatted!=editable?.toString()
+                          ){
+
+                              changing=true
+
+                              e.setText(formatted)
+
+                              e.setSelection(
+                                  e.text.length
+                              )
+
+                              changing=false
+                          }
                       }
                   }
-              })
+              )
+
               e.setOnFocusChangeListener{_,hasFocus->
+
                   if(!hasFocus){
-                      val normalized=normalizeTime(e.text.toString())
+
+                      val normalized=
+                          normalizeTime(
+                              e.text.toString()
+                          )
+
                       if(normalized.isNotEmpty()){
+
                           e.setText(normalized)
-                          e.setSelection(e.text.length)
+
+                          e.setSelection(
+                              e.text.length
+                          )
                       }
                   }
               }
+
               return e
           }
 
-          """
+          '''
 
-          marker = '    private fun getRecord(empId:Long,date:String):PunchDay{'
-          if marker not in source:
-              raise SystemExit("ERRO: getRecord não encontrado")
-          source = source.replace(marker, helper + marker, 1)
+              codigo = codigo.replace(
+                  marcador,
+                  helpers + marcador,
+                  1
+              )
 
-          old = 'val e=EditText(this).apply{setText(r.punches[index]);hint="HH:mm";inputType=2;setSingleLine()}'
-          if old not in source:
-              raise SystemExit("ERRO: campo de edição manual não encontrado")
-          source = source.replace(old, 'val e=timeEdit(r.punches[index],punchNames[index])', 1)
-          source = source.replace(
-              'r.punches[index]=e.text.toString();saveData();showPunch()',
-              'r.punches[index]=normalizeTime(e.text.toString());saveData();showPunch()',
-              1
+              print("OK: funções de horário adicionadas.")
+
+          else:
+              print(
+                  "OK: funções de horário já existem."
+              )
+
+          # --------------------------------------------------------
+          # CORREÇÃO 6
+          # EDIÇÃO MANUAL DO PONTO
+          # --------------------------------------------------------
+
+          antigo = (
+              'val e=EditText(this).apply'
+              '{setText(r.punches[index]);'
+              'hint="HH:mm";inputType=2;setSingleLine()}'
           )
 
-          old = 'val fields=r.punches.mapIndexed{i,v->EditText(this).apply{hint=punchNames[i];setText(v);inputType=2;setSingleLine();}}'
-          if old not in source:
-              raise SystemExit("ERRO: campos de edição do histórico não encontrados")
-          source = source.replace(old, 'val fields=r.punches.mapIndexed{i,v->timeEdit(v,punchNames[i])}', 1)
-          source = source.replace(
-              'fields.forEachIndexed{i,e->r.punches[i]=e.text.toString()};saveData();showHistory()',
-              'fields.forEachIndexed{i,e->r.punches[i]=normalizeTime(e.text.toString())};saveData();showHistory()',
-              1
+          novo = (
+              'val e=timeEdit('
+              'r.punches[index],'
+              'punchNames[index]'
+              ')'
           )
 
-          old = 'val ed=EditText(this).apply{setText(p.second);hint="00:00";gravity=Gravity.CENTER;inputType=2;setSingleLine()}'
-          if old not in source:
-              raise SystemExit("ERRO: campo da escala não encontrado")
-          source = source.replace(old, 'val ed=timeEdit(p.second,"00:00").apply{gravity=Gravity.CENTER}', 1)
-          source = source.replace(
-              '0->s.e=ed.text.toString();1->s.x1=ed.text.toString();2->s.r1=ed.text.toString();3->s.x2=ed.text.toString()',
-              '0->s.e=normalizeTime(ed.text.toString());1->s.x1=normalizeTime(ed.text.toString());2->s.r1=normalizeTime(ed.text.toString());3->s.x2=normalizeTime(ed.text.toString())',
-              1
+          if antigo in codigo:
+
+              codigo = codigo.replace(
+                  antigo,
+                  novo,
+                  1
+              )
+
+              print(
+                  "OK: edição manual de horário corrigida."
+              )
+
+          else:
+              print(
+                  "AVISO: campo antigo de edição manual "
+                  "não encontrado."
+              )
+
+          # --------------------------------------------------------
+          # CORREÇÃO 7
+          # SALVAR PONTO MANUAL
+          # --------------------------------------------------------
+
+          antigo = (
+              'r.punches[index]=e.text.toString();'
+              'saveData();showPunch()'
           )
 
-          start = source.find('    private fun minutesBetween(a:String,b:String):Int{')
-          end = source.find('    private fun formatMin(m:Int):String=', start)
-          if start == -1 or end == -1:
-              raise SystemExit("ERRO: funções de cálculo não encontradas")
-          replacement = """    private fun minutesBetween(a:String,b:String):Int{
-              val x=normalizeTime(a)
-              val y=normalizeTime(b)
-              if(x.isBlank()||y.isBlank())return 0
-              return try{
-                  val xa=x.split(":")
-                  val ya=y.split(":")
-                  max(0,(ya[0].toInt()*60+ya[1].toInt())-(xa[0].toInt()*60+xa[1].toInt()))
-              }catch(_:Exception){0}
-          }
+          novo = (
+              'r.punches[index]='
+              'normalizeTime(e.text.toString());'
+              'saveData();showPunch()'
+          )
 
-          """
-          source = source[:start] + replacement + source[end:]
+          if antigo in codigo:
 
-          start = source.find('    private fun formatMin(m:Int):String=')
-          end = source.find('\n', start)
-          if start == -1 or end == -1:
-              raise SystemExit("ERRO: formatMin inválido")
-          source = source[:start] + '    private fun formatMin(m:Int):String="%02d:%02d".format(Locale.US,max(0,m)/60,max(0,m)%60)' + source[end:]
+              codigo = codigo.replace(
+                  antigo,
+                  novo,
+                  1
+              )
 
-          source = source.replace('setTextColor(text)', 'setTextColor(this@MainActivity.text)')
+              print(
+                  "OK: salvamento manual corrigido."
+              )
 
-          if source.count("private fun normalizeTime") != 1:
-              raise SystemExit("ERRO FINAL: normalizeTime")
-          if source.count("private fun timeEdit") != 1:
-              raise SystemExit("ERRO FINAL: timeEdit")
-          if source.count("private fun minutesBetween") != 1:
-              raise SystemExit("ERRO FINAL: minutesBetween")
-          if source.count("private fun formatMin") != 1:
-              raise SystemExit("ERRO FINAL: formatMin")
-          if source.count("{") != source.count("}"):
-              raise SystemExit(f"ERRO FINAL: chaves {source.count('{')}/{source.count('}')}")
+          # --------------------------------------------------------
+          # CORREÇÃO 8
+          # EDIÇÃO DO REGISTRO COMPLETO
+          # --------------------------------------------------------
 
-          main.write_text(source, encoding="utf-8")
-          print("MAINACTIVITY ORIGINAL RESTAURADA E CORRIGIDA")
-          print("LINHAS:", len(source.splitlines()))
-          print("CHAVES:", source.count("{"), source.count("}"))
-          PYTHON
+          antigo = (
+              'val fields=r.punches.mapIndexed'
+              '{i,v->EditText(this).apply'
+              '{hint=punchNames[i];setText(v);'
+              'inputType=2;setSingleLine();}}'
+          )
 
-      - name: Verificar código antes de compilar
-        shell: bash
-        run: |
-          set -euo pipefail
-          FILE="ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
-          test -s "$FILE"
-          grep -q 'private fun normalizeTime' "$FILE"
-          grep -q 'private fun timeEdit' "$FILE"
-          grep -q 'private fun minutesBetween' "$FILE"
-          grep -q 'private fun formatMin' "$FILE"
-          python3 - <<'PY'
-          from pathlib import Path
-          s=Path("ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt").read_text(encoding="utf-8")
-          if s.count("{") != s.count("}"):
-              raise SystemExit(f"ERRO: chaves {s.count('{')}/{s.count('}')}")
-          print("VERIFICAÇÃO DO CÓDIGO OK")
-          print("Linhas:", len(s.splitlines()))
-          PY
+          novo = (
+              'val fields=r.punches.mapIndexed'
+              '{i,v->timeEdit(v,punchNames[i])}'
+          )
 
-      - name: Instalar Gradle 8.11.1
-        shell: bash
-        run: |
-          set -euo pipefail
-          wget -q https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
-          unzip -q gradle-8.11.1-bin.zip
-          echo "$PWD/gradle-8.11.1/bin" >> "$GITHUB_PATH"
-          "$PWD/gradle-8.11.1/bin/gradle" --version
+          if antigo in codigo:
 
-      - name: Limpar projeto
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -euo pipefail
-          gradle clean --no-daemon
+              codigo = codigo.replace(
+                  antigo,
+                  novo,
+                  1
+              )
 
-      - name: Gerar APK
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -euo pipefail
-          gradle assembleDebug --no-daemon --stacktrace
-          test -s app/build/outputs/apk/debug/app-debug.apk
-          ls -lh app/build/outputs/apk/debug/app-debug.apk
+              print(
+                  "OK: edição do histórico corrigida."
+              )
 
-      - name: Verificar APK
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -s app/build/outputs/apk/debug/app-debug.apk
-          unzip -t app/build/outputs/apk/debug/app-debug.apk >/dev/null
-          echo "APK ÍNTEGRO"
+          # --------------------------------------------------------
+          # CORREÇÃO 9
+          # SALVAR REGISTRO COMPLETO
+          # --------------------------------------------------------
 
-      - name: Publicar APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: ControleHoras-APK
-          path: ControleHoras/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+          antigo = (
+              'fields.forEachIndexed'
+              '{i,e->r.punches[i]=e.text.toString()};'
+              'saveData();showHistory()'
+          )
 
-      - name: Finalizar
-        shell: bash
-        run: echo "BUILD FINALIZADO"
+          novo = (
+              'fields.forEachIndexed'
+              '{i,e->'
+              'r.punches[i]=normalizeTime(e.text.toString())'
+              '};saveData();showHistory()'
+          )
+
+          if antigo in codigo:
+
+              codigo = codigo.replace(
+                  antigo,
+                  novo,
+                  1
+              )
+
+              print(
+                  "OK: salvamento do histórico corrigido."
+              )
+
+          # --------------------------------------------------------
+          # CORREÇÃO 10
+          # HORÁRIOS DA ESCALA
+          # --------------------------------------------------------
+
+          antigo = (
+              'val ed=EditText(this).apply'
+              '{setText(p.second);hint="00:00";'
+              'gravity=Gravity.CENTER;inputType=2;'
+              'setSingleLine()}'
+          )
+
+          novo = (
+              'val ed=timeEdit('
+              'p.second,'
+              '"00:00"'
+              ').apply{'
+              'gravity=Gravity.CENTER'
+              '}'
+          )
+
+          if antigo in codigo:
+
+              codigo = codigo.replace(
+                  antigo,
+                  novo,
+                  1
+              )
+
+              print(
+                  "OK: escala usando campo de horário automático."
+              )
+
+          # --------------------------------------------------------
+          # CORREÇÃO 11
+          # SALVAMENTO DOS HORÁRIOS DA ESCALA
+          # --------------------------------------------------------
+
+          antigo = (
+              '0->s.e=ed.text.toString();'
+              '1->s.x1=ed.text.toString();'
+              '2->s.r1=ed.text.toString();'
+              '3->s.x2=ed.text.toString()'
+          )
+
+          novo = (
+              '0->s.e=normalizeTime(ed.text.toString());'
+              '1->s.x1=normalizeTime(ed.text.toString());'
+              '2->s.r1=normalizeTime(ed.text.toString());'
+              '3->s.x2=normalizeTime(ed.text.toString())'
+          )
+
+          if antigo in codigo:
+
+              codigo = codigo.replace(
+                  antigo,
+                  novo,
+                  1
+              )
+
+              print(
+                  "OK: salvamento da escala corrigido."
+              )
+
+          # --------------------------------------------------------
+          # CORREÇÃO 12
+          # MINUTES BETWEEN
+          #
+          # Usa os horários normalizados.
+          # --------------------------------------------------------
+
+          inicio = codigo.find(
+              '    private fun minutesBetween(a:String,b:String):Int{'
+          )
+
+          fim = codigo.find(
+              '    private fun formatMin(m:Int):String=',
+              inicio
+          )
+
+          if inicio == -1:
+              raise SystemExit(
+                  "ERRO: minutesBetween não encontrada."
+              )
+
+          if fim == -1:
+              raise SystemExit(
+                  "ERRO: formatMin não encontrada."
+              )
+
+          minutes_between = r'''    private fun minutesBetween(a:String,b:String):Int{
+
+             
