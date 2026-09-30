@@ -261,17 +261,17 @@ jobs:
           from urllib.request import urlopen
           import subprocess
           import tempfile
-          import re
 
           # ----------------------------------------------------------
-          # Busca a versão que contém todo o código da roleta,
-          # layout corrigido, edição manual e correções da tela.
+          # A fonte abaixo contém a implementação completa da roleta,
+          # da tela de ponto, da edição manual e das correções visuais.
+          # O commit é fixo para não depender da versão atual do main.
           # ----------------------------------------------------------
 
           url = (
               "https://raw.githubusercontent.com/"
               "didhuuu/ControleHoras/"
-              "03efbe33072983efcdbf46234f146a2dbc7cf266/"
+              "a5346bba4ee9c420fee5d398a9974b793d8aaec7/"
               ".github/workflows/build.yml"
           )
 
@@ -310,14 +310,10 @@ jobs:
           ) + "\n"
 
           # ----------------------------------------------------------
-          # CORREÇÃO DEFINITIVA DO ERRO:
+          # Remove o bloco que causava conflito de triple-quote.
           #
-          # A versão anterior tinha um ''' dentro de outro '''.
-          # Isso fazia o Python encerrar a string antes da hora.
-          #
-          # O bloco "PERMITIR EDITAR BATIDA VAZIA" é desnecessário,
-          # porque showEditWheel já permite editar batida vazia.
-          # Removemos o bloco inteiro antes de executar o script.
+          # O showEditWheel novo já permite editar uma batida vazia,
+          # então esse bloco antigo não é necessário.
           # ----------------------------------------------------------
 
           bad_start = script.find(
@@ -344,20 +340,17 @@ jobs:
               )
 
               print(
-                  "BLOCO COM TRIPLE-QUOTE REMOVIDO"
+                  "BLOCO ANTIGO DE BATIDA VAZIA REMOVIDO"
               )
 
           elif bad_start >= 0:
 
               raise SystemExit(
-                  "Não foi possível localizar o fim "
-                  "do bloco problemático"
+                  "ERRO: fim do bloco problemático não encontrado"
               )
 
           # ----------------------------------------------------------
-          # Verificação de sintaxe antes de executar.
-          # Se houver qualquer problema Python, o workflow para
-          # aqui em vez de chegar ao Gradle.
+          # Confere a sintaxe antes de executar.
           # ----------------------------------------------------------
 
           compile(
