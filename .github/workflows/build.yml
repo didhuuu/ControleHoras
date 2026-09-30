@@ -35,7 +35,7 @@ jobs:
 
 
       # ============================================================
-      # 3 - EXTRAIR PROJETO ORIGINAL
+      # 3 - EXTRAIR PROJETO
       # ============================================================
 
       - name: Extrair projeto
@@ -44,7 +44,7 @@ jobs:
           set -e
 
           echo "========================================"
-          echo "EXTRAINDO PROJETO"
+          echo "EXTRAINDO CONTROLEHORAS"
           echo "========================================"
 
           rm -rf ControleHoras
@@ -61,7 +61,7 @@ jobs:
 
 
       # ============================================================
-      # 4 - APLICAR EXATAMENTE A BASE 70
+      # 4 - BASE 70
       # ============================================================
 
       - name: Aplicar exatamente a Base 70
@@ -128,7 +128,7 @@ jobs:
 
               if marker not in block:
                   raise RuntimeError(
-                      f"Bloco Python não encontrado: {name}"
+                      f"run não encontrado: {name}"
                   )
 
               pos = (
@@ -195,7 +195,7 @@ jobs:
 
           print("========================================")
           print("BASE 70 APLICADA")
-          print("ESCALA ORIGINAL PRESERVADA")
+          print("ESCALA PRESERVADA")
           print("========================================")
 
 
@@ -203,7 +203,7 @@ jobs:
       # 5 - FUNCIONALIDADES DA VERSÃO 80
       # ============================================================
 
-      - name: Aplicar correções da versão 80
+      - name: Aplicar funcionalidades da versão 80
         shell: python
         run: |
           from pathlib import Path
@@ -212,7 +212,7 @@ jobs:
           import tempfile
 
           print("========================================")
-          print("APLICANDO FUNCIONALIDADES DA VERSÃO 80")
+          print("APLICANDO VERSÃO 80")
           print("========================================")
 
           url = (
@@ -310,15 +310,16 @@ jobs:
               check=True
           )
 
+          print("========================================")
           print("VERSÃO 80 APLICADA")
+          print("========================================")
 
 
       # ============================================================
-      # 6 - CORRIGIR CARTÃO DO FUNCIONÁRIO
-      #    CORREÇÃO DO ERRO addView DA VERSÃO 80
+      # 6 - CORRIGIR ADDVIEW DA VERSÃO 80
       # ============================================================
 
-      - name: Corrigir cartão de funcionário
+      - name: Corrigir estrutura do cartão
         shell: python
         run: |
           from pathlib import Path
@@ -336,15 +337,15 @@ jobs:
 
 
           pattern = re.compile(
-              r"box\.addView\("
-              r"\s*card\(\)\.apply\{"
+              r"box\.addView"
+              r"\s*card\(\.apply\{"
               r"(?P<body>.*?)"
-              r"\s*addView\(line\)\s*"
+              r"\s*addViewline\s*"
               r"\},"
               r"\s*0,"
               r"\s*0,"
               r"\s*0,"
-              r"\s*dp\(10\)"
+              r"\s*dp10"
               r"\s*\)",
               re.S
           )
@@ -355,40 +356,39 @@ jobs:
           )
 
 
-          if not match:
-              raise SystemExit(
-                  "ERRO: cartão de funcionário "
-                  "da versão 80 não encontrado."
+          if match:
+
+              body = match.group(
+                  "body"
               )
 
+              replacement = (
+                  "val employeeCard="
+                  "((card() as android.view.ViewGroup).apply{\n"
+                  + body
+                  + "\n})\n\n"
+                  + "box.addView(\n"
+                  + "    employeeCard,\n"
+                  + "    LinearLayout.LayoutParams(\n"
+                  + "        -1,\n"
+                  + "        -2\n"
+                  + "    ).apply{\n"
+                  + "        bottomMargin=dp(10)\n"
+                  + "    }\n"
+                  + ")"
+              )
 
-          body = match.group(
-              "body"
-          )
+              code = (
+                  code[:match.start()]
+                  + replacement
+                  + code[match.end():]
+              )
 
+          elif "val employeeCard=" not in code:
 
-          replacement = (
-              "val employeeCard="
-              "((card() as android.view.ViewGroup).apply{\n"
-              + body
-              + "\n})\n\n"
-              + "box.addView(\n"
-              + "    employeeCard,\n"
-              + "    LinearLayout.LayoutParams("
-              + "-1,"
-              + "-2"
-              + ").apply{"
-              + "bottomMargin=dp(10)"
-              + "}\n"
-              + ")"
-          )
-
-
-          code = (
-              code[:match.start()]
-              + replacement
-              + code[match.end():]
-          )
+              raise SystemExit(
+                  "ERRO: cartão de funcionário não encontrado."
+              )
 
 
           src.write_text(
@@ -396,14 +396,13 @@ jobs:
               encoding="utf-8"
           )
 
-
           print(
               "CARTÃO DE FUNCIONÁRIO CORRIGIDO"
           )
 
 
       # ============================================================
-      # 7 - CRIAR SOM MECÂNICO DA ROLETA
+      # 7 - CRIAR SOM DA ROLETA
       # ============================================================
 
       - name: Criar som mecânico da roleta
@@ -429,27 +428,27 @@ jobs:
           )
 
           rate = 44100
-
           duration = 0.035
 
-          count = int(
+          total = int(
               rate * duration
           )
 
-          data = bytearray()
+          frames = []
 
 
-          for i in range(count):
+          for i in range(total):
 
               t = i / rate
 
-              amp = int(
-                  13000 *
-                  (1 - i / count)
+              envelope = (
+                  1.0 -
+                  (i / total)
               )
 
-              value = int(
-                  amp *
+              sample = int(
+                  15000 *
+                  envelope *
                   math.sin(
                       2 *
                       math.pi *
@@ -458,10 +457,10 @@ jobs:
                   )
               )
 
-              data.extend(
+              frames.append(
                   struct.pack(
                       "<h",
-                      value
+                      sample
                   )
               )
 
@@ -484,410 +483,1016 @@ jobs:
               )
 
               wav.writeframes(
-                  bytes(data)
+                  b"".join(frames)
               )
 
 
+          test = filename.read_bytes()
+
+          if len(test) < 100:
+              raise SystemExit(
+                  "ERRO: som não foi criado."
+              )
+
           print(
-              f"SOM CRIADO: {filename}"
+              "SOM MECÂNICO CRIADO"
           )
 
 
       # ============================================================
-      # 8 - APLICAR ROLETA AZUL / NEON
-      #    USANDO O BLOCO ESTÁVEL DA ROLETA
+      # 8 - INSTALAR ROLETA DIRETAMENTE
       #
-      #    O SCRIPT ANTIGO TINHA ASSIGNMENTS PYTHON
-      #    QUEBRADOS EM DUAS LINHAS.
-      #    AQUI ELE É REPARADO ANTES DE SER EXECUTADO.
+      # NÃO USA MAIS O SCRIPT ANTIGO DA VERSÃO 39.
       # ============================================================
 
-      - name: Aplicar roleta azul neon
+      - name: Instalar roleta azul neon
         shell: python
         run: |
           from pathlib import Path
-          from urllib.request import urlopen
-          import subprocess
-          import tempfile
           import re
 
-          print("========================================")
-          print("BAIXANDO BLOCO ESTÁVEL DA ROLETA")
-          print("========================================")
-
-
-          url = (
-              "https://raw.githubusercontent.com/"
-              "didhuuu/ControleHoras/"
-              "39fc6bfb41ebc7b01d6c435a85b5228e735f3f2/"
-              ".github/workflows/build.yml"
+          src = Path(
+              "ControleHoras/"
+              "app/src/main/java/com/didhuuu/"
+              "controlehoras/MainActivity.kt"
           )
 
-
-          workflow = urlopen(
-              url,
-              timeout=60
-          ).read().decode("utf-8")
-
-
-          def extract_run_containing(
-              needle
-          ):
-
-              pos = workflow.index(
-                  needle
+          if not src.exists():
+              raise SystemExit(
+                  "MainActivity.kt não encontrado."
               )
 
-
-              step_start = workflow.rfind(
-                  "      - name:",
-                  0,
-                  pos
-              )
-
-
-              if step_start < 0:
-                  raise RuntimeError(
-                      "Etapa da roleta não encontrada."
-                  )
-
-
-              next_step = workflow.find(
-                  "      - name:",
-                  pos + len(needle)
-              )
-
-
-              if next_step < 0:
-                  next_step = len(
-                      workflow
-                  )
-
-
-              block = workflow[
-                  step_start:
-                  next_step
-              ]
-
-
-              marker = (
-                  "        run: |\n"
-              )
-
-
-              if marker not in block:
-                  raise RuntimeError(
-                      "run da roleta não encontrado."
-                  )
-
-
-              pos2 = (
-                  block.index(marker)
-                  + len(marker)
-              )
-
-
-              lines = block[
-                  pos2:
-              ].splitlines()
-
-
-              return (
-                  "\n".join(
-                      line[10:]
-                      if line.startswith("          ")
-                      else line
-                      for line in lines
-                  ).rstrip()
-                  + "\n"
-              )
-
-
-          def repair_python_assignments(
-              source
-          ):
-
-              lines = source.splitlines()
-
-              output = []
-
-              in_triple = None
-
-              i = 0
-
-
-              while i < len(lines):
-
-                  line = lines[i]
-
-
-                  if in_triple is None:
-
-                      match = re.match(
-                          r"^(\s*)([A-Za-z_]\w*)=\s*$",
-                          line
-                      )
-
-
-                      if (
-                          match
-                          and
-                          i + 1 < len(lines)
-                          and
-                          lines[i + 1].strip()
-                      ):
-
-                          output.append(
-                              match.group(1)
-                              + match.group(2)
-                              + "="
-                              + lines[i + 1].lstrip()
-                          )
-
-                          i += 2
-
-                          continue
-
-
-                  output.append(
-                      line
-                  )
-
-
-                  for quote in (
-                      '"""',
-                      "'''"
-                  ):
-
-                      if (
-                          line.count(
-                              quote
-                          ) % 2
-                      ):
-
-                          if in_triple is None:
-
-                              in_triple = quote
-
-                          elif (
-                              in_triple
-                              == quote
-                          ):
-
-                              in_triple = None
-
-
-                  i += 1
-
-
-              return (
-                  "\n".join(output)
-                  + "\n"
-              )
-
-
-          script = extract_run_containing(
-              "ControleHorasTimeWheelView"
-          )
-
-
-          script = repair_python_assignments(
-              script
-          )
-
-
-          path = (
-              Path(tempfile.gettempdir())
-              / "roleta_completa.py"
-          )
-
-
-          path.write_text(
-              script,
+          code = src.read_text(
               encoding="utf-8"
           )
 
 
-          # PRIMEIRO COMPILE.
-          # SE O SCRIPT AINDA TIVER ERRO,
-          # O BUILD PARA AQUI E MOSTRA O ERRO REAL.
+          # ========================================================
+          # IMPORTS
+          # ========================================================
 
-          compile(
-              script,
-              str(path),
-              "exec"
+          package_end = code.find(
+              "\n",
+              code.find("package ")
           )
 
 
-          subprocess.run(
-              [
-                  "python",
-                  str(path)
-              ],
-              check=True
-          )
+          imports = [
+              "import android.content.Context",
+              "import android.graphics.Canvas",
+              "import android.graphics.Paint",
+              "import android.graphics.Path",
+              "import android.graphics.LinearGradient",
+              "import android.graphics.Shader",
+              "import android.graphics.RectF",
+              "import android.media.AudioAttributes",
+              "import android.media.SoundPool",
+              "import android.view.MotionEvent"
+          ]
 
 
-          print("========================================")
-          print("ROLETA APLICADA COM SUCESSO")
-          print("========================================")
+          insertion = ""
+
+          for imp in imports:
+
+              if imp not in code:
+
+                  insertion += (
+                      imp + "\n"
+                  )
 
 
-      # ============================================================
-      # 9 - VALIDAR CÓDIGO FINAL
-      # ============================================================
+          if insertion:
 
-      - name: Validar código final
-        shell: bash
-        run: |
-          set -e
-
-          FILE="ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
-
-          echo "========================================"
-          echo "VALIDANDO MAINACTIVITY"
-          echo "========================================"
-
-          test -s "$FILE"
-
-          grep -q 'selectedPunchDate' "$FILE"
-
-          grep -q 'choosePunchDate' "$FILE"
-
-          grep -q 'dataButton' "$FILE"
-
-          grep -q 'private fun normalizeTime' "$FILE"
-
-          grep -q 'private fun timeEdit' "$FILE"
-
-          grep -q 'ControleHorasTimeWheelView' "$FILE"
-
-          grep -q 'showEditWheel' "$FILE"
-
-          grep -q 'showManualWheel' "$FILE"
-
-          grep -q 'punchNames' "$FILE"
-
-          grep -q 'extra2Enabled' "$FILE"
-
-          grep -q 'roller_click' "$FILE"
+              code = (
+                  code[:package_end + 1]
+                  + insertion
+                  + code[package_end + 1:]
+              )
 
 
-          if grep -q 'NumberPicker' "$FILE"; then
-            echo "ERRO: NumberPicker antigo ainda presente"
-            exit 1
-          fi
+          # ========================================================
+          # NOMES DAS BATIDAS
+          # ========================================================
+
+          if "private val punchNames" not in code:
+
+              names = """
+              private val punchNames=arrayOf<String>(
+                  "Entrada",
+                  "Saída",
+                  "Retorno",
+                  "Saída intervalo 2",
+                  "Retorno intervalo 2",
+                  "Saída"
+              )
+
+              """
+
+              class_pos = code.find(
+                  "class MainActivity"
+              )
+
+              if class_pos < 0:
+                  raise SystemExit(
+                      "MainActivity não encontrada."
+                  )
+
+              code = (
+                  code[:class_pos]
+                  + names
+                  + code[class_pos:]
+              )
 
 
-          if grep -q 'Button(context)' "$FILE"; then
-            echo "ERRO: Button(context)"
-            exit 1
-          fi
+          # ========================================================
+          # REFERÊNCIA DA PÁGINA
+          # ========================================================
+
+          if (
+              "private var controleHorasPunchPage"
+              not in code
+          ):
+
+              class_pos = code.find(
+                  "class MainActivity"
+              )
+
+              if class_pos < 0:
+                  raise SystemExit(
+                      "MainActivity não encontrada."
+                  )
+
+              prop = """
+                  private var controleHorasPunchPage:View?=null
+
+              """
+
+              code = (
+                  code[:class_pos]
+                  + prop
+                  + code[class_pos:]
+              )
 
 
-          test -s \
-            "ControleHoras/app/src/main/res/raw/roller_click.wav"
+          # ========================================================
+          # CLASSE DA ROLETA
+          # ========================================================
+
+          if (
+              "class ControleHorasTimeWheelView"
+              not in code
+          ):
+
+              wheel_class = r"""
+              private class ControleHorasTimeWheelView(
+                  context:Context,
+                  private val maximum:Int,
+                  initial:Int
+              ):View(context){
+
+                  private val density=
+                      resources.displayMetrics.density
+
+                  private fun dp(
+                      v:Float
+                  )=v*density
+
+                  private val paint=
+                      Paint(
+                          Paint.ANTI_ALIAS_FLAG
+                      )
+
+                  private var current=
+                      initial.coerceIn(
+                          0,
+                          maximum
+                      )
+
+                  private var downY=0f
+
+                  private var moved=false
+
+                  private val audio=
+                      SoundPool.Builder()
+                          .setMaxStreams(2)
+                          .setAudioAttributes(
+                              AudioAttributes.Builder()
+                                  .setUsage(
+                                      AudioAttributes.USAGE_ASSISTANCE_SONIFICATION
+                                  )
+                                  .setContentType(
+                                      AudioAttributes.CONTENT_TYPE_SONIFICATION
+                                  )
+                                  .build()
+                          )
+                          .build()
+
+                  private var clickId=0
+
+                  var onValueChanged:
+                      ((Int)->Unit)?=null
+
+                  init{
+
+                      setLayerType(
+                          View.LAYER_TYPE_SOFTWARE,
+                          null
+                      )
+
+                      clickId=
+                          audio.load(
+                              context,
+                              com.didhuuu.controlehoras.R.raw.roller_click,
+                              1
+                          )
+
+                      setBackgroundColor(
+                          0xFF111111.toInt()
+                      )
+                  }
+
+                  fun value()=
+                      current
+
+                  fun setCurrent(
+                      v:Int
+                  ){
+
+                      current=
+                          v.coerceIn(
+                              0,
+                              maximum
+                          )
+
+                      invalidate()
+
+                      onValueChanged?.invoke(
+                          current
+                      )
+                  }
+
+                  private fun click(){
+
+                      if(clickId>0){
+
+                          audio.play(
+                              clickId,
+                              0.35f,
+                              0.35f,
+                              1,
+                              0,
+                              1f
+                          )
+                      }
+                  }
+
+                  private fun change(
+                      delta:Int
+                  ){
+
+                      val old=current
+
+                      current=
+                          (
+                              current+delta
+                          ).coerceIn(
+                              0,
+                              maximum
+                          )
+
+                      if(
+                          old!=current
+                      ){
+
+                          click()
+
+                          onValueChanged?.invoke(
+                              current
+                          )
+
+                          invalidate()
+                      }
+                  }
+
+                  override fun onDraw(
+                      canvas:Canvas
+                  ){
+
+                      super.onDraw(
+                          canvas
+                      )
+
+                      val w=
+                          width.toFloat()
+
+                      val h=
+                          height.toFloat()
+
+                      val radius=
+                          dp(20f)
 
 
-          echo "========================================"
-          echo "CÓDIGO FINAL VALIDADO"
-          echo "========================================"
+                      paint.shader=
+                          LinearGradient(
+                              0f,
+                              0f,
+                              w,
+                              0f,
+                              intArrayOf(
+                                  0xFF151515.toInt(),
+                                  0xFFBFC2C4.toInt(),
+                                  0xFFF8F8F8.toInt(),
+                                  0xFF96999B.toInt(),
+                                  0xFF151515.toInt()
+                              ),
+                              null,
+                              Shader.TileMode.CLAMP
+                          )
 
 
-      # ============================================================
-      # 10 - INSTALAR GRADLE
-      # ============================================================
-
-      - name: Instalar Gradle 8.11.1
-        shell: bash
-        run: |
-          set -e
-
-          wget -q \
-            https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
-
-          unzip -q \
-            gradle-8.11.1-bin.zip
-
-          echo \
-            "$PWD/gradle-8.11.1/bin" \
-            >> "$GITHUB_PATH"
-
-          "$PWD/gradle-8.11.1/bin/gradle" \
-            --version
+                      canvas.drawRoundRect(
+                          RectF(
+                              0f,
+                              0f,
+                              w,
+                              h
+                          ),
+                          radius,
+                          radius,
+                          paint
+                      )
 
 
-      # ============================================================
-      # 11 - LIMPAR PROJETO
-      # ============================================================
+                      paint.shader=null
 
-      - name: Limpar projeto
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -e
+                      paint.style=
+                          Paint.Style.STROKE
 
-          gradle \
-            clean \
-            --no-daemon
+                      paint.strokeWidth=
+                          dp(2f)
+
+                      paint.color=
+                          0xFF707070.toInt()
 
 
-      # ============================================================
-      # 12 - GERAR APK
-      # ============================================================
-
-      - name: Gerar APK
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -e
-
-          echo "========================================"
-          echo "GERANDO APK"
-          echo "========================================"
-
-          gradle \
-            assembleDebug \
-            --no-daemon \
-            --stacktrace
-
-          APK="app/build/outputs/apk/debug/app-debug.apk"
-
-          test -s "$APK"
-
-          ls -lh "$APK"
-
-          echo "APK GERADO"
+                      canvas.drawRoundRect(
+                          RectF(
+                              dp(4f),
+                              dp(4f),
+                              w-dp(4f),
+                              h-dp(4f)
+                          ),
+                          radius,
+                          radius,
+                          paint
+                      )
 
 
-      # ============================================================
-      # 13 - VALIDAR APK
-      # ============================================================
-
-      - name: Verificar APK
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -e
-
-          APK="app/build/outputs/apk/debug/app-debug.apk"
-
-          test -s "$APK"
-
-          unzip -t "$APK" >/dev/null
-
-          echo "========================================"
-          echo "APK VALIDADO"
-          echo "========================================"
+                      paint.style=
+                          Paint.Style.FILL
 
 
-      # ============================================================
-      # 14 - PUBLICAR APK
-      # ============================================================
+                      val centerY=
+                          h/2f
 
-      - name: Publicar APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: ControleHoras-APK
-          path: ControleHoras/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+                      val bandH=
+                          dp(58f)
+
+
+                      paint.setShadowLayer(
+                          dp(10f),
+                          0f,
+                          0f,
+                          0xCC006EFF.toInt()
+                      )
+
+
+                      paint.color=
+                          0xFF086BEA.toInt()
+
+
+                      canvas.drawRoundRect(
+                          RectF(
+                              dp(9f),
+                              centerY-bandH/2f,
+                              w-dp(9f),
+                              centerY+bandH/2f
+                          ),
+                          dp(9f),
+                          dp(9f),
+                          paint
+                      )
+
+
+                      paint.clearShadowLayer()
+
+
+                      val centerPaint=
+                          Paint(
+                              Paint.ANTI_ALIAS_FLAG
+                          )
+
+
+                      centerPaint.color=
+                          0xFFFFFFFF.toInt()
+
+                      centerPaint.textAlign=
+                          Paint.Align.CENTER
+
+                      centerPaint.typeface=
+                          android.graphics.Typeface.DEFAULT_BOLD
+
+                      centerPaint.textSize=
+                          dp(31f)
+
+
+                      val centerBase=
+                          centerY-
+                          (
+                              centerPaint.ascent()+
+                              centerPaint.descent()
+                          )/2f
+
+
+                      canvas.drawText(
+                          current
+                              .toString()
+                              .padStart(
+                                  2,
+                                  '0'
+                              ),
+                          w/2f,
+                          centerBase,
+                          centerPaint
+                      )
+
+
+                      val normalPaint=
+                          Paint(
+                              Paint.ANTI_ALIAS_FLAG
+                          )
+
+                      normalPaint.color=
+                          0xFF101318.toInt()
+
+                      normalPaint.textAlign=
+                          Paint.Align.CENTER
+
+                      normalPaint.typeface=
+                          android.graphics.Typeface.DEFAULT_BOLD
+
+                      normalPaint.textSize=
+                          dp(25f)
+
+
+                      val step=
+                          dp(51f)
+
+
+                      for(offset in -2..2){
+
+                          if(offset==0)
+                              continue
+
+                          val number=
+                              current+offset
+
+                          if(
+                              number<0 ||
+                              number>maximum
+                          )
+                              continue
+
+                          val y=
+                              centerBase+
+                              offset*step
+
+                          normalPaint.alpha=
+                              when(
+                                  kotlin.math.abs(
+                                      offset
+                                  )
+                              ){
+                                  1->255
+                                  else->125
+                              }
+
+                          canvas.drawText(
+                              number
+                                  .toString()
+                                  .padStart(
+                                      2,
+                                      '0'
+                                  ),
+                              w/2f,
+                              y,
+                              normalPaint
+                          )
+                      }
+
+
+                      normalPaint.alpha=255
+
+
+                      val arrowPaint=
+                          Paint(
+                              Paint.ANTI_ALIAS_FLAG
+                          )
+
+                      arrowPaint.color=
+                          0xFF1494FF.toInt()
+
+
+                      val left=
+                          Path()
+
+                      left.moveTo(
+                          dp(7f),
+                          centerY
+                      )
+
+                      left.lineTo(
+                          dp(25f),
+                          centerY-dp(14f)
+                      )
+
+                      left.lineTo(
+                          dp(25f),
+                          centerY+dp(14f)
+                      )
+
+                      left.close()
+
+                      canvas.drawPath(
+                          left,
+                          arrowPaint
+                      )
+
+
+                      val right=
+                          Path()
+
+                      right.moveTo(
+                          w-dp(7f),
+                          centerY
+                      )
+
+                      right.lineTo(
+                          w-dp(25f),
+                          centerY-dp(14f)
+                      )
+
+                      right.lineTo(
+                          w-dp(25f),
+                          centerY+dp(14f)
+                      )
+
+                      right.close()
+
+                      canvas.drawPath(
+                          right,
+                          arrowPaint
+                      )
+                  }
+
+
+                  override fun onTouchEvent(
+                      event:MotionEvent
+                  ):Boolean{
+
+                      when(
+                          event.actionMasked
+                      ){
+
+                          MotionEvent.ACTION_DOWN->{
+
+                              downY=
+                                  event.y
+
+                              moved=false
+
+                              return true
+                          }
+
+
+                          MotionEvent.ACTION_MOVE->{
+
+                              val distance=
+                                  downY-event.y
+
+                              if(
+                                  kotlin.math.abs(
+                                      distance
+                                  )>=dp(24f)
+                              ){
+
+                                  moved=true
+
+                                  val steps=
+                                      (
+                                          distance/
+                                          dp(24f)
+                                      ).toInt()
+
+                                  if(steps!=0){
+
+                                      val direction=
+                                          if(
+                                              steps>0
+                                          )
+                                              1
+                                          else
+                                              -1
+
+                                      repeat(
+                                          kotlin.math.abs(
+                                              steps
+                                          )
+                                      ){
+                                          change(
+                                              direction
+                                          )
+                                      }
+
+                                      downY=
+                                          event.y
+                                  }
+                              }
+
+                              return true
+                          }
+
+
+                          MotionEvent.ACTION_UP->{
+
+                              if(!moved){
+
+                                  if(
+                                      event.x<
+                                      width/2f
+                                  )
+                                      change(-1)
+                                  else
+                                      change(1)
+                              }
+
+                              performClick()
+
+                              return true
+                          }
+
+
+                          MotionEvent.ACTION_CANCEL->{
+
+                              return true
+                          }
+                      }
+
+                      return true
+                  }
+
+
+                  override fun performClick():
+                      Boolean{
+
+                      super.performClick()
+
+                      return true
+                  }
+
+
+                  override fun onDetachedFromWindow(){
+
+                      audio.release()
+
+                      super.onDetachedFromWindow()
+                  }
+              }
+
+              """
+
+
+              main_index=
+                  code.find(
+                      "class MainActivity"
+                  )
+
+
+              if(main_index<0):
+                  raise SystemExit(
+                      "MainActivity não encontrada."
+                  )
+
+
+              code=(
+                  code[:main_index]
+                  +wheel_class
+                  +"\n"
+                  +code[main_index:]
+              )
+
+
+          # ========================================================
+          # DIÁLOGO DA ROLETA
+          # ========================================================
+
+          dialog_method = r"""
+              private fun showControleHorasWheelDialog(
+                  title:String,
+                  date:String,
+                  initialHour:Int,
+                  initialMinute:Int,
+                  onSave:(String)->Unit
+              ){
+
+                  val wrap=
+                      LinearLayout(this).apply{
+
+                          orientation=
+                              LinearLayout.VERTICAL
+
+                          gravity=
+                              Gravity.CENTER_HORIZONTAL
+
+                          setPadding(
+                              dp(18),
+                              dp(12),
+                              dp(18),
+                              dp(16)
+                          )
+
+                          background(
+                              Color.WHITE,
+                              dp(22),
+                              dp(22),
+                              dp(22),
+                              dp(22)
+                          )
+                      }
+
+
+                  val top=
+                      LinearLayout(this).apply{
+
+                          orientation=
+                              LinearLayout.HORIZONTAL
+
+                          gravity=
+                              Gravity.CENTER_VERTICAL
+                      }
+
+
+                  val titleView=
+                      TextView(this).apply{
+
+                          text=title
+
+                          textSize=22f
+
+                          setTypeface(
+                              null,
+                              Typeface.BOLD
+                          )
+
+                          setTextColor(
+                              darkBlue
+                          )
+
+                          gravity=
+                              Gravity.CENTER_VERTICAL
+                      }
+
+
+                  top.addView(
+                      titleView,
+                      LinearLayout.LayoutParams(
+                          0,
+                          dp(52),
+                          1f
+                      )
+                  )
+
+
+                  val close=
+                      TextView(this).apply{
+
+                          text="×"
+
+                          textSize=36f
+
+                          setTextColor(
+                              darkBlue
+                          )
+
+                          gravity=
+                              Gravity.CENTER
+                      }
+
+
+                  top.addView(
+                      close,
+                      LinearLayout.LayoutParams(
+                          dp(52),
+                          dp(52)
+                      )
+                  )
+
+
+                  wrap.addView(
+                      top
+                  )
+
+
+                  wrap.addView(
+                      TextView(this).apply{
+
+                          text=
+                              "DATA: $date"
+
+                          textSize=16f
+
+                          gravity=
+                              Gravity.CENTER
+
+                          setTextColor(
+                              0xFF26364A.toInt()
+                          )
+
+                          setPadding(
+                              0,
+                              dp(4),
+                              0,
+                              dp(12)
+                          )
+                      }
+                  )
+
+
+                  val wheels=
+                      LinearLayout(this).apply{
+
+                          orientation=
+                              LinearLayout.HORIZONTAL
+
+                          gravity=
+                              Gravity.CENTER
+                      }
+
+
+                  val hour=
+                      ControleHorasTimeWheelView(
+                          this@MainActivity,
+                          23,
+                          initialHour
+                      )
+
+
+                  val minute=
+                      ControleHorasTimeWheelView(
+                          this@MainActivity,
+                          59,
+                          initialMinute
+                      )
+
+
+                  wheels.addView(
+                      hour,
+                      LinearLayout.LayoutParams(
+                          dp(145),
+                          dp(230)
+                      ).apply{
+                          rightMargin=dp(5)
+                      }
+                  )
+
+
+                  wheels.addView(
+                      TextView(this).apply{
+
+                          text=":"
+
+                          textSize=32f
+
+                          setTypeface(
+                              null,
+                              Typeface.BOLD
+                          )
+
+                          setTextColor(
+                              darkBlue
+                          )
+
+                          gravity=
+                              Gravity.CENTER
+                      },
+                      LinearLayout.LayoutParams(
+                          dp(30),
+                          dp(230)
+                      )
+                  )
+
+
+                  wheels.addView(
+                      minute,
+                      LinearLayout.LayoutParams(
+                          dp(145),
+                          dp(230)
+                      ).apply{
+                          leftMargin=dp(5)
+                      }
+                  )
+
+
+                  wrap.addView(
+                      wheels
+                  )
+
+
+                  val selected=
+                      TextView(this).apply{
+
+                          text=
+                              "%02d:%02d".format(
+                                  hour.value(),
+                                  minute.value()
+                              )
+
+                          textSize=36f
+
+                          setTypeface(
+                              null,
+                              Typeface.BOLD
+                          )
+
+                          setTextColor(
+                              blue
+                          )
+
+                          gravity=
+                              Gravity.CENTER
+
+                          background(
+                              0xFFF7F9FC.toInt(),
+                              dp(14),
+                              dp(14),
+                              dp(14),
+                              dp(14)
+                          )
+
+                          setPadding(
+                              0,
+                              dp(5),
+                              0,
+                              dp(5)
+                          )
+                      }
+
+
+                  wrap.addView(
+                      selected,
+                      LinearLayout.LayoutParams(
+                          -1,
+                          dp(68)
+                      ).apply{
+                          topMargin=dp(12)
+                          bottomMargin=dp(12)
+                      }
+                  )
+
+
+                  val register=
+                      Button(this).apply{
+
+                          text=
+                              "✓  Registrar horário"
+
+                          textSize=17f
+
+                          isAllCaps=false
+
+                          setTextColor(
+                              Color.WHITE
+                          )
+
+                          background(
+                              blue,
+                              dp(18),
+                              dp(18),
+                              dp(18),
+                              dp(18)
+                          )
+                      }
+
+
+                  wrap.addView(
+                      register,
+                      LinearLayout.LayoutParams(
+                          -1,
+                          dp(62)
+                      )
+                  )
+
+
+                  val dialog=
+                      AlertDialog.Builder
