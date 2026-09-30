@@ -776,8 +776,7 @@ jobs:
                   return true
               }
 
-              override fun performClick():
-                  Boolean {
+              override fun performClick(): Boolean {
 
                   super.performClick()
 
@@ -817,9 +816,19 @@ jobs:
           grep -q "onTouchEvent" "$WHEEL"
           grep -q "Paint.Style.FILL" "$WHEEL"
           grep -q "Paint.Style.STROKE" "$WHEEL"
+          grep -q "override fun performClick(): Boolean" "$WHEEL"
+          grep -q "return true" "$WHEEL"
 
-          if grep -q "paint.style = *$" "$WHEEL"; then
-              echo "ERRO: roleta ainda está truncada"
+          # Verifica somente se o arquivo TERMINA com uma
+          # atribuição incompleta. Uma atribuição quebrada
+          # em duas linhas no meio do Kotlin é válida.
+          if tail -n 20 "$WHEEL" | grep -qE '^[[:space:]]*paint\.style[[:space:]]*=[[:space:]]*$'; then
+              echo "ERRO: roleta termina com atribuição incompleta"
+              exit 1
+          fi
+
+          if tail -n 20 "$WHEEL" | grep -qE '^[[:space:]]*override fun performClick\(\):[[:space:]]*$'; then
+              echo "ERRO: performClick está truncado"
               exit 1
           fi
 
@@ -828,7 +837,9 @@ jobs:
               exit 1
           fi
 
-          echo "FONTES PRESENTES"
+          echo "MAINACTIVITY PRESENTE"
+          echo "TIMEWHEEL PRESENTE"
+          echo "PERFORMCLICK PRESENTE"
           echo "ROLETA VALIDADA"
           echo "VALIDAÇÃO INICIAL OK"
 
