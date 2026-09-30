@@ -8,13 +8,13 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Baixar projeto
         uses: actions/checkout@v4
 
@@ -29,6 +29,7 @@ jobs:
         run: |
           set -e
           rm -rf ControleHoras
+
           unzip -q -o ControleHoras.zip
 
           test -f ControleHoras/settings.gradle.kts
@@ -38,21 +39,6 @@ jobs:
           test -f ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt
 
           echo "PROJETO ORIGINAL OK"
-
-      - name: Preservar ícone original da Base
-        shell: bash
-        run: |
-          set -e
-
-          if [ -f "ControleHoras/app/src/main/res/drawable/controlehoras_icon.jpg" ]; then
-            cp \
-              "ControleHoras/app/src/main/res/drawable/controlehoras_icon.jpg" \
-              /tmp/controlehoras_icon_original.jpg
-
-            echo "Ícone original preservado"
-          else
-            echo "Ícone original específico não encontrado; mantendo o recurso da Base"
-          fi
 
       - name: Aplicar exatamente a base da versão 70
         shell: python
@@ -72,10 +58,14 @@ jobs:
           workflow = urlopen(
               url,
               timeout=30
-          ).read().decode("utf-8")
+          ).read().decode(
+              "utf-8"
+          )
 
-          def extract_step(name, next_name):
-
+          def extract_step(
+              name,
+              next_name
+          ):
               start = workflow.index(
                   f"      - name: {name}"
               )
@@ -85,23 +75,34 @@ jobs:
                   start
               )
 
-              block = workflow[start:end]
+              block = workflow[
+                  start:end
+              ]
 
-              marker = "        run: |\n"
+              marker = (
+                  "        run: |\n"
+              )
 
               pos = (
                   block.index(marker)
                   + len(marker)
               )
 
-              lines = block[pos:].splitlines()
+              lines = block[
+                  pos:
+              ].splitlines()
 
-              return "\n".join(
-                  line[10:]
-                  if line.startswith("          ")
-                  else line
-                  for line in lines
-              ) + "\n"
+              return (
+                  "\n".join(
+                      line[10:]
+                      if line.startswith(
+                          "          "
+                      )
+                      else line
+                      for line in lines
+                  )
+                  + "\n"
+              )
 
           scripts = [
               extract_step(
@@ -114,10 +115,13 @@ jobs:
               )
           ]
 
-          for i, script in enumerate(scripts):
-
+          for i, script in enumerate(
+              scripts
+          ):
               p = (
-                  Path(tempfile.gettempdir())
+                  Path(
+                      tempfile.gettempdir()
+                  )
                   / f"base70_{i}.py"
               )
 
@@ -127,691 +131,27 @@ jobs:
               )
 
               subprocess.run(
-                  ["python", str(p)],
+                  [
+                      "python",
+                      str(p)
+                  ],
                   check=True
               )
 
           print(
-              "BASE 70 APLICADA SEM ALTERAR A ESCALA"
+              "BASE DA VERSÃO 70 APLICADA"
           )
 
-      - name: Aplicar funcionalidades da versão 80
+      - name: Aplicar correções finais sem versão 80
         shell: python
         run: |
-          from pathlib import Path
-          from urllib.request import urlopen
-          import subprocess
-          import tempfile
-
-          url = (
-              "https://raw.githubusercontent.com/"
-              "didhuuu/ControleHoras/"
-              "894fb3f98dfda80c297f31474130324a094b6dc6/"
-              ".github/workflows/build.yml"
-          )
-
-          workflow = urlopen(
-              url,
-              timeout=30
-          ).read().decode("utf-8")
-
-          start = workflow.index(
-              "      - name: Aplicar correções finais da Base 70, edição por rolagem e ícone"
-          )
-
-          end = workflow.index(
-              "      - name: Validar código e ícone",
-              start
-          )
-
-          block = workflow[start:end]
-
-          marker = "        run: |\n"
-
-          pos = (
-              block.index(marker)
-              + len(marker)
-          )
-
-          lines = block[pos:].splitlines()
-
-          script = "\n".join(
-              line[10:]
-              if line.startswith("          ")
-              else line
-              for line in lines
-          ) + "\n"
-
-          p = (
-              Path(tempfile.gettempdir())
-              / "funcionalidades.py"
-          )
-
-          p.write_text(
-              script,
-              encoding="utf-8"
-          )
-
-          subprocess.run(
-              ["python", str(p)],
-              check=True
-          )
-
-          print(
-              "FUNCIONALIDADES DA VERSÃO 80 APLICADAS"
-          )
-
-      - name: Restaurar ícone original
-        shell: bash
-        run: |
-          set -e
-
-          if [ -f /tmp/controlehoras_icon_original.jpg ]; then
-
-            cp \
-              /tmp/controlehoras_icon_original.jpg \
-              "ControleHoras/app/src/main/res/drawable/controlehoras_icon.jpg"
-
-            echo "Ícone original restaurado"
-
-          fi
-
-      - name: Criar som mecânico da roleta
-        shell: python
-        run: |
-          from pathlib import Path
-          import wave
-          import math
-          import struct
-
-          raw = Path(
-              "ControleHoras/app/src/main/res/raw"
-          )
-
-          raw.mkdir(
-              parents=True,
-              exist_ok=True
-          )
-
-          filename = (
-              raw /
-              "roller_click.wav"
-          )
-
-          rate = 44100
-          duration = 0.035
-          frames = []
-
-          for i in range(
-              int(rate * duration)
-          ):
-
-              t = i / rate
-
-              a = (
-                  0.45
-                  * math.exp(-85 * t)
-                  * math.sin(
-                      2
-                      * math.pi
-                      * 1850
-                      * t
-                  )
-              )
-
-              b = (
-                  0.22
-                  * math.exp(-130 * t)
-                  * math.sin(
-                      2
-                      * math.pi
-                      * 3200
-                      * t
-                  )
-              )
-
-              value = max(
-                  -1.0,
-                  min(
-                      1.0,
-                      a + b
-                  )
-              )
-
-              frames.append(
-                  struct.pack(
-                      "<h",
-                      int(
-                          value * 32767
-                      )
-                  )
-              )
-
-          with wave.open(
-              str(filename),
-              "wb"
-          ) as wav:
-
-              wav.setnchannels(1)
-              wav.setsampwidth(2)
-              wav.setframerate(rate)
-
-              wav.writeframes(
-                  b"".join(frames)
-              )
-
-          print(
-              "SOM DA ROLETA CRIADO"
-          )
-
-      - name: Corrigir tela e instalar roleta azul neon 3D
-        shell: python
-        run: |
-          from pathlib import Path
           import base64
           import zlib
 
-          root = Path(
-              "ControleHoras"
-          )
-
-          src = root / (
-              "app/src/main/java/"
-              "com/didhuuu/controlehoras/"
-              "MainActivity.kt"
-          )
-
-          wheel = root / (
-              "app/src/main/java/"
-              "com/didhuuu/controlehoras/"
-              "TimeWheelView.kt"
-          )
-
-          code = src.read_text(
-              encoding="utf-8"
-          )
-
-          def matching(
-              text,
-              start,
-              op="{",
-              cl="}"
-          ):
-
-              depth = 0
-              quote = False
-              triple = False
-              esc = False
-
-              i = start
-
-              while i < len(text):
-
-                  c = text[i]
-
-                  if quote:
-
-                      if esc:
-                          esc = False
-
-                      elif c == "\\":
-                          esc = True
-
-                      elif (
-                          triple
-                          and text.startswith(
-                              '"""',
-                              i
-                          )
-                      ):
-                          quote = False
-                          triple = False
-                          i += 2
-
-                      elif (
-                          not triple
-                          and c == '"'
-                      ):
-                          quote = False
-
-                      i += 1
-                      continue
-
-                  if c == '"':
-
-                      if text.startswith(
-                          '"""',
-                          i
-                      ):
-                          quote = True
-                          triple = True
-                          i += 3
-                          continue
-
-                      quote = True
-                      i += 1
-                      continue
-
-                  if c == op:
-                      depth += 1
-
-                  elif c == cl:
-
-                      depth -= 1
-
-                      if depth == 0:
-                          return i
-
-                  i += 1
-
-              raise RuntimeError(
-                  "delimitador não encontrado"
-              )
-
-          # ============================================================
-          # CORRIGIR CARTÃO DE FUNCIONÁRIO
-          # ============================================================
-
-          p = code.find(
-              "box.addView(\n"
-              "                      card().apply{"
-          )
-
-          if p >= 0:
-
-              op = code.find(
-                  "(",
-                  p
-              )
-
-              end = (
-                  matching(
-                      code,
-                      op,
-                      "(",
-                      ")"
-                  )
-                  + 1
-              )
-
-              call = code[p:end]
-
-              body_start = (
-                  call.find(
-                      "card().apply{"
-                  )
-                  + len(
-                      "card().apply{"
-                  )
-              )
-
-              tail = call.rfind(
-                  "},"
-              )
-
-              if (
-                  body_start <= 0
-                  or tail <= body_start
-              ):
-                  raise SystemExit(
-                      "ERRO: cartão estrutural não reconhecido"
-                  )
-
-              body = call[
-                  body_start:tail
-              ].rstrip()
-
-              replacement = (
-                  "                  val employeeCard=card().apply{"
-                  + body
-                  + "\n"
-                  "                  }\n\n"
-                  "                  box.addView(\n"
-                  "                      employeeCard,\n"
-                  "                      LinearLayout.LayoutParams(-1,-2).apply{\n"
-                  "                          bottomMargin=dp(10)\n"
-                  "                      }\n"
-                  "                  )"
-              )
-
-              code = (
-                  code[:p]
-                  + replacement
-                  + code[end:]
-              )
-
-          # ============================================================
-          # INTERVALO 2 SEPARADO
-          # ============================================================
-
-          extra_start = code.find(
-              'box.addView(TextView(this).apply{text="INTERVALO 2 (OPCIONAL)"'
-          )
-
-          calc_pos = code.find(
-              "                  val calc=calculate(rec)",
-              extra_start
-          )
-
-          if (
-              extra_start >= 0
-              and calc_pos >= 0
-          ):
-
-              extra_b64 = "eNq1VdFu2jAUfe9XZHmypTQqFLanTMtStkZKCaIRkzZVlUkuwWqwI8dAKeLf55h2gykhQdX8gLF9zr328fGNYfzbpvzZJkkyobBGF0Zli+BZ6nU5pwW2SZ5nm20NtmxS4R3TH0aD8cQNQqNroHDk+eHQDbDZwLunL+B0rmcnYAXIaJPDjMSA2DLLrLeR/TUMbnADU+XweMYFWiwlJA3okVKGshQlOephS/12rrB1Vf7p4zrqrmIeX1RMrkhmqN0IEvE0zcAJKAMiArLhS9lGai4oMEkk5eyIa9+GY/9nOIzcoIaZCrKicuN83/e2Nyjv6nEyGEe+V8s61qOzF+SvLHpQJ8qUxE+p4EuWIK2+/ePWjwaa2sWVXV0kyGC1P3OJw7bk3zJOJKrC76pkP5D8/xjflXRFhOEzCULdMTe67Uzfn7W1brmdL3eEMjdWucobLKPUGtKqWTgyzb4bEUEWBdpbXN1tZ4bb2vkMXe/XVMbztqrSwptD/ASJo1M06U9nSOOw6Ub+JDSVYwow9MAdmyfzuFnmkbxwpFjC6bsI2euevDlhKQS0kMBAbB+teD9/+flEAJ1thj68YvG2AVs2AbGdL5miFL+uHxzTPJPTa8HZNayrgw9KaQeMTDNIECxymyZWod5krIrpqEx1QyS8iYCb4pEVKDxBjcA5X+voJ5G791bkFt/CA5ef/6wuO+W7+qiKW7Prp1xKvrgjIqW61H169/fmz8OoS6uOrkUe8zVSUljKPta1pQ00JAvtO3wGtXdI7T20LtBVsfqHsfoq1m+66PlI"
-
-              extra = zlib.decompress(
-                  base64.b64decode(
-                      extra_b64
-                  )
-              ).decode(
-                  "utf-8"
-              )
-
-              code = (
-                  code[:extra_start]
-                  + extra
-                  + "\n\n"
-                  + code[calc_pos:]
-              )
-
-          # ============================================================
-          # PRÓXIMA BATIDA
-          # ============================================================
-
-          next_b64 = "eNpTUFBQKCjKLEssSVVIK81TyEutKAkozUvO8MxLSa3QKLICc1wSK3WAEkWJVk75+TmpiXmaVp55JdVcClCQmaZRpFcAUplaHG0Qq5dZ7JSTmJetoampUJRaUlqUp2CAXa0hNrWG2NUaYVNrhKwW7EQFNTUFhCZjbJqMCWgywabJBLurTLGpNYWrhQroQvxUCwA3MW6M"
-
-          next_method = zlib.decompress(
-              base64.b64decode(
-                  next_b64
-              )
-          ).decode(
-              "utf-8"
-          )
-
-          ns = code.find(
-              "    private fun nextPunchIndex("
-          )
-
-          if ns < 0:
-              raise SystemExit(
-                  "ERRO: nextPunchIndex não encontrado"
-              )
-
-          nb = code.find(
-              "{",
-              ns
-          )
-
-          ne = (
-              matching(
-                  code,
-                  nb
-              )
-              + 1
-          )
-
-          code = (
-              code[:ns]
-              + next_method
-              + "\n\n"
-              + code[ne:]
-          )
-
-          # ============================================================
-          # SUBSTITUIR TODA A EDIÇÃO ANTIGA
-          # ============================================================
-
-          ms = code.find(
-              "    private fun showEditWheel("
-          )
-
-          mc = code.find(
-              "    private fun calculate(",
-              ms
-          )
-
-          if (
-              ms < 0
-              or mc < 0
-          ):
-              raise SystemExit(
-                  "ERRO: bloco antigo de edição não encontrado"
-              )
-
-          methods_b64 = "eNrlV39P4zYY/p9PEVU3yZFyUYEh7arlTqV0ECm0qA1M2+6ETPK29S61I9uBY1U/zLS/9yn4YrOTNORXobBJt2mRaOr68eP3x/P6NYZhGDEnt1iCMUuoIRbszidL+HEBEJ0QHLE52jPyRxIZQW8qOaFzq/hVJDftE4QSqRjOWMJ7LpWNiXNCEwnVqZgJNXfbJGN0itXPSKPVn/n2/aViSafNVYG6xZFxx3HseIQC5h6+Z4lEckGEaeM4ju4foSkpJ0AlloTRygr7ajjx3UHfq6DnHN8See+cZm97MBz5w8n12Xji/jwe+TW0AHmBw1A5gcIYfWdaXSt7p59mgV3vFV+15bZac0XgDvnwRaZftlovFcLZRH8HSxuLp+Q3cPaPZnW7/fsYZjgARJMosjYj+3jsnZgNrOIZsIhxFGL++ThKwNwWhjQAB3kg9rvlGJh71RRq9Ym/m8QtiXkmOOuqKQulXqeoiCIhyomDQ6ukcLOyaplKu33d0TurUgA13wXEzo657/Q67Tk9/Hb2Uj28Ou03lZSX1ZwmsdCzDqRVyU/2usAcL4WukX2liVQi3SOzJI4aj4rP0zSHu7BkCXqdPeUqzWgbKYwgkBDunMdvugdhT3907BnjSyyRxwIcgX05tXTcbMWagJUZnQ3MLZnvfq3MtxX746nXqhDdcDjMOIgFMlc1piyE9j8QoNKOKZbRKw0YLDCdqyStChPWBS4n2gFZUcPG6poewrSPOv0IuMx6qn2ckCgEngmj4rmtY6xPdJSe683JTHdq2+bUCOZYd8/jREpGUWfQHw2GXn/SsXRim/iLvNvm+E3zbUMHHNQdAZU8y7zSNGM6VdcGjwgJFHg1kTlqDjLfpBKFS98fj64vxlPXd6+GZkY2iEjwuZ3t8SaAdqqLkgUhEUsiBKoC1m0q2XimnMrh+WT5psRhrk3kFwkNFgiWsRv2PEbntdsId5TrEwgYDzOQtRFJuvAES6i2DupQJfl00qUhfEHcUmOOhxTfRLCd5JGFzBD9vlsrKJ9hIe0l/gy6gLNe1OkL40YJJsTCCEE5oz03fn343VCDhz+Y8hdA8WuA3bEyCm84OvXPrr3x6NQsh2jzcJAJp3vNAGvnWBQ63I610SB+oZ8qkzHmUjgKYos4IhKp9lYLDbtzBqrqqbpqaEW5VEhMA0BV2MJJmTRizEdKyqhrfrAlU9fGfKyGAQMegEuRbuSm8aGn2fUSVOxwNr6cXI9/uD7p/1Tr7o0N9p/c4Ohd+wbn7ujSHz5yP3n51k9nkoqOY57nrWNV59+s0tiO8DIN7/ojfbMKZ5szU1ktwBUMtahnXaNaWEurMxmeulN/og6QYs5cpY08K7m376upL2X2+TM756h1EFXayiBcE5WOTFZoZk1ZLZWpwcOQyDSMiEPQy/28VxcvVVH6P45alWbSU9DCgxT56f+mxBdIUUdY6TA7Bjl7UolZMNcft8hRxz3cosLKcFnbZNr3rnYWZyO5X1mi55gmOMpE+m9oHy/qH40umzaUxq+VDkNEzOjDn7dAdmo3DbJG/6kgdmtGu1bxy89kZizThD57JL/+TH7yXHgGmld4zbj/wgH/F8L9WYU="
-
-          methods = zlib.decompress(
-              base64.b64decode(
-                  methods_b64
-              )
-          ).decode(
-              "utf-8"
-          )
-
-          code = (
-              code[:ms]
-              + methods
-              + "\n\n"
-              + code[mc:]
-          )
-
-          code = code.replace(
-              "import android.widget.NumberPicker\n",
-              ""
-          )
-
-          code = code.replace(
-              "import android.widget.NumberPicker\r\n",
-              ""
-          )
-
-          # ============================================================
-          # NOMES DAS SEIS POSIÇÕES
-          # ============================================================
-
-          if "private val punchNames" not in code:
-
-              anchor = code.find(
-                  "class MainActivity"
-              )
-
-              if anchor < 0:
-                  raise SystemExit(
-                      "ERRO: MainActivity não encontrada"
-                  )
-
-              names = (
-                  "    private val punchNames=arrayOf<String>(\n"
-                  "        \"Entrada\",\n"
-                  "        \"Saída\",\n"
-                  "        \"Retorno\",\n"
-                  "        \"Saída intervalo 2\",\n"
-                  "        \"Retorno intervalo 2\",\n"
-                  "        \"Saída\"\n"
-                  "    )\n\n"
-              )
-
-              code = (
-                  code[:anchor]
-                  + names
-                  + code[anchor:]
-              )
-
-          # ============================================================
-          # SEM DSR
-          # ============================================================
-
-          if "DSR" in code.upper():
-              raise SystemExit(
-                  "ERRO: DSR encontrado; esta versão não usa DSR"
-              )
-
-          # ============================================================
-          # SEM NUMBERPICKER
-          # ============================================================
-
-          if "NumberPicker" in code:
-              raise SystemExit(
-                  "ERRO: NumberPicker ainda presente"
-              )
-
-          # ============================================================
-          # ROLETAS
-          # ============================================================
-
-          wheel_b64 = "eNrFV1tP4zgUfu+v8I60UjKAty0Lw1Qwo1BaVG1LKwigfaq8iUMsUrtynJTuiP++x07a5laY5WE3Eknw9/ncz4m7JN4zeaLIEwvsMz9MkgR7gispIhoKSeJWiy2WQipEuC8F8w1KucJ9/XxRVfhJkmXIvBj3CU9h+z54zDgl8loSn4G0vbQZYW+gdyHxqazCKaMrPBGKCT5IG4Qb/AFuVWBBfUawk/hMTAiHsMhmhis4vaacSqLElvIsVMQ4XhAVYvIXxM2LSBwjly3oY0hppBVaLQSXl0Wuh/IQHprVpWQpURSlJEILxntoxJsQ8lJAGGeKkcistGzUQ0ZJLt9GP1qGlRKp9ybU8NDFZhukkkqPjrgF+g61aNvwizpjqnZCBH/QYvoh4U/U7yHLAnk2OvqG7kGi/R1E8ySKWjWrfcpjptaASxqLBJTGUG3xMiLrCVVSpzKn1LYudQHARlMIlrlj58YdzZ3xyLmbD8fOtV3ZJBFEXv0Jm9pBDVqIlPpNUIQUpBWQUnatYjXgO/d24EzmN1N3NBz1HXc0vTlEJyd22eMg4chfWmkPDSNBIEAXKEWfN0Gocz0TT8unkSImRTpzm0Rom7mWoCOPDpBhbVEWIIujbyZ3hgaZrIDnei0HyUsF/CUXXNSYadXaIJ2lVR0gHCsilY6RVQoUdqc3g/nsdjqbXw4Gs0PUPbNLm8vF8x0znopnamXqS0xASMR8CI+1A15b2d08IIdSMj8Ln+BXkkDVm3kDTWWeRYfiZAm5K9HyjOWuohW4umI+dK4SJmcFxRoPAQ8pewrVHoIHY4ZKzUK/oW6wk27KF8dmTgFcnnpWye12cGj+VuZRiYhypCTraWC1X4bD9nHHOT4GU6BWLBvoeq395XI4rK5dfa2vNfBK8uyybt3R5ZVs6mKXRXQifIr7Y2cy2zJ2gclCjX0I+61IuH9LPWVBY5wEoHfzXKGj7XtYeIdnt116MaG094bWTJ4y5olIaMj4eNq5PD7Z+PiujZ2uVpmn1Vj1e7dgbgk+2MEaOi29NFtdtKzT7Z/tMlJ1T60juhl/+E7/p6fQ9I9BjSihnR51EQNdBy34371sMn44Go8rNP2xciL2xLdU8x/uD27cwW2VvF7SgHhabO044OYYvhoMnfuxO7+cjq92RgUQcksEAXzToKPQURfjbn3wwbeyMG4zenU2IqmHWDZRIVQwYIHaKbFWIbQHstLNcE7R0UW2rZmWj+kUHWxoJd4uUnfsb61Zz+/clwuoI1vn4hj6BNEopib/ncBuELGpvNp+XYrZtSnFTJRePz2+HDaUaKW0XLCuPNL09enXdtf/hCH4cDSy0sp0MTEwM7O+vi283M7PpgK/gI+mFjt6KtQ2GS9Lq8VvyFtt+PXqP2xD/SHQHXhWa8CzQgPuQfNu+0mxB2+KPdgr9id6uPlz7IrEC83J26L63kOFw7jdQ5cCflwQXui8VUg5ysiYeJo7IfEz9avdWZCDnb4+fs2vpo83+gT6o1YJm0NgJnZdwysnweIlqUokR0om5W59fc+ayfRh0GyNOQavd+ZAJoyBe8yCKeDXTdZNm+HnF+hIVxckzm7QZsoiO1Z27Eb0De9fs8bfKfuWVfL7uo4+oOxf5+3DybmfNadGOwq/2DJnbZjE+XB5x1m9bZPM8/x4aCaZjTpZBJvCUfcXDqd6OPYj5j1b9gfc3b1VuU39WVbX1I3ZeXmPWXUVr/8AW8p49Q=="
-
-          wheel_code = zlib.decompress(
-              base64.b64decode(
-                  wheel_b64
-              )
-          ).decode(
-              "utf-8"
-          )
-
-          wheel.parent.mkdir(
-              parents=True,
-              exist_ok=True
-          )
-
-          wheel.write_text(
-              wheel_code,
-              encoding="utf-8"
-          )
-
-          src.write_text(
-              code,
-              encoding="utf-8"
-          )
-
-          if "private fun showTimeWheelDialog(" not in code:
-              raise SystemExit(
-                  "ERRO: showTimeWheelDialog não instalado"
-              )
-
-          if "private fun showEditWheel(" not in code:
-              raise SystemExit(
-                  "ERRO: Entrada/edição por roleta não instalada"
-              )
-
-          if "private fun showManualWheel(" not in code:
-              raise SystemExit(
-                  "ERRO: registro manual por roleta não instalado"
-              )
-
-          if "private fun registerPunch(" not in code:
-              raise SystemExit(
-                  "ERRO: registro da batida não instalado"
-              )
-
-          print(
-              "ROLETA AZUL/NEON 3D INSTALADA"
-          )
-
-          print(
-              "ENTRADA EDITÁVEL + REGISTRO MANUAL + INTERVALO 2 SEPARADO"
-          )
-
-      - name: Validar projeto antes do Gradle
-        shell: bash
-        run: |
-          set -e
-
-          SRC="ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
-          WHEEL="ControleHoras/app/src/main/java/com/didhuuu/controlehoras/TimeWheelView.kt"
-          SOUND="ControleHoras/app/src/main/res/raw/roller_click.wav"
-
-          test -s "$SRC" || { echo "ERRO: MainActivity.kt não encontrado"; exit 1; }
-          test -s "$WHEEL" || { echo "ERRO: TimeWheelView.kt não encontrado"; exit 1; }
-          test -s "$SOUND" || { echo "ERRO: roller_click.wav não encontrado"; exit 1; }
-
-          grep -q "TimeWheelView" "$SRC" || { echo "ERRO: TimeWheelView ausente"; exit 1; }
-          grep -q "showTimeWheelDialog\|showControleHorasWheelDialog" "$SRC" || { echo "ERRO: diálogo da roleta ausente"; exit 1; }
-          grep -q "showManualWheel" "$SRC" || { echo "ERRO: registro manual ausente"; exit 1; }
-          grep -q "showEditWheel" "$SRC" || { echo "ERRO: edição pela roleta ausente"; exit 1; }
-          grep -q "registerPunch" "$SRC" || { echo "ERRO: registerPunch ausente"; exit 1; }
-          grep -q "punchNames" "$SRC" || { echo "ERRO: punchNames ausente"; exit 1; }
-          grep -q "extra2Enabled" "$SRC" || { echo "ERRO: Intervalo 2 ausente"; exit 1; }
-
-          if grep -q "NumberPicker" "$SRC"; then
-            echo "ERRO: NumberPicker ainda presente"
-            exit 1
-          fi
-
-          if grep -q "Esse registro ainda está vazio" "$SRC"; then
-            echo "ERRO: mensagem antiga encontrada"
-            exit 1
-          fi
-
-          echo "VALIDAÇÃO PRÉ-GRADLE OK"
-          echo "A base e as funcionalidades chegaram até aqui."
-          echo "Agora o Gradle fará a validação real do Kotlin."
-
-      - name: Instalar Gradle 8.11.1
-        shell: bash
-        run: |
-          set -e
-
-          wget -q \
-            https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
-
-          unzip -q \
-            gradle-8.11.1-bin.zip
-
-          echo \
-            "$PWD/gradle-8.11.1/bin" \
-            >> "$GITHUB_PATH"
-
-          "$PWD/gradle-8.11.1/bin/gradle" \
-            --version
-
-      - name: Limpar projeto
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -e
-
-          gradle clean \
-            --no-daemon
-
-      - name: Gerar APK
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -e
-
-          gradle assembleDebug \
-            --no-daemon \
-            --stacktrace
-
-          APK="app/build/outputs/apk/debug/app-debug.apk"
-
-          test -s "$APK"
-
-          ls -lh "$APK"
-
-          echo "APK GERADO COM SUCESSO"
-
-      - name: Verificar APK
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -e
-
-          APK="app/build/outputs/apk/debug/app-debug.apk"
-
-          test -s "$APK"
-
-          unzip -t \
-            "$APK" \
-            >/dev/null
-
-          echo "APK VALIDADO"
-
-      - name: Publicar APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: ControleHoras-APK
-          path: ControleHoras/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+          scripts = [
+              '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',
+              'eNrVW+uSotqS/l9PUVHzpzv2Pt2ARe2m5/QPRQFRLEFurpkTE1wsQRbCURFxnmGeYn7ME8wT7BebXICWllB9OTERMx1ho7AuuXJlfvllLuplk8T3qbMLcOjeh3GabHb3U/h5V393ne3i6fHubpMku2/kwYcHPlnvNgleSMnG2T58vNtuvG/k8ecHJ00/w6/PsROuP6+cvfPZS+LPfugHWZbB96pfQPp9VqBN19uF+3BXfIp2D3d5sFjgXxhID+OFRfqa4SIvR/qn+z//A9os7pNNuAzXDr73k/t0k6wWO3JdbBebveMn/3y//vM/k/tt4sItb7PYLzaf7u68xF98g7k/bRaO/2+7xWH3YbGGm+F6+e0h27385Qss+S5Y4HSx2X6r1PPJfXr0F6Tnh4ch310OpV7h2CjwRWOJ1mY2lCaJ2/EFJGLKZAKMrDzxYnP1jHu0G08STRTYsYgzJJqPzxHOfB7/wYcwDl99/FjYwpiBt9aOU1vG84LNfYtdOaJ5tJiqnz1jj554SH1+GT6Hw/Smv8ju/SPdn1sH7MZa4IXsGtma7K4n1BzGQrNlyi+Tc5+hhAKX74HcZjG1q7nHsY/9AVfoa3Pr8st8pH/JfJGDMbSpF7G0K+bJSL0Yo/p8HseTPbLlFTJwNup3t8pKuZKv/PS/PLkx1ynn4INLOYc6bc5sihNtSutZs2h0uzY6ddcmhXQ6n9sy5RXl2s4yKbPo83it7WcWS+kd+dm3DtsRH43eyLmcFuzKZcxizpiyGy7zcd9gm9bzHIMuyznURGWELbLYaG4PM93Az6apCdDnYuze0RG5jiniHTL9BFnmVhNx4IrcetS9GTvULC31RaEYSjJGDD76krwfhvmNrMNQ+8OTzGzOBM9zi8YevUtBX3gh0JwtPkYLRovHMdp7MR2APolejqD/o1sEBbIUsBmBQrMofZkNtzd7IQZ73266X+t51iAPnvR0AfWMcHj5LF0wy607o367GUtqsWOdCmW9W6B+gpW+HA1DNnY78m4OutZFbkXsYoxNfSyScW/30GMEBhka+N6gwRarvTBKvS2vn0vU6HStZO3lXoyZua3hoYhoN6z66paQ+ZawPfkxsuh8ZqlPIFuGiia/HXKIMSkD/B3WEY1Ec+cNcDSWJtgVzZUvmlElTzAgc72xHWZu5Ut3RWfIDqi6nVzuM7+8XXuDnZB+XiwIbiyEMN+PzH/R/9rXHGueuKs8H9nbm3lMkQu8jpq5lrBBJsgnqcnNnldrohwRH8e3tl99IuE4FGXYPww+pSwBMwHXuCx/ohlkYXimYa9D9kRL57Pe3/OnAaxxQuVPkz3BXfAvspYU7Ps4DhtsuJLBcBnh6POsohmsZA6CF33APWv5jUzpeE2w22uypQIwhvbix8v94howNIP+3CVOEHsALDqCn4OsRvKP4AXY1dqB9Xvxl6Vb2+YP4kVm27Tnwn0kzjMUcwX0p0ZlnJngmT3Zj9psZIa5pjl+EL8bcOU7eNqIN7KgUVg3BfknMGeY1Tqo1v9/HGu+awMSiRUH/IzJ/gN+FvmVHfmWTDm2tkV6qkMcgfjgba/9mYX+MO6gxPsnEh+v/BI4CfRPQQ8TaEsDn7ltI/X2HoNhHtQmx97Fk8CPjafRgHCbA/AFNR3rrOnGmKrlSRf5jd90ALfyqXEAuc3Aiw7BwuJosK0SP0YzNvCk3nbRgEWwhynYEAX6TF3mkdMJt7KEQgeeBXyGGmMkGFiTVUpQbm3RL+Y2Sn0p4rQO4BDIuJixfcAJQzPll9mAm83MdKpjrad3b/ccMEGdW1oE+lqPRC0f9ZfpGDgPkrrJMx9tlSve8RYvyNzdjPQ3Y4z9YtmAs+YjMMkU2cA3xSD1iiib273cla5jzyXekhgwtSf0fF3ZS0u7Neibgf1mp8ZZB5lKmc/mwJy9N7bB4CekU4dJPB81YjrgiC9orCea8dya4JFY8rKtKeEcWSgADMzUiFO0Bk520R9iitZ3mcPeCwPAB3mjxgcazd7r0wsQxAmw+0ThD5HHLwvAknxc7ssgHzX0fXkn/lXxvPJH70grsMcY5FDmNgb/Ub+/HyJXOBCfAPcpx+KyW9smWCnLVsSBzn/WNoffi0MVlzdBH5ZpA+fC7pUdgV76w+P41eeHpP01bpXj7Gos4C7xqbLXyjeJvU/0aPuKLyfe2KTPCfb6tEHs6HKM9/zbJz7Qp0ie0/xMmKSL2OCUoxz/ug5PGG9SF3aauGXuczAWdg+jWIC8ieXB9AdN+A9YUK5LZbit2xkmwEkKh5K3vmVc5T8v1/G/U+6NpLyLAxAf6Ca+d4N1J9sCXwD/3nlFQPzgoPSNtPYDFjDpSp7RL8gDespvOV3vrY9kJ7kM0AXwkGOFkcPH0az0z8Oz3k3f46B+ybsPkIsKEart92fylP8N/ZA4dSnPScYmLg96An4zoZClcj+F5VLJqYF3GbkSq08lb+GHr7ythU9f8ZiWNpUtsSAfwdO8GU/POq3b3ebFabPMmu7YKZ7qSo6WzT7y6ktBRnLz8UWsGEfyVB+oDWPfxITQlUzc4Ic/F9ea4wbTHjfeYG3F3yAPQZAfTJIR37SXr7x6vP7/ta9vsKqMKeOYy0zAct8y+w7kNJDfRFN7d6kD7nIM1wIeCFz3h/q9y4+CI/gZnkM+iJpitVjGsT060j3Qd+EP6t8Fy/sW3iK4N5K0xLEb6lE8W9pmyZ9nQcWjG/gC5If47MMQTzy+pc2AxYgRSp6sgr59yGlHvNxXDRJ7DiSH2VaxpW2OV5597n/BvccVp2pax8oDjgHx+m2eCRxV2LqMl5EYpzOsXtY3IPaCXWbIlhv4y1l/pL7Gwx5SwK/b8vwbnUMuZ+gU+2IMOH1majJklTdrhbhP9D51ownwh8nmXXmu84vk2t4PJ56S+aWNGWlL/7MeSK0BbPPoFcsGvKHe8fnzGsu87VxbJPnd8tu3h4+fTuXhUwV5u3M2u2/k3qeXcO1/eLiHf+km3Du7xf1Ltr7fBkk+8MNdWdr+AD0Wa/+99p6DvQzDrw+br9Ns7QV9p/j4lYe7//7weznbx7u78OW+/PpX6j7Z3MOIf6W+3pGRNk64XdzPiu1uEQ8O4e7Dw0DTnr+Skf/8rz//e7G9d9a7cOls733nfpPAf2XtnFTG17uN45cHAVXtnPz3L1/Laf72W10n/+3hX9cPv5VPYNKvf7urqv2f8k24W1RF9lKM23K6JworhxHWaNZbuQxFtihyJJP2Z6RUy0K6yUE4DfYA8Ud+maauDS6xVpdzi43gWYr4qh1JB8fRZO9WcDtyLDqHNJEaEtiR5L1jkdKVCaYwyFSbXLkJjBEAJBV8jHceUHef7wVurBUug6NxTGOQJRhjbQ8UXoLxMchA'
+---CHUNK 18000---
+Traceback (most recent call last):
+  File "<stdin>", line 6, in <module>
+IndexError: list index out of range
