@@ -295,8 +295,6 @@ jobs:
               step_name
           )
 
-          # O texto abaixo aparece também dentro do código.
-          # Portanto usamos rfind().
           end = workflow.rfind(
               "      - name: Validar projeto antes do Gradle"
           )
@@ -330,22 +328,7 @@ jobs:
           ) + "\n"
 
           # ----------------------------------------------------------
-          # CORREÇÃO DEFINITIVA
-          #
-          # O código original contém este bloco antigo:
-          #
-          # code=code.replace(
-          #     '''if(rec.punches[index].isBlank()){
-          #       ...
-          #     }''',
-          #     ""
-          # )
-          #
-          # Esse ''' está dentro do show_method=r''' ... '''.
-          # Ele encerra a string Python antes de main_index=.
-          #
-          # NÃO vamos alterar os outros triple-quotes.
-          # Vamos retirar somente esse bloco inteiro.
+          # REMOVER O BLOCO ANTIGO DE BATIDA VAZIA
           # ----------------------------------------------------------
 
           bad_start = script.find(
@@ -375,8 +358,8 @@ jobs:
               )
 
           # ----------------------------------------------------------
-          # GARANTIA EXTRA:
-          # o bloco problemático não pode mais existir.
+          # GARANTIA:
+          # O BLOCO COM TRIPLE QUOTE NÃO PODE MAIS EXISTIR
           # ----------------------------------------------------------
 
           if (
@@ -386,6 +369,43 @@ jobs:
 
               raise SystemExit(
                   "ERRO: bloco problemático ainda existe"
+              )
+
+          # ----------------------------------------------------------
+          # CORRIGIR O ERRO QUE ESTAVA NA LINHA 605
+          #
+          # O SCRIPT ORIGINAL TINHA:
+          #
+          # main_index=
+          #     code.find(
+          #
+          # Isso gera SyntaxError.
+          #
+          # Aqui transformamos em:
+          #
+          # main_index = code.find(
+          # ----------------------------------------------------------
+
+          script = script.replace(
+              "main_index=\n"
+              "        code.find(",
+              "main_index = code.find("
+          )
+
+          script = script.replace(
+              "main_index=\n"
+              "    code.find(",
+              "main_index = code.find("
+          )
+
+          # ----------------------------------------------------------
+          # GARANTIA EXTRA
+          # ----------------------------------------------------------
+
+          if "main_index=\n" in script:
+
+              raise SystemExit(
+                  "ERRO: assinatura main_index ainda está quebrada"
               )
 
           # ----------------------------------------------------------
