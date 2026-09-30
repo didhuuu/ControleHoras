@@ -70,15 +70,23 @@ jobs:
           ).read().decode("utf-8")
 
           def extract_step(name, next_name):
-              start_marker = f"      - name: {name}"
-              end_marker = f"      - name: {next_name}"
+
+              start_marker = (
+                  f"      - name: {name}"
+              )
+
+              end_marker = (
+                  f"      - name: {next_name}"
+              )
 
               if start_marker not in workflow:
                   raise RuntimeError(
                       f"Etapa não encontrada: {name}"
                   )
 
-              start = workflow.index(start_marker)
+              start = workflow.index(
+                  start_marker
+              )
 
               if end_marker not in workflow[start:]:
                   raise RuntimeError(
@@ -99,7 +107,10 @@ jobs:
                       f"Bloco run não encontrado: {name}"
                   )
 
-              pos = block.index(marker) + len(marker)
+              pos = (
+                  block.index(marker)
+                  + len(marker)
+              )
 
               lines = block[pos:].splitlines()
 
@@ -111,10 +122,12 @@ jobs:
               ).rstrip() + "\n"
 
           scripts = [
+
               extract_step(
                   "Aplicar versão 36",
                   "Adicionar seleção de data"
               ),
+
               extract_step(
                   "Adicionar seleção de data",
                   "Validar código"
@@ -133,8 +146,17 @@ jobs:
                   encoding="utf-8"
               )
 
+              compile(
+                  script,
+                  f"base70_{i}.py",
+                  "exec"
+              )
+
               subprocess.run(
-                  ["python", str(p)],
+                  [
+                      "python",
+                      str(p)
+                  ],
                   check=True
               )
 
@@ -177,13 +199,23 @@ jobs:
               "      - name: Validar código e ícone"
           )
 
-          start = workflow.index(start_marker)
-          end = workflow.index(end_marker, start)
+          start = workflow.index(
+              start_marker
+          )
+
+          end = workflow.index(
+              end_marker,
+              start
+          )
 
           block = workflow[start:end]
 
           marker = "        run: |\n"
-          pos = block.index(marker) + len(marker)
+
+          pos = (
+              block.index(marker)
+              + len(marker)
+          )
 
           lines = block[pos:].splitlines()
 
@@ -211,7 +243,10 @@ jobs:
           )
 
           subprocess.run(
-              ["python", str(p)],
+              [
+                  "python",
+                  str(p)
+              ],
               check=True
           )
 
@@ -234,7 +269,9 @@ jobs:
               exist_ok=True
           )
 
-          filename = raw / "roller_click.wav"
+          filename = (
+              raw / "roller_click.wav"
+          )
 
           rate = 44100
           duration = 0.035
@@ -243,13 +280,17 @@ jobs:
           for i in range(
               int(rate * duration)
           ):
+
               t = i / rate
 
               a = (
                   0.45
                   * math.exp(-85 * t)
                   * math.sin(
-                      2 * math.pi * 1850 * t
+                      2
+                      * math.pi
+                      * 1850
+                      * t
                   )
               )
 
@@ -257,19 +298,28 @@ jobs:
                   0.22
                   * math.exp(-130 * t)
                   * math.sin(
-                      2 * math.pi * 3200 * t
+                      2
+                      * math.pi
+                      * 3200
+                      * t
                   )
               )
 
               value = max(
                   -1.0,
-                  min(1.0, a + b)
+                  min(
+                      1.0,
+                      a + b
+                  )
               )
 
               frames.append(
                   struct.pack(
                       "<h",
-                      int(value * 32767)
+                      int(
+                          value
+                          * 32767
+                      )
                   )
               )
 
@@ -286,16 +336,16 @@ jobs:
                   b"".join(frames)
               )
 
-          test = filename.exists()
-
-          if not test:
+          if not filename.exists():
               raise SystemExit(
                   "ERRO: som não criado."
               )
 
-          print("SOM DA ROLETA CRIADO")
+          print(
+              "SOM DA ROLETA CRIADO"
+          )
 
-      - name: Instalar roleta personalizada — sem executar script legado
+      - name: Instalar roleta personalizada — versão corrigida
         shell: python
         run: |
           from pathlib import Path
@@ -304,7 +354,8 @@ jobs:
           import textwrap
 
           print("========================================")
-          print("INSTALANDO ROLETA DE FORMA DETERMINÍSTICA")
+          print("INSTALANDO ROLETA PERSONALIZADA")
+          print("SEM EXECUTAR SCRIPT LEGADO")
           print("========================================")
 
           src = Path(
@@ -322,10 +373,7 @@ jobs:
           )
 
           # ==================================================
-          # IMPORTANTE:
-          # O workflow antigo NÃO será executado.
-          #
-          # Apenas extraímos dele as partes estáveis da roleta.
+          # FONTE ESTÁVEL DA ROLETA
           # ==================================================
 
           old_url = (
@@ -340,6 +388,10 @@ jobs:
               timeout=60
           ).read().decode("utf-8")
 
+          # ==================================================
+          # EXTRAIR BLOCOS RAW
+          # ==================================================
+
           def extract_raw(name):
 
               pattern = (
@@ -347,19 +399,20 @@ jobs:
                   + r"\s*=\s*r'''([\s\S]*?)\n\s*'''"
               )
 
-              m = re.search(
+              match = re.search(
                   pattern,
                   legacy
               )
 
-              if not m:
+              if not match:
+
                   raise SystemExit(
-                      "ERRO: bloco legado não encontrado: "
+                      "ERRO: bloco não encontrado: "
                       + name
                   )
 
               return textwrap.dedent(
-                  m.group(1)
+                  match.group(1)
               ).strip("\n")
 
           wheel_class = extract_raw(
@@ -411,7 +464,9 @@ jobs:
               "import android.view.View"
           ]
 
-          package_end = code.find("\n")
+          package_end = code.find(
+              "\n"
+          )
 
           if package_end < 0:
 
@@ -429,16 +484,22 @@ jobs:
               ) is None:
 
                   code = (
-                      code[:package_end + 1]
+                      code[
+                          :package_end + 1
+                      ]
                       + imp
                       + "\n"
-                      + code[package_end + 1:]
+                      + code[
+                          package_end + 1:
+                      ]
                   )
 
-                  package_end += len(imp) + 1
+                  package_end += (
+                      len(imp) + 1
+                  )
 
           # ==================================================
-          # FUNÇÕES AUXILIARES
+          # INDENTAÇÃO
           # ==================================================
 
           def indent_block(
@@ -455,13 +516,19 @@ jobs:
                   for line in block.splitlines()
               )
 
+          # ==================================================
+          # INSERIR ANTES DE UMA ÂNCORA
+          # ==================================================
+
           def insert_before(
-              code,
+              source,
               anchor,
               block
           ):
 
-              pos = code.find(anchor)
+              pos = source.find(
+                  anchor
+              )
 
               if pos < 0:
 
@@ -471,11 +538,11 @@ jobs:
                   )
 
               return (
-                  code[:pos]
+                  source[:pos]
                   + "\n"
                   + block
                   + "\n"
-                  + code[pos:]
+                  + source[pos:]
               )
 
           # ==================================================
@@ -526,62 +593,86 @@ jobs:
               )
 
           # ==================================================
-          # SUBSTITUIÇÃO SEGURA DE MÉTODOS
+          # SUBSTITUIR UMA FUNÇÃO COMPLETA
+          #
+          # IMPORTANTE:
+          # Não depende da ordem das funções.
+          # Procura a próxima "private fun".
           # ==================================================
 
           def replace_method(
-              code,
+              source,
               signature,
-              next_signature,
               body
           ):
 
-              start = code.find(
+              start = source.find(
                   signature
               )
 
-              if start >= 0:
+              if start < 0:
 
-                  end = code.find(
-                      next_signature,
-                      start + len(signature)
+                  raise SystemExit(
+                      "ERRO: função não encontrada: "
+                      + signature
                   )
 
-                  if end < 0:
+              search_from = (
+                  start
+                  + len(signature)
+              )
+
+              next_match = re.search(
+                  r"\n[ \t]{4}private\s+fun\s+",
+                  source[search_from:]
+              )
+
+              if next_match:
+
+                  end = (
+                      search_from
+                      + next_match.start()
+                      + 1
+                  )
+
+              else:
+
+                  # Última função antes do fechamento
+                  # da MainActivity.
+                  closing = source.find(
+                      "\n    }\n}",
+                      start
+                  )
+
+                  if closing < 0:
 
                       raise SystemExit(
-                          "ERRO: fim da função "
-                          "não encontrado: "
+                          "ERRO: fim da função não encontrado: "
                           + signature
                       )
 
-                  return (
-                      code[:start]
-                      + indent_block(
-                          body,
-                          4
-                      )
-                      + "\n\n"
-                      + code[end:]
+                  end = (
+                      closing
+                      + len("\n    }")
                   )
 
-              return insert_before(
-                  code,
-                  next_signature,
-                  indent_block(
+              return (
+                  source[:start]
+                  + indent_block(
                       body,
                       4
                   )
+                  + "\n"
+                  + source[end:]
               )
 
           # ==================================================
-          # EDITAR BATIDA EXISTENTE
+          # EDITAR BATIDA EXISTENTE OU VAZIA
           # ==================================================
 
           code = replace_method(
               code,
               "    private fun showEditWheel(",
-              "    private fun showManualWheel(",
               edit_method
           )
 
@@ -592,7 +683,6 @@ jobs:
           code = replace_method(
               code,
               "    private fun showManualWheel(",
-              "    private fun registerPunch(",
               manual_method
           )
 
@@ -603,35 +693,22 @@ jobs:
           code = replace_method(
               code,
               "    private fun registerPunch(",
-              "    private fun showPunch(",
               register_method
           )
 
           # ==================================================
-          # LIBERAR EDIÇÃO DE BATIDA VAZIA
+          # VALIDAR SE O BLOQUEIO ANTIGO SUMIU
           # ==================================================
 
-          empty_punch_pattern = (
-              r'(?s)'
-              r'\s*if\s*\('
-              r'\s*rec\.punches\[index\]\.isBlank\(\)'
-              r'\s*\)\s*\{'
-              r'\s*Toast\.makeText\('
-              r'\s*this\s*,'
-              r'\s*"Esse registro ainda está vazio\. '
-              r'Use REGISTRO MANUAL\."'
-              r'\s*,'
-              r'\s*Toast\.LENGTH_LONG'
-              r'\s*\)\.show\(\)'
-              r'\s*return'
-              r'\s*\}'
-          )
+          if (
+              "Esse registro ainda está vazio"
+              in code
+          ):
 
-          code = re.sub(
-              empty_punch_pattern,
-              "\n",
-              code
-          )
+              raise SystemExit(
+                  "ERRO: bloqueio antigo de "
+                  "batida vazia ainda encontrado."
+              )
 
           # ==================================================
           # MANIFESTO / ÍCONE
@@ -648,16 +725,16 @@ jobs:
                   "não encontrado."
               )
 
-          m = manifest.read_text(
+          manifest_code = manifest.read_text(
               encoding="utf-8"
           )
 
           if (
               'android:icon="@drawable/controlehoras_icon"'
-              not in m
+              not in manifest_code
           ):
 
-              m = m.replace(
+              manifest_code = manifest_code.replace(
                   "<application",
                   '<application\n'
                   '        android:icon="'
@@ -668,7 +745,7 @@ jobs:
               )
 
           manifest.write_text(
-              m,
+              manifest_code,
               encoding="utf-8"
           )
 
@@ -707,20 +784,14 @@ jobs:
                       + item
                   )
 
+          # ==================================================
+          # NÃO PODE TER NUMBERPICKER
+          # ==================================================
+
           if "NumberPicker(" in code:
 
               raise SystemExit(
                   "ERRO: NumberPicker ainda presente."
-              )
-
-          if (
-              "Esse registro ainda está vazio"
-              in code
-          ):
-
-              raise SystemExit(
-                  "ERRO: bloqueio antigo de "
-                  "batida vazia ainda presente."
               )
 
           # ==================================================
@@ -762,7 +833,7 @@ jobs:
               )
 
           # ==================================================
-          # GRAVAR MAINACTIVITY
+          # GRAVAR
           # ==================================================
 
           src.write_text(
@@ -771,12 +842,14 @@ jobs:
           )
 
           print("========================================")
-          print("ROLETA INSTALADA")
+          print("ROLETA INSTALADA COM SUCESSO")
           print("DIALOG INSTALADO")
-          print("EDIÇÃO MANUAL INSTALADA")
-          print("EDIÇÃO DE BATIDA VAZIA LIBERADA")
+          print("REGISTRO MANUAL INSTALADO")
+          print("EDIÇÃO DE REGISTRO INSTALADA")
+          print("BATIDA VAZIA PODE SER EDITADA")
           print("REGISTRO AUTOMÁTICO PRESERVADO")
-          print("ESCALA NÃO FOI ALTERADA")
+          print("ESCALA NÃO ALTERADA")
+          print("NUMBERPICKER REMOVIDO")
           print("VALIDAÇÃO ESTRUTURAL OK")
           print("========================================")
 
@@ -786,7 +859,7 @@ jobs:
           set -e
 
           echo "========================================"
-          echo "VALIDAÇÃO FINAL"
+          echo "VALIDAÇÃO FINAL DO CÓDIGO"
           echo "========================================"
 
           SRC="ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
@@ -802,11 +875,15 @@ jobs:
             "$SRC"
 
           grep -q \
-            "showManualWheel" \
+            "private fun showManualWheel(" \
             "$SRC"
 
           grep -q \
-            "showEditWheel" \
+            "private fun showEditWheel(" \
+            "$SRC"
+
+          grep -q \
+            "private fun registerPunch(" \
             "$SRC"
 
           grep -q \
@@ -829,22 +906,25 @@ jobs:
             "NumberPicker(" \
             "$SRC"; then
 
-            echo "ERRO: NumberPicker encontrado."
+              echo "ERRO: NumberPicker encontrado."
 
-            exit 1
+              exit 1
           fi
 
           if grep -q \
             "Esse registro ainda está vazio" \
             "$SRC"; then
 
-            echo "ERRO: bloqueio antigo encontrado."
+              echo "ERRO: bloqueio antigo encontrado."
 
-            exit 1
+              exit 1
           fi
 
           test -s \
             "ControleHoras/app/src/main/res/raw/roller_click.wav"
+
+          test -s \
+            "ControleHoras/app/src/main/res/drawable/controlehoras_icon.jpg"
 
           grep -q \
             'controlehoras_icon' \
@@ -859,13 +939,18 @@ jobs:
         run: |
           set -e
 
+          echo "========================================"
+          echo "INSTALANDO GRADLE 8.11.1"
+          echo "========================================"
+
           wget -q \
             https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
 
           unzip -q \
             gradle-8.11.1-bin.zip
 
-          echo "$PWD/gradle-8.11.1/bin" \
+          echo \
+            "$PWD/gradle-8.11.1/bin" \
             >> "$GITHUB_PATH"
 
           "$PWD/gradle-8.11.1/bin/gradle" \
@@ -876,6 +961,10 @@ jobs:
         shell: bash
         run: |
           set -e
+
+          echo "========================================"
+          echo "LIMPANDO PROJETO"
+          echo "========================================"
 
           gradle clean \
             --no-daemon \
@@ -915,7 +1004,9 @@ jobs:
 
           test -s "$APK"
 
-          unzip -t "$APK" >/dev/null
+          unzip -t \
+            "$APK" \
+            >/dev/null
 
           echo "========================================"
           echo "APK VALIDADO"
