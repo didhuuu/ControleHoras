@@ -263,8 +263,7 @@ jobs:
           import tempfile
 
           # ----------------------------------------------------------
-          # IMPORTANTE:
-          # Esta versão contém a implementação completa da roleta.
+          # IMPLEMENTAÇÃO COMPLETA DA ROLETA
           # ----------------------------------------------------------
 
           url = (
@@ -289,12 +288,11 @@ jobs:
           )
 
           # ----------------------------------------------------------
-          # NÃO usar index() aqui.
+          # IMPORTANTE:
+          # O texto "Validar projeto antes do Gradle" aparece também
+          # dentro do script Python da roleta.
           #
-          # O texto "Validar projeto antes do Gradle" também aparece
-          # dentro do código Python da própria etapa.
-          #
-          # rfind() pega a etapa YAML verdadeira que vem depois.
+          # Por isso usamos rfind(), e não index().
           # ----------------------------------------------------------
 
           end = workflow.rfind(
@@ -330,6 +328,26 @@ jobs:
           ) + "\n"
 
           # ----------------------------------------------------------
+          # CORREÇÃO DEFINITIVA DO ERRO:
+          #
+          # A implementação da roleta possui blocos ''' dentro do
+          # script Python que está sendo extraído.
+          #
+          # Depois que o script foi extraído, transformamos esses
+          # delimitadores em """, antes do compile().
+          #
+          # Isso impede que a string seja encerrada antes de:
+          #
+          # main_index=
+          #
+          # ----------------------------------------------------------
+
+          script = script.replace(
+              "'''",
+              '"""'
+          )
+
+          # ----------------------------------------------------------
           # Remove eventual linha residual de YAML.
           # ----------------------------------------------------------
 
@@ -340,21 +358,7 @@ jobs:
               ].lstrip("\n")
 
           # ----------------------------------------------------------
-          # CORREÇÃO DO ERRO DO TRIPLE-QUOTE
-          #
-          # O código antigo tinha:
-          #
-          # code.replace(
-          #     '''if(...) ... ''',
-          #     ""
-          # )
-          #
-          # Isso estava dentro de outra string Python e provocava:
-          #
-          # SyntaxError: unterminated string literal
-          #
-          # Esse bloco não é mais necessário porque o novo
-          # showEditWheel já permite editar batidas vazias.
+          # Remove o bloco antigo relacionado à batida vazia.
           # ----------------------------------------------------------
 
           bad_start = script.find(
@@ -385,16 +389,7 @@ jobs:
               )
 
           # ----------------------------------------------------------
-          # Também remove uma eventual ocorrência de:
-          #
-          # import re
-          #
-          # somente se estiver duplicada não é necessário,
-          # portanto deixamos o código original intacto.
-          # ----------------------------------------------------------
-
-          # ----------------------------------------------------------
-          # TESTE DE SINTAXE ANTES DA EXECUÇÃO
+          # TESTE DE SINTAXE ANTES DE EXECUTAR.
           # ----------------------------------------------------------
 
           try:
