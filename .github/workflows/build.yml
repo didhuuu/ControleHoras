@@ -162,8 +162,8 @@ jobs:
           ) + "\n"
 
           p = (
-              Path(tempfile.gettempdir()) /
-              "funcionalidades.py"
+              Path(tempfile.gettempdir())
+              / "funcionalidades.py"
           )
 
           p.write_text(
@@ -263,15 +263,14 @@ jobs:
           import tempfile
 
           # ----------------------------------------------------------
-          # A fonte abaixo contém a implementação completa da roleta,
-          # da tela de ponto, da edição manual e das correções visuais.
-          # O commit é fixo para não depender da versão atual do main.
+          # IMPORTANTE:
+          # Esta versão contém a implementação completa da roleta.
           # ----------------------------------------------------------
 
           url = (
               "https://raw.githubusercontent.com/"
               "didhuuu/ControleHoras/"
-              "a5346bba4ee9c420fee5d398a9974b793d8aaec7/"
+              "39fc6bba4ee9c420fee5d398a9974b793d8aaec7/"
               ".github/workflows/build.yml"
           )
 
@@ -289,16 +288,37 @@ jobs:
               step_name
           )
 
-          end = workflow.index(
-              "      - name: Validar projeto antes do Gradle",
-              start
+          # ----------------------------------------------------------
+          # NÃO usar index() aqui.
+          #
+          # O texto "Validar projeto antes do Gradle" também aparece
+          # dentro do código Python da própria etapa.
+          #
+          # rfind() pega a etapa YAML verdadeira que vem depois.
+          # ----------------------------------------------------------
+
+          end = workflow.rfind(
+              "      - name: Validar projeto antes do Gradle"
           )
+
+          if end <= start:
+
+              raise SystemExit(
+                  "ERRO: limite final da etapa da roleta não encontrado"
+              )
 
           block = workflow[start:end]
 
           marker = "        run: |\n"
 
-          pos = block.index(marker) + len(marker)
+          marker_pos = block.index(
+              marker
+          )
+
+          pos = (
+              marker_pos
+              + len(marker)
+          )
 
           lines = block[pos:].splitlines()
 
@@ -310,17 +330,36 @@ jobs:
           ) + "\n"
 
           # ----------------------------------------------------------
-          # Remove o bloco que causava conflito de triple-quote.
+          # Remove eventual linha residual de YAML.
+          # ----------------------------------------------------------
+
+          if script.startswith("|"):
+
+              script = script[
+                  1:
+              ].lstrip("\n")
+
+          # ----------------------------------------------------------
+          # CORREÇÃO DO ERRO DO TRIPLE-QUOTE
           #
-          # O showEditWheel novo já permite editar uma batida vazia,
-          # então esse bloco antigo não é necessário.
+          # O código antigo tinha:
+          #
+          # code.replace(
+          #     '''if(...) ... ''',
+          #     ""
+          # )
+          #
+          # Isso estava dentro de outra string Python e provocava:
+          #
+          # SyntaxError: unterminated string literal
+          #
+          # Esse bloco não é mais necessário porque o novo
+          # showEditWheel já permite editar batidas vazias.
           # ----------------------------------------------------------
 
           bad_start = script.find(
               "# PERMITIR EDITAR BATIDA VAZIA"
           )
-
-          bad_end = -1
 
           if bad_start >= 0:
 
@@ -329,10 +368,12 @@ jobs:
                   bad_start
               )
 
-          if (
-              bad_start >= 0
-              and bad_end >= 0
-          ):
+              if bad_end < 0:
+
+                  raise SystemExit(
+                      "ERRO: bloco antigo encontrado, "
+                      "mas seu final não foi localizado"
+                  )
 
               script = (
                   script[:bad_start]
@@ -343,25 +384,62 @@ jobs:
                   "BLOCO ANTIGO DE BATIDA VAZIA REMOVIDO"
               )
 
-          elif bad_start >= 0:
+          # ----------------------------------------------------------
+          # Também remove uma eventual ocorrência de:
+          #
+          # import re
+          #
+          # somente se estiver duplicada não é necessário,
+          # portanto deixamos o código original intacto.
+          # ----------------------------------------------------------
 
-              raise SystemExit(
-                  "ERRO: fim do bloco problemático não encontrado"
+          # ----------------------------------------------------------
+          # TESTE DE SINTAXE ANTES DA EXECUÇÃO
+          # ----------------------------------------------------------
+
+          try:
+
+              compile(
+                  script,
+                  "corrigir_tela.py",
+                  "exec"
               )
 
-          # ----------------------------------------------------------
-          # Confere a sintaxe antes de executar.
-          # ----------------------------------------------------------
+          except SyntaxError as exc:
 
-          compile(
-              script,
-              "corrigir_tela.py",
-              "exec"
-          )
+              print(
+                  "========================================"
+              )
+
+              print(
+                  "ERRO DE SINTAXE NO SCRIPT DA ROLETA"
+              )
+
+              print(
+                  f"Linha: {exc.lineno}"
+              )
+
+              print(
+                  f"Coluna: {exc.offset}"
+              )
+
+              print(
+                  f"Texto: {exc.text}"
+              )
+
+              print(
+                  "========================================"
+              )
+
+              raise
 
           print(
-              "SINTAXE DO SCRIPT DE CORREÇÃO OK"
+              "SINTAXE DO SCRIPT DA ROLETA OK"
           )
+
+          # ----------------------------------------------------------
+          # Salva o script temporariamente.
+          # ----------------------------------------------------------
 
           p = (
               Path(tempfile.gettempdir())
@@ -373,8 +451,15 @@ jobs:
               encoding="utf-8"
           )
 
+          # ----------------------------------------------------------
+          # Executa a correção.
+          # ----------------------------------------------------------
+
           subprocess.run(
-              ["python", str(p)],
+              [
+                  "python",
+                  str(p)
+              ],
               check=True
           )
 
