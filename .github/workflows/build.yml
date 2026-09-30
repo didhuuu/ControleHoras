@@ -15,14 +15,26 @@ jobs:
 
     steps:
 
+      # ============================================================
+      # 1. BAIXAR PROJETO
+      # ============================================================
+
       - name: Baixar projeto
         uses: actions/checkout@v4
+
+      # ============================================================
+      # 2. JAVA 17
+      # ============================================================
 
       - name: Configurar Java 17
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
+
+      # ============================================================
+      # 3. EXTRAIR ZIP ORIGINAL
+      # ============================================================
 
       - name: Extrair projeto
         shell: bash
@@ -44,6 +56,10 @@ jobs:
           test -f ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt
 
           echo "PROJETO ORIGINAL OK"
+
+      # ============================================================
+      # 4. BASE 70
+      # ============================================================
 
       - name: Aplicar exatamente a base da versão 70
         shell: python
@@ -156,6 +172,10 @@ jobs:
           print("ESCALA ORIGINAL PRESERVADA")
           print("========================================")
 
+      # ============================================================
+      # 5. VERSÃO 80
+      # ============================================================
+
       - name: Aplicar funcionalidades da versão 80
         shell: python
         run: |
@@ -190,9 +210,7 @@ jobs:
               "      - name: Validar código e ícone"
           )
 
-          start = workflow.index(
-              start_marker
-          )
+          start = workflow.index(start_marker)
 
           end = workflow.index(
               end_marker,
@@ -242,6 +260,224 @@ jobs:
           )
 
           print("VERSÃO 80 APLICADA")
+
+      # ============================================================
+      # 6. CORREÇÕES ESTRUTURAIS DA VERSÃO 80
+      #
+      # Corrige especificamente:
+      # - punchNames inexistente
+      # - controleHorasPunchPage inexistente
+      # - card() usado diretamente no addView()
+      #
+      # NÃO altera a escala.
+      # ============================================================
+
+      - name: Corrigir estrutura Kotlin da versão 80
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          print("========================================")
+          print("CORRIGINDO ESTRUTURA KOTLIN")
+          print("========================================")
+
+          src = Path(
+              "ControleHoras/app/src/main/java/"
+              "com/didhuuu/controlehoras/MainActivity.kt"
+          )
+
+          if not src.exists():
+              raise SystemExit(
+                  "ERRO: MainActivity.kt não encontrado."
+              )
+
+          code = src.read_text(
+              encoding="utf-8"
+          )
+
+          # ----------------------------------------------------------
+          # IMPORT VIEW
+          # ----------------------------------------------------------
+
+          if not re.search(
+              r"(?m)^import android\.view\.View\s*$",
+              code
+          ):
+
+              lines = code.splitlines()
+
+              package_index = 0
+
+              for i, line in enumerate(lines):
+
+                  if line.startswith("package "):
+                      package_index = i
+                      break
+
+              lines.insert(
+                  package_index + 1,
+                  "import android.view.View"
+              )
+
+              code = "\n".join(lines) + "\n"
+
+          # ----------------------------------------------------------
+          # LOCALIZAR MainActivity
+          # ----------------------------------------------------------
+
+          main_match = re.search(
+              r"class\s+MainActivity[^{]*\{",
+              code
+          )
+
+          if not main_match:
+              raise SystemExit(
+                  "ERRO: MainActivity não encontrada."
+              )
+
+          class_end = main_match.end()
+
+          # ----------------------------------------------------------
+          # punchNames
+          #
+          # Tem que ficar DENTRO da MainActivity.
+          # ----------------------------------------------------------
+
+          if not re.search(
+              r"(?m)^\s*(?:private\s+)?val\s+punchNames\s*=",
+              code
+          ):
+
+              punch_block = """
+    private val punchNames = arrayOf(
+        "Entrada",
+        "Saída",
+        "Retorno",
+        "Saída intervalo 2",
+        "Retorno intervalo 2",
+        "Saída"
+    )
+
+"""
+
+              code = (
+                  code[:class_end]
+                  + punch_block
+                  + code[class_end:]
+              )
+
+          # ----------------------------------------------------------
+          # controleHorasPunchPage
+          #
+          # Mantido para compatibilidade com as partes da versão 80.
+          # ----------------------------------------------------------
+
+          if not re.search(
+              r"(?m)^\s*(?:private\s+)?var\s+controleHorasPunchPage\s*:",
+              code
+          ):
+
+              # Recalcula a posição porque o código mudou.
+              main_match = re.search(
+                  r"class\s+MainActivity[^{]*\{",
+                  code
+              )
+
+              class_end = main_match.end()
+
+              page_block = """
+    private var controleHorasPunchPage: View? = null
+
+"""
+
+              code = (
+                  code[:class_end]
+                  + page_block
+                  + code[class_end:]
+              )
+
+          # ----------------------------------------------------------
+          # CORREÇÃO DO addView(card().apply...)
+          #
+          # O erro #121 acontecia porque o resultado de card()
+          # não estava sendo aceito pelo overload de addView().
+          #
+          # Transformamos explicitamente o objeto em View.
+          # ----------------------------------------------------------
+
+          old = """box.addView(
+                      card().apply{"""
+
+          new = """box.addView(
+                      (card() as View).apply{"""
+
+          occurrences = code.count(old)
+
+          if occurrences == 0:
+
+              # Versões que usam espaçamento diferente.
+              pattern = (
+                  r"box\.addView\(\s*"
+                  r"card\(\)\.apply\{"
+              )
+
+              code, changed = re.subn(
+                  pattern,
+                  "box.addView(\\n                      "
+                  "(card() as View).apply{",
+                  code,
+                  count=1
+              )
+
+              occurrences = changed
+
+          else:
+
+              code = code.replace(
+                  old,
+                  new,
+                  1
+              )
+
+          if occurrences == 0:
+
+              raise SystemExit(
+                  "ERRO: não foi possível localizar "
+                  "o card() problemático do showPunch."
+              )
+
+          # ----------------------------------------------------------
+          # GARANTIR QUE NÃO FICOU O PADRÃO PROBLEMÁTICO
+          # ----------------------------------------------------------
+
+          if re.search(
+              r"box\.addView\(\s*card\(\)\.apply\{",
+              code
+          ):
+
+              raise SystemExit(
+                  "ERRO: ainda existe addView(card().apply...)."
+              )
+
+          # ----------------------------------------------------------
+          # GRAVAR
+          # ----------------------------------------------------------
+
+          src.write_text(
+              code,
+              encoding="utf-8"
+          )
+
+          print("punchNames: OK")
+          print("controleHorasPunchPage: OK")
+          print("addView/card(): CORRIGIDO")
+          print("ESCALA: NÃO ALTERADA")
+          print("========================================")
+
+      # ============================================================
+      # 7. SOM DA ROLETA
+      # ============================================================
 
       - name: Criar som mecânico da roleta
         shell: python
@@ -325,12 +561,23 @@ jobs:
                   b"".join(frames)
               )
 
-          if not filename.exists():
+          test = Path(filename)
+
+          if not test.exists():
               raise SystemExit(
                   "ERRO: som não criado."
               )
 
+          if test.stat().st_size == 0:
+              raise SystemExit(
+                  "ERRO: som vazio."
+              )
+
           print("SOM DA ROLETA CRIADO")
+
+      # ============================================================
+      # 8. INSTALAR ROLETA
+      # ============================================================
 
       - name: Instalar roleta personalizada
         shell: python
@@ -348,11 +595,6 @@ jobs:
               "ControleHoras/app/src/main/java/"
               "com/didhuuu/controlehoras/MainActivity.kt"
           )
-
-          if not src.exists():
-              raise SystemExit(
-                  "ERRO: MainActivity.kt não encontrado."
-              )
 
           code = src.read_text(
               encoding="utf-8"
@@ -412,6 +654,10 @@ jobs:
               "register_method"
           )
 
+          # ----------------------------------------------------------
+          # IMPORTS DA ROLETA
+          # ----------------------------------------------------------
+
           imports = [
               "import android.content.Context",
               "import android.graphics.Canvas",
@@ -435,12 +681,12 @@ jobs:
 
           for imp in imports:
 
-              if re.search(
+              if not re.search(
                   r"(?m)^"
                   + re.escape(imp)
                   + r"\s*$",
                   code
-              ) is None:
+              ):
 
                   code = (
                       code[:package_end + 1]
@@ -450,6 +696,37 @@ jobs:
                   )
 
                   package_end += len(imp) + 1
+
+          # ----------------------------------------------------------
+          # INSERIR CLASSE DA ROLETA
+          # FORA DA MainActivity
+          # ----------------------------------------------------------
+
+          if (
+              "class ControleHorasTimeWheelView"
+              not in code
+          ):
+
+              main_index = code.find(
+                  "class MainActivity"
+              )
+
+              if main_index < 0:
+                  raise SystemExit(
+                      "ERRO: MainActivity não encontrada."
+                  )
+
+              code = (
+                  code[:main_index]
+                  + "\n"
+                  + wheel_class
+                  + "\n"
+                  + code[main_index:]
+              )
+
+          # ----------------------------------------------------------
+          # FUNÇÃO PARA INDENTAR
+          # ----------------------------------------------------------
 
           def indent_block(
               block,
@@ -465,50 +742,9 @@ jobs:
                   for line in block.splitlines()
               )
 
-          def insert_before(
-              source,
-              anchor,
-              block
-          ):
-
-              pos = source.find(anchor)
-
-              if pos < 0:
-                  raise SystemExit(
-                      "ERRO: âncora não encontrada: "
-                      + anchor
-                  )
-
-              return (
-                  source[:pos]
-                  + "\n"
-                  + block
-                  + "\n"
-                  + source[pos:]
-              )
-
-          if (
-              "class ControleHorasTimeWheelView"
-              not in code
-          ):
-
-              main_index = code.find(
-                  "class MainActivity"
-              )
-
-              if main_index < 0:
-                  raise SystemExit(
-                      "ERRO: class MainActivity "
-                      "não encontrada."
-                  )
-
-              code = (
-                  code[:main_index]
-                  + "\n"
-                  + wheel_class
-                  + "\n"
-                  + code[main_index:]
-              )
+          # ----------------------------------------------------------
+          # INSERIR DIÁLOGO
+          # ----------------------------------------------------------
 
           if (
               "private fun "
@@ -516,14 +752,33 @@ jobs:
               not in code
           ):
 
-              code = insert_before(
-                  code,
-                  "    private fun showManualWheel(",
-                  indent_block(
+              anchor = (
+                  "    private fun showManualWheel("
+              )
+
+              pos = code.find(anchor)
+
+              if pos < 0:
+
+                  raise SystemExit(
+                      "ERRO: showManualWheel "
+                      "não encontrada para inserir "
+                      "o diálogo."
+                  )
+
+              code = (
+                  code[:pos]
+                  + indent_block(
                       wheel_dialog,
                       4
                   )
+                  + "\n\n"
+                  + code[pos:]
               )
+
+          # ----------------------------------------------------------
+          # SUBSTITUIR FUNÇÕES SEM DEPENDER DA ORDEM
+          # ----------------------------------------------------------
 
           def replace_method(
               source,
@@ -531,7 +786,9 @@ jobs:
               body
           ):
 
-              start = source.find(signature)
+              start = source.find(
+                  signature
+              )
 
               if start < 0:
                   raise SystemExit(
@@ -565,6 +822,7 @@ jobs:
                   )
 
                   if closing < 0:
+
                       raise SystemExit(
                           "ERRO: fim da função não encontrado: "
                           + signature
@@ -603,15 +861,9 @@ jobs:
               register_method
           )
 
-          if (
-              "Esse registro ainda está vazio"
-              in code
-          ):
-
-              raise SystemExit(
-                  "ERRO: bloqueio antigo de "
-                  "batida vazia ainda encontrado."
-              )
+          # ----------------------------------------------------------
+          # MANIFEST
+          # ----------------------------------------------------------
 
           manifest = Path(
               "ControleHoras/app/src/main/AndroidManifest.xml"
@@ -619,8 +871,7 @@ jobs:
 
           if not manifest.exists():
               raise SystemExit(
-                  "ERRO: AndroidManifest.xml "
-                  "não encontrado."
+                  "ERRO: AndroidManifest.xml não encontrado."
               )
 
           manifest_code = manifest.read_text(
@@ -647,34 +898,43 @@ jobs:
               encoding="utf-8"
           )
 
-          # ==================================================
-          # VALIDAÇÃO CORRIGIDA
-          # NÃO EXIGE MAIS controleHorasPunchPage
-          # ==================================================
+          # ----------------------------------------------------------
+          # VALIDAÇÃO
+          # ----------------------------------------------------------
 
           required = [
               "class ControleHorasTimeWheelView",
-              "private fun "
-              "showControleHorasWheelDialog(",
+              "private fun showControleHorasWheelDialog(",
               "private fun showManualWheel(",
               "private fun showEditWheel(",
               "private fun registerPunch(",
               "punchNames",
+              "controleHorasPunchPage",
               "extra2Enabled",
-              "nextPunchIndex"
+              "nextPunchIndex",
+              "roller_click"
           ]
 
           for item in required:
 
               if item not in code:
+
                   raise SystemExit(
                       "ERRO: recurso não encontrado: "
                       + item
                   )
 
           if "NumberPicker(" in code:
+
               raise SystemExit(
                   "ERRO: NumberPicker ainda presente."
+              )
+
+          if "Esse registro ainda está vazio" in code:
+
+              raise SystemExit(
+                  "ERRO: bloqueio antigo de "
+                  "batida vazia ainda encontrado."
               )
 
           sound = Path(
@@ -688,8 +948,7 @@ jobs:
           ):
 
               raise SystemExit(
-                  "ERRO: roller_click.wav "
-                  "não encontrado."
+                  "ERRO: roller_click.wav não encontrado."
               )
 
           icon = Path(
@@ -703,8 +962,7 @@ jobs:
           ):
 
               raise SystemExit(
-                  "ERRO: controlehoras_icon.jpg "
-                  "não encontrado."
+                  "ERRO: controlehoras_icon.jpg não encontrado."
               )
 
           src.write_text(
@@ -713,16 +971,19 @@ jobs:
           )
 
           print("========================================")
-          print("ROLETA INSTALADA COM SUCESSO")
-          print("DIALOG INSTALADO")
-          print("REGISTRO MANUAL INSTALADO")
-          print("EDIÇÃO DE REGISTRO INSTALADA")
-          print("BATIDA VAZIA PODE SER EDITADA")
-          print("REGISTRO AUTOMÁTICO PRESERVADO")
-          print("ESCALA NÃO ALTERADA")
-          print("NUMBERPICKER REMOVIDO")
-          print("VALIDAÇÃO ESTRUTURAL OK")
+          print("ROLETA INSTALADA")
+          print("EDIÇÃO POR ROLETA: OK")
+          print("REGISTRO MANUAL: OK")
+          print("REGISTRO AUTOMÁTICO: PRESERVADO")
+          print("punchNames: OK")
+          print("controleHorasPunchPage: OK")
+          print("NUMBERPICKER: REMOVIDO")
+          print("ESCALA: PRESERVADA")
           print("========================================")
+
+      # ============================================================
+      # 9. VALIDAÇÃO FINAL ANTES DO GRADLE
+      # ============================================================
 
       - name: Validar projeto antes do Gradle
         shell: bash
@@ -762,6 +1023,10 @@ jobs:
             "$SRC"
 
           grep -q \
+            "controleHorasPunchPage" \
+            "$SRC"
+
+          grep -q \
             "extra2Enabled" \
             "$SRC"
 
@@ -785,6 +1050,22 @@ jobs:
               exit 1
           fi
 
+          if grep -q \
+            "box.addView(" "$SRC" &&
+             grep -q \
+            "card().apply{" "$SRC"; then
+
+              if grep -n \
+                -B1 -A1 \
+                "card().apply{" \
+                "$SRC" | grep -q \
+                "box.addView"; then
+
+                  echo "ERRO: card() sem conversão para View."
+                  exit 1
+              fi
+          fi
+
           test -s \
             "ControleHoras/app/src/main/res/raw/roller_click.wav"
 
@@ -792,12 +1073,16 @@ jobs:
             "ControleHoras/app/src/main/res/drawable/controlehoras_icon.jpg"
 
           grep -q \
-            'controlehoras_icon' \
+            "controlehoras_icon" \
             ControleHoras/app/src/main/AndroidManifest.xml
 
           echo "========================================"
-          echo "VALIDAÇÃO FINAL OK"
+          echo "VALIDAÇÃO ESTRUTURAL OK"
           echo "========================================"
+
+      # ============================================================
+      # 10. GRADLE 8.11.1
+      # ============================================================
 
       - name: Instalar Gradle 8.11.1
         shell: bash
@@ -821,6 +1106,10 @@ jobs:
           "$PWD/gradle-8.11.1/bin/gradle" \
             --version
 
+      # ============================================================
+      # 11. LIMPAR
+      # ============================================================
+
       - name: Limpar projeto
         working-directory: ControleHoras
         shell: bash
@@ -834,6 +1123,10 @@ jobs:
           gradle clean \
             --no-daemon \
             --stacktrace
+
+      # ============================================================
+      # 12. COMPILAR APK
+      # ============================================================
 
       - name: Gerar APK
         working-directory: ControleHoras
@@ -851,13 +1144,20 @@ jobs:
 
           APK="app/build/outputs/apk/debug/app-debug.apk"
 
-          test -s "$APK"
+          if [ ! -s "$APK" ]; then
+            echo "ERRO: APK não foi gerado."
+            exit 1
+          fi
 
           ls -lh "$APK"
 
           echo "========================================"
           echo "APK GERADO COM SUCESSO"
           echo "========================================"
+
+      # ============================================================
+      # 13. VALIDAR APK
+      # ============================================================
 
       - name: Verificar APK
         working-directory: ControleHoras
@@ -876,6 +1176,10 @@ jobs:
           echo "========================================"
           echo "APK VALIDADO"
           echo "========================================"
+
+      # ============================================================
+      # 14. PUBLICAR APK
+      # ============================================================
 
       - name: Publicar APK
         uses: actions/upload-artifact@v4
