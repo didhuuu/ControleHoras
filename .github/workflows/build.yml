@@ -8,23 +8,14 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-
-      # ============================================================
-      # BAIXAR PROJETO
-      # ============================================================
-
       - name: Baixar projeto
         uses: actions/checkout@v4
-
-      # ============================================================
-      # JAVA 17
-      # ============================================================
 
       - name: Configurar Java 17
         uses: actions/setup-java@v5
@@ -32,45 +23,27 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # ============================================================
-      # EXTRAIR PROJETO
-      # ============================================================
-
       - name: Extrair projeto
         shell: bash
         run: |
           set -e
-
           rm -rf ControleHoras
-
           unzip -q -o ControleHoras.zip
-
           test -f ControleHoras/settings.gradle.kts
           test -f ControleHoras/build.gradle.kts
           test -f ControleHoras/app/build.gradle.kts
           test -f ControleHoras/app/src/main/AndroidManifest.xml
           test -f ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt
-
           echo "PROJETO ORIGINAL OK"
-
-      # ============================================================
-      # RECONSTRUIR BASE 70
-      # ============================================================
 
       - name: Aplicar exatamente a base da versão 70
         shell: python
         run: |
           from pathlib import Path
           from urllib.request import urlopen
-          import subprocess
-          import tempfile
+          import subprocess, tempfile
 
-          url=(
-              "https://raw.githubusercontent.com/"
-              "didhuuu/ControleHoras/"
-              "6381d26e525e1f9eeb91af17cdb9fed66293c1f2/"
-              ".github/workflows/build.yml"
-          )
+          url="https://raw.githubusercontent.com/didhuuu/ControleHoras/6381d26e525e1f9eeb91af17cdb9fed66293c1f2/.github/workflows/build.yml"
 
           workflow=urlopen(
               url,
@@ -78,7 +51,6 @@ jobs:
           ).read().decode("utf-8")
 
           def extract_step(name,next_name):
-
               start=workflow.index(
                   f"      - name: {name}"
               )
@@ -97,7 +69,8 @@ jobs:
               lines=block[pos:].splitlines()
 
               return "\n".join(
-                  line[10:] if line.startswith("          ") else line
+                  line[10:] if line.startswith("          ")
+                  else line
                   for line in lines
               )+"\n"
 
@@ -113,11 +86,7 @@ jobs:
           ]
 
           for i,script in enumerate(scripts):
-
-              p=(
-                  Path(tempfile.gettempdir())/
-                  f"base70_{i}.py"
-              )
+              p=Path(tempfile.gettempdir())/f"base70_{i}.py"
 
               p.write_text(
                   script,
@@ -129,556 +98,171 @@ jobs:
                   check=True
               )
 
-          print("BASE 70 APLICADA COM SUCESSO")
+          print("BASE DA VERSÃO 70 APLICADA")
 
-      # ============================================================
-      # APLICAR FUNCIONALIDADES DO BUILD 80
-      # ============================================================
-
-      - name: Aplicar funcionalidades completas da versão 80
+      - name: Aplicar correções finais da Base 70, edição por rolagem e ícone
         shell: python
         run: |
           from pathlib import Path
-          from urllib.request import urlopen
-          import subprocess
-          import tempfile
 
-          url=(
-              "https://raw.githubusercontent.com/"
-              "didhuuu/ControleHoras/"
-              "acc38dd316464293e4d47b10ea3ccf6da7b9454a/"
-              ".github/workflows/build.yml"
+          root=Path('ControleHoras')
+
+          src=root/'app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt'
+
+          manifest=root/'app/src/main/AndroidManifest.xml'
+
+          code=src.read_text(
+              encoding='utf-8'
           )
 
-          workflow=urlopen(
-              url,
-              timeout=30
-          ).read().decode("utf-8")
-
-          def extract_step(name,next_name):
-
-              start=workflow.index(
-                  f"      - name: {name}"
-              )
-
-              end=workflow.index(
-                  f"      - name: {next_name}",
-                  start
-              )
-
-              block=workflow[start:end]
-
-              marker="        run: |\n"
-
-              pos=block.index(marker)+len(marker)
-
-              lines=block[pos:].splitlines()
-
-              return "\n".join(
-                  line[10:] if line.startswith("          ") else line
-                  for line in lines
-              )+"\n"
-
-          script=extract_step(
-              "Aplicar funcionalidades completas",
-              "Corrigir MainActivity definitivamente"
-          )
-
-          p=(
-              Path(tempfile.gettempdir())/
-              "funcionalidades80.py"
-          )
-
-          p.write_text(
-              script,
-              encoding="utf-8"
-          )
-
-          subprocess.run(
-              ["python",str(p)],
-              check=True
-          )
-
-          print(
-              "FUNCIONALIDADES DO BUILD 80 APLICADAS"
-          )
-
-      # ============================================================
-      # CORRIGIR MAINACTIVITY
-      # ============================================================
-
-      - name: Corrigir MainActivity definitivamente
-        shell: python
-        run: |
-          from pathlib import Path
-          import re
-
-          file=Path(
-              "ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
-          )
-
-          if not file.exists():
-              raise SystemExit(
-                  "ERRO: MainActivity.kt não encontrado"
-              )
-
-          code=file.read_text(
-              encoding="utf-8"
-          )
-
-          # ========================================================
-          # PUNCHNAMES
-          # ========================================================
-
-          if "private val punchNames" not in code:
-
-              names=(
-                  "    private val punchNames=arrayOf<String>(\n"
-                  "        \"Entrada\",\n"
-                  "        \"Saída\",\n"
-                  "        \"Retorno\",\n"
-                  "        \"Saída intervalo 2\",\n"
-                  "        \"Retorno intervalo 2\",\n"
-                  "        \"Saída\"\n"
-                  "    )\n"
-              )
+          # Extra interval state
+          if 'private val extra2Enabled' not in code:
 
               anchors=[
-                  '    private val extra2ReturnEnabled=mutableSetOf<String>()\n',
-                  '    private val extra2Enabled=mutableSetOf<String>()\n',
                   '    private val weekModes=linkedMapOf<String,String>()\n',
                   '    private val weekModes = linkedMapOf<String,String>()\n'
               ]
 
-              inserted=False
+              for a in anchors:
 
-              for anchor in anchors:
-
-                  if anchor in code:
+                  if a in code:
 
                       code=code.replace(
-                          anchor,
-                          anchor+names,
+                          a,
+                          a+
+                          '    private val extra2Enabled=mutableSetOf<String>()\n'
+                          '    private val extra2ReturnEnabled=mutableSetOf<String>()\n',
                           1
                       )
 
-                      inserted=True
                       break
 
-              if not inserted:
-
+              else:
                   raise SystemExit(
-                      "ERRO: não foi possível inserir punchNames"
+                      'ERRO: weekModes não encontrado'
                   )
 
-          # ========================================================
-          # CORRIGIR ADDVIEW
-          # ========================================================
+          if 'prefs.getString("extra2Enabled"' not in code:
 
-          pattern=(
-              r'\},\s*'
-              r'0,\s*'
-              r'0,\s*'
-              r'0,\s*'
-              r'dp\(10\)\s*'
-              r'\)\s*'
-              r'val dateCard\s*=\s*card\(\)'
-          )
+              anchor='        scale.clear()\n'
 
-          replacement=(
-              "},\n"
-              "                      LinearLayout.LayoutParams(\n"
-              "                          -1,\n"
-              "                          -2\n"
-              "                      ).apply{\n"
-              "                          bottomMargin=dp(10)\n"
-              "                      }\n"
-              "                  )\n\n"
-              "                  val dateCard=card()"
-          )
+              if anchor not in code:
+                  raise SystemExit(
+                      'ERRO: scale.clear não encontrado'
+                  )
 
-          code,count=re.subn(
-              pattern,
-              replacement,
-              code,
-              count=1
-          )
+              block='''        extra2Enabled.clear()
+                  extra2ReturnEnabled.clear()
+                  try{
+                      val ja=JSONArray(prefs.getString("extra2Enabled","[]") ?: "[]")
+                      for(i in 0 until ja.length()) extra2Enabled.add(ja.optString(i))
+                      val jb=JSONArray(prefs.getString("extra2ReturnEnabled","[]") ?: "[]")
+                      for(i in 0 until jb.length()) extra2ReturnEnabled.add(jb.optString(i))
+                  }catch(_:Exception){}
 
-          if count==0:
+          '''
 
-              print(
-                  "ADDVIEW já estava corrigido"
+              code=code.replace(
+                  anchor,
+                  block+anchor,
+                  1
               )
 
-          if "private val punchNames" not in code:
+              anchor='        e.apply()\n'
 
+              if anchor not in code:
+                  raise SystemExit(
+                      'ERRO: e.apply não encontrado'
+                  )
+
+              block='''        val extraJson=JSONArray()
+                  extra2Enabled.forEach{extraJson.put(it)}
+                  e.putString("extra2Enabled",extraJson.toString())
+
+                  val extraReturnJson=JSONArray()
+                  extra2ReturnEnabled.forEach{extraReturnJson.put(it)}
+                  e.putString("extra2ReturnEnabled",extraReturnJson.toString())
+          '''
+
+              code=code.replace(
+                  anchor,
+                  block+anchor,
+                  1
+              )
+
+          # Helpers
+          if 'private fun extraKey' not in code:
+
+              anchor='    private fun today()=iso.format(Date())\n'
+
+              if anchor not in code:
+                  raise SystemExit(
+                      'ERRO: today não encontrado'
+                  )
+
+              block='''    private fun extraKey(empId:Long,date:String)=empId.toString()+"|"+date
+              private fun extraEnabled(empId:Long,date:String)=extra2Enabled.contains(extraKey(empId,date))
+              private fun extraReturnEnabled(empId:Long,date:String)=extra2ReturnEnabled.contains(extraKey(empId,date))
+
+              private fun setExtraEnabled(empId:Long,date:String,value:Boolean){
+                  val k=extraKey(empId,date)
+
+                  if(value)
+                      extra2Enabled.add(k)
+                  else{
+                      extra2Enabled.remove(k)
+                      extra2ReturnEnabled.remove(k)
+                  }
+
+                  saveData()
+              }
+
+              private fun setExtraReturnEnabled(empId:Long,date:String,value:Boolean){
+                  val k=extraKey(empId,date)
+
+                  if(value && extra2Enabled.contains(k))
+                      extra2ReturnEnabled.add(k)
+                  else
+                      extra2ReturnEnabled.remove(k)
+
+                  saveData()
+              }
+
+          '''
+
+              code=code.replace(
+                  anchor,
+                  block+anchor,
+                  1
+              )
+
+          # Replace only Ponto screen and its registration helpers.
+          # Other tabs remain untouched.
+          start=code.find(
+              '    private fun showPunch()'
+          )
+
+          end=code.find(
+              '    private fun showHistory()',
+              start
+          )
+
+          if start<0 or end<0:
               raise SystemExit(
-                  "ERRO FINAL: punchNames ausente"
+                  'ERRO: showPunch/showHistory não encontrados'
               )
 
-          file.write_text(
-              code,
-              encoding="utf-8"
-          )
-
-          print(
-              "MAINACTIVITY CORRIGIDA"
-          )
-
-      # ============================================================
-      # CORRIGIR COMPLETAMENTE O RELÓGIO DE ROLAGEM
-      # ============================================================
-
-      - name: Corrigir completamente o relógio de rolagem
-        shell: python
-        run: |
-          from pathlib import Path
-          import re
-
-          file=Path(
-              "ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
-          )
-
-          code=file.read_text(
-              encoding="utf-8"
-          )
-
-          # ========================================================
-          # DIMINUIR O TAMANHO DAS RODAS
-          # ========================================================
-
-          code=re.sub(
-              r'dp\(88\)\s*,\s*dp\(150\)',
-              'dp(72),dp(126)',
-              code
-          )
-
-          code=re.sub(
-              r'dp\(35\)\s*,\s*dp\(150\)',
-              'dp(28),dp(126)',
-              code
-          )
-
-          # ========================================================
-          # DIMINUIR O :
-          # ========================================================
-
-          code=re.sub(
-              r'(text\s*=\s*":"\s*textSize\s*=\s*)28f',
-              r'\g<1>22f',
-              code
-          )
-
-          # ========================================================
-          # CRIAR ESTILO DAS RODAS
-          # ========================================================
-
-          if "private fun styleWheel(picker:NumberPicker)" not in code:
-
-              match=re.search(
-                  r'\n(\s*)private\s+fun\s+showEditWheel\s*\(',
-                  code
-              )
-
-              if not match:
-
-                  raise SystemExit(
-                      "ERRO: showEditWheel não encontrado"
-                  )
-
-              indent=match.group(1)
-
-              helper=(
-                  "\n"
-                  +indent+
-                  "private fun styleWheel(picker:NumberPicker){\n"
-                  +indent+
-                  "    picker.setBackgroundColor(Color.TRANSPARENT)\n"
-                  +indent+
-                  "    picker.wrapSelectorWheel=true\n"
-                  +indent+
-                  "    picker.descendantFocusability=NumberPicker.FOCUS_BLOCK_DESCENDANTS\n"
-                  +indent+
-                  "    picker.post{\n"
-                  +indent+
-                  "        for(i in 0 until picker.childCount){\n"
-                  +indent+
-                  "            val child=picker.getChildAt(i)\n"
-                  +indent+
-                  "            if(child is TextView){\n"
-                  +indent+
-                  "                child.setTextColor(darkBlue)\n"
-                  +indent+
-                  "                child.textSize=21f\n"
-                  +indent+
-                  "                child.gravity=Gravity.CENTER\n"
-                  +indent+
-                  "                child.setTypeface(null,Typeface.BOLD)\n"
-                  +indent+
-                  "            }\n"
-                  +indent+
-                  "        }\n"
-                  +indent+
-                  "    }\n"
-                  +indent+
-                  "}\n"
-              )
-
-              code=(
-                  code[:match.start()]+
-                  helper+
-                  code[match.start():]
-              )
-
-          # ========================================================
-          # LOCALIZAR AS DUAS RODAS
-          # ========================================================
-
-          hour_matches=list(
-              re.finditer(
-                  r'val\s+hour\s*=\s*NumberPicker\(this\)\.apply\s*\{',
-                  code
-              )
-          )
-
-          if len(hour_matches)<2:
-
-              raise SystemExit(
-                  "ERRO: não foram encontradas as duas rodas de horário"
-              )
-
-          # ========================================================
-          # INSERIR O ESTILO NAS DUAS RODAS
-          # ========================================================
-
-          insertions=[]
-
-          for hour_match in hour_matches[:2]:
-
-              start=hour_match.start()
-
-              sep_match=re.search(
-                  r'\n(\s*)val\s+sep\s*=',
-                  code[start:]
-              )
-
-              if not sep_match:
-
-                  raise SystemExit(
-                      "ERRO: separador da roda não encontrado"
-                  )
-
-              pos=start+sep_match.start()+1
-
-              indent=sep_match.group(1)
-
-              insertions.append(
-                  (
-                      pos,
-                      indent
-                  )
-              )
-
-          for pos,indent in reversed(insertions):
-
-              code=(
-                  code[:pos]+
-                  indent+
-                  "styleWheel(hour)\n"+
-                  indent+
-                  "styleWheel(minute)\n\n"+
-                  code[pos:]
-              )
-
-          # ========================================================
-          # GARANTIR FUNCIONALIDADES
-          # ========================================================
-
-          required=[
-              "private fun showManualWheel(",
-              "private fun showEditWheel(",
-              "private fun nextPunchIndex(",
-              "private fun calculate(",
-              "formatMin(calc.worked)",
-              "calc.extra60",
-              "calc.extra100",
-              '"%02d:%02d".format',
-              "extra2Enabled",
-              "extra2ReturnEnabled"
-          ]
-
-          for term in required:
-
-              if term not in code:
-
-                  raise SystemExit(
-                      "ERRO: funcionalidade ausente: "+
-                      term
-                  )
-
-          file.write_text(
-              code,
-              encoding="utf-8"
-          )
-
-          print(
-              "RELÓGIO DE ROLAGEM CORRIGIDO COMPLETAMENTE"
-          )
-
-      # ============================================================
-      # VALIDAÇÃO FINAL
-      # ============================================================
-
-      - name: Validar código e ícone
-        shell: bash
-        run: |
-          set -e
-
-          FILE="ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
-
-          ICON="ControleHoras/app/src/main/res/drawable/controlehoras_icon.jpg"
-
-          MANIFEST="ControleHoras/app/src/main/AndroidManifest.xml"
-
-          echo "========================================"
-          echo "VALIDAÇÃO FINAL"
-          echo "========================================"
-
-          test -s "$FILE"
-
-          test -s "$ICON"
-
-          grep -q 'extra2Enabled' "$FILE"
-
-          grep -q 'extra2ReturnEnabled' "$FILE"
-
-          grep -q 'showManualWheel' "$FILE"
-
-          grep -q 'showEditWheel' "$FILE"
-
-          grep -q 'nextPunchIndex' "$FILE"
-
-          grep -q 'punchNames' "$FILE"
-
-          grep -q 'calculate(' "$FILE"
-
-          grep -q 'formatMin(calc.worked)' "$FILE"
-
-          grep -q 'calc.extra60' "$FILE"
-
-          grep -q 'calc.extra100' "$FILE"
-
-          grep -q '"%02d:%02d".format' "$FILE"
-
-          grep -q 'styleWheel(hour)' "$FILE"
-
-          grep -q 'styleWheel(minute)' "$FILE"
-
-          grep -q 'WindowCompat.setDecorFitsSystemWindows' "$FILE"
-
-          grep -q 'controlehoras_icon' "$MANIFEST"
-
-          if grep -q 'Button(context)' "$FILE"; then
-              echo "ERRO: Button(context) encontrado"
-              exit 1
-          fi
-
-          echo "========================================"
-          echo "VALIDAÇÃO FINAL OK"
-          echo "========================================"
-
-      # ============================================================
-      # GRADLE
-      # ============================================================
-
-      - name: Instalar Gradle 8.11.1
-        shell: bash
-        run: |
-          set -e
-
-          wget -q \
-            https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
-
-          unzip -q \
-            gradle-8.11.1-bin.zip
-
-          echo \
-            "$PWD/gradle-8.11.1/bin" \
-            >> "$GITHUB_PATH"
-
-          "$PWD/gradle-8.11.1/bin/gradle" \
-            --version
-
-      # ============================================================
-      # LIMPAR
-      # ============================================================
-
-      - name: Limpar projeto
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -e
-
-          gradle clean --no-daemon
-
-      # ============================================================
-      # GERAR APK
-      # ============================================================
-
-      - name: Gerar APK
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -e
-
-          echo "========================================"
-          echo "GERANDO APK"
-          echo "========================================"
-
-          gradle assembleDebug \
-            --no-daemon \
-            --stacktrace
-
-          APK="app/build/outputs/apk/debug/app-debug.apk"
-
-          if [ ! -s "$APK" ]; then
-              echo "ERRO: APK NÃO FOI GERADO"
-              exit 1
-          fi
-
-          echo "========================================"
-          echo "APK GERADO COM SUCESSO"
-          echo "========================================"
-
-          ls -lh "$APK"
-
-      # ============================================================
-      # VERIFICAR APK
-      # ============================================================
-
-      - name: Verificar APK
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -e
-
-          APK="app/build/outputs/apk/debug/app-debug.apk"
-
-          test -s "$APK"
-
-          unzip -t \
-            "$APK" \
-            >/dev/null
-
-          echo "APK VALIDADO COM SUCESSO"
-
-      # ============================================================
-      # PUBLICAR APK
-      # ============================================================
-
-      - name: Publicar APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: ControleHoras-APK
-          path: ControleHoras/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+          show='''    private fun showPunch(){
+                  val box=page("Bater Ponto")
+
+                  if(employees.isEmpty()){
+                      box.addView(
+                          infoCard(
+                              "Nenhum funcionário cadastrado.\\nCadastre o primeiro em Funcionários."
+                          )
+                      )
+                      return
+                  }
+
+                  val emp=
+                      employees.firstOr
