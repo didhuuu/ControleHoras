@@ -328,7 +328,7 @@ jobs:
           ) + "\n"
 
           # ----------------------------------------------------------
-          # REMOVER O BLOCO ANTIGO DE BATIDA VAZIA
+          # REMOVER BLOCO ANTIGO DE BATIDA VAZIA
           # ----------------------------------------------------------
 
           bad_start = script.find(
@@ -358,8 +358,7 @@ jobs:
               )
 
           # ----------------------------------------------------------
-          # GARANTIA:
-          # O BLOCO COM TRIPLE QUOTE NÃO PODE MAIS EXISTIR
+          # GARANTIA CONTRA O BLOCO ANTIGO
           # ----------------------------------------------------------
 
           if (
@@ -372,18 +371,7 @@ jobs:
               )
 
           # ----------------------------------------------------------
-          # CORRIGIR O ERRO QUE ESTAVA NA LINHA 605
-          #
-          # O SCRIPT ORIGINAL TINHA:
-          #
-          # main_index=
-          #     code.find(
-          #
-          # Isso gera SyntaxError.
-          #
-          # Aqui transformamos em:
-          #
-          # main_index = code.find(
+          # CORRIGIR main_index
           # ----------------------------------------------------------
 
           script = script.replace(
@@ -398,14 +386,26 @@ jobs:
               "main_index = code.find("
           )
 
-          # ----------------------------------------------------------
-          # GARANTIA EXTRA
-          # ----------------------------------------------------------
-
           if "main_index=\n" in script:
 
               raise SystemExit(
                   "ERRO: assinatura main_index ainda está quebrada"
+              )
+
+          # ----------------------------------------------------------
+          # IMPORTANTE:
+          # verificar a DECLARAÇÃO da função,
+          # e não somente chamadas da função.
+          # ----------------------------------------------------------
+
+          function_marker = (
+              "private fun showControleHorasWheelDialog("
+          )
+
+          if function_marker not in script:
+
+              raise SystemExit(
+                  "ERRO: declaração da roleta não foi encontrada"
               )
 
           # ----------------------------------------------------------
