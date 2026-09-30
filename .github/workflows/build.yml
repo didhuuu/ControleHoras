@@ -28,13 +28,17 @@ jobs:
         shell: bash
         run: |
           set -e
+
           rm -rf ControleHoras
+
           unzip -q -o ControleHoras.zip
+
           test -f ControleHoras/settings.gradle.kts
           test -f ControleHoras/build.gradle.kts
           test -f ControleHoras/app/build.gradle.kts
           test -f ControleHoras/app/src/main/AndroidManifest.xml
           test -f ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt
+
           echo "PROJETO ORIGINAL OK"
 
       - name: Aplicar exatamente a base da versão 70
@@ -45,36 +49,54 @@ jobs:
           import subprocess
           import tempfile
 
-          url=(
+          url = (
               "https://raw.githubusercontent.com/"
               "didhuuu/ControleHoras/"
               "6381d26e525e1f9eeb91af17cdb9fed66293c1f2/"
               ".github/workflows/build.yml"
           )
 
-          workflow=urlopen(url,timeout=30).read().decode("utf-8")
+          workflow = urlopen(url, timeout=30).read().decode("utf-8")
 
-          def extract_step(name,next_name):
-              start=workflow.index(f"      - name: {name}")
-              end=workflow.index(f"      - name: {next_name}",start)
-              block=workflow[start:end]
-              marker="        run: |\n"
-              pos=block.index(marker)+len(marker)
-              lines=block[pos:].splitlines()
+          def extract_step(name, next_name):
+              start = workflow.index(f"      - name: {name}")
+              end = workflow.index(f"      - name: {next_name}", start)
+
+              block = workflow[start:end]
+
+              marker = "        run: |\n"
+              pos = block.index(marker) + len(marker)
+
+              lines = block[pos:].splitlines()
+
               return "\n".join(
                   line[10:] if line.startswith("          ") else line
                   for line in lines
-              )+"\n"
+              ) + "\n"
 
-          scripts=[
-              extract_step("Aplicar versão 36","Adicionar seleção de data"),
-              extract_step("Adicionar seleção de data","Validar código")
+          scripts = [
+              extract_step(
+                  "Aplicar versão 36",
+                  "Adicionar seleção de data"
+              ),
+              extract_step(
+                  "Adicionar seleção de data",
+                  "Validar código"
+              )
           ]
 
-          for i,script in enumerate(scripts):
-              p=Path(tempfile.gettempdir())/f"base70_{i}.py"
-              p.write_text(script,encoding="utf-8")
-              subprocess.run(["python",str(p)],check=True)
+          for i, script in enumerate(scripts):
+              p = Path(tempfile.gettempdir()) / f"base70_{i}.py"
+
+              p.write_text(
+                  script,
+                  encoding="utf-8"
+              )
+
+              subprocess.run(
+                  ["python", str(p)],
+                  check=True
+              )
 
           print("BASE 70 APLICADA")
 
@@ -86,41 +108,54 @@ jobs:
           import subprocess
           import tempfile
 
-          url=(
+          url = (
               "https://raw.githubusercontent.com/"
               "didhuuu/ControleHoras/"
               "894fb3f98dfda80c297f31474130324a094b6dc6/"
               ".github/workflows/build.yml"
           )
 
-          workflow=urlopen(url,timeout=30).read().decode("utf-8")
+          workflow = urlopen(url, timeout=30).read().decode("utf-8")
 
-          start=workflow.index(
+          start = workflow.index(
               "      - name: Aplicar correções finais da Base 70, edição por rolagem e ícone"
           )
 
-          end=workflow.index(
+          end = workflow.index(
               "      - name: Validar código e ícone",
               start
           )
 
-          block=workflow[start:end]
-          marker="        run: |\n"
-          pos=block.index(marker)+len(marker)
-          lines=block[pos:].splitlines()
-          script="\n".join(
+          block = workflow[start:end]
+
+          marker = "        run: |\n"
+          pos = block.index(marker) + len(marker)
+
+          lines = block[pos:].splitlines()
+
+          script = "\n".join(
               line[10:] if line.startswith("          ") else line
               for line in lines
-          )+"\n"
+          ) + "\n"
 
-          p=Path(tempfile.gettempdir())/"funcionalidades.py"
-          p.write_text(script,encoding="utf-8")
-          subprocess.run(["python",str(p)],check=True)
+          p = Path(tempfile.gettempdir()) / "funcionalidades.py"
+
+          p.write_text(
+              script,
+              encoding="utf-8"
+          )
+
+          subprocess.run(
+              ["python", str(p)],
+              check=True
+          )
 
           print("FUNCIONALIDADES DA VERSÃO 80 APLICADAS")
 
       - name: Recuperar ícone aprovado da versão 80
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
 
@@ -132,11 +167,14 @@ jobs:
           ARTIFACT="/tmp/controlehoras80.zip"
           APKDIR="/tmp/controlehoras80"
 
-          curl -fsSL \
-            -H "Authorization: Bearer $GITHUB_TOKEN" \
+          curl -fL \
+            -H "Authorization: Bearer $GH_TOKEN" \
             -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/didhuuu/ControleHoras/actions/artifacts/11068205148/zip" \
             -o "$ARTIFACT"
+
+          test -s "$ARTIFACT"
 
           rm -rf "$APKDIR"
           mkdir -p "$APKDIR"
@@ -174,297 +212,28 @@ jobs:
           import gzip
           import re
 
-          root=Path("ControleHoras")
+          root = Path("ControleHoras")
 
-          src=(
-              root/
+          src = (
+              root /
               "app/src/main/java/com/didhuuu/"
               "controlehoras/MainActivity.kt"
           )
 
-          wheel=(
-              root/
+          wheel = (
+              root /
               "app/src/main/java/com/didhuuu/"
               "controlehoras/TimeWheelView.kt"
           )
 
           def dec(s):
+              raw = base64.b64decode(s)
+
               return gzip.decompress(
-                  base64.b64decode(s)
+                  raw
               ).decode("utf-8")
 
-          blocks={}
+          blocks = {}
 
-          blocks["SHOWPUNCH"]=dec(
-              "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"
-          )
-
-          blocks["ADDPUNCH"]=dec(
-              "H4sIADTjvGoC/7VUbW/aMBD+vl8R9ZOthShs7TohIQ1oWJFoQTRqpU7TZJILWBg7chxehvjvsw0tpAlVtW6XKBfn3uznnpzjOE4q6YIocJKcOySOhzmPpiOxRGOxavQpByL7ZC1y5UqIGtZ6RdYu5TGsGj2uXE7m0LhTkvIJ3nxw9rIgzJFi2TzOgNSUZtgjacrWB08jQlLgiigqeCHCux6Meo+D27DVL/hPJFlQtW5+32mvE9yGwejXfTAKe50XvhmooT6X3h6KU1T/hF2tzu2z7u8XuBAxJtFsIkXOY9QRTEjv4boXBu4huqSK8cBgsTuLsWJPiS4TRKGD1/b5TWPk6d3dU1iiQpIQVsp+PQmaEaW9msg246OttGsEwpWed/Q3NOtfkpKxGs+Sm4YyXKeQkAgQzxlzn1Zee9C/Ktc8AtJfdbtBq+t3L/UmNW0Qdj/7z3cxdOsWlgVC7NSQSDLPTD/P9/087gH+p+gafr+C5kVSCZO2W+7YAt9uCOWtSFELronFVUEvaOqb6y+R8Q0oFzpJPflfuOhx4KVmHED2wxLwp0eTNiN8tjmr1Rq12tn2HbCVrEZogqqqZrYqwtiZ5wpi/f9l4MREztosL7cOv5vWb/hbtidA16UGvMNoNOvTTAEHucmmYhnEVD1MAZg532624kMKPYmru6UzvpUQtbplxFd8sqljoZSY3xA5oXZwXeJXT7T9A4caxP08BgAA"
-          )
-
-          blocks["ADDEXTRA"]=dec(
-              "H4sIADTjvGoC/61V7W7aMBT936fI8iuW0ih0dJ2QMo2xsCLRgiDqpP2pTGKIVdeOHIfAKh5pT7EXm/MBjcGh07SAsOx7z/XJuR8YhmEkHK+hQMYyowaMIn8jOJznWISxdWHUz4JtemNMEeRjuGWZsA8W9JyMot6Y0dXrWSTD9eaC4+ZhHuMw7o2oKE/Ay8GwhsRAFC4Iijy8tEo/z3MbHuU9BS2/crPKS+3iGnBw2iGSIg1mhkTG6VnkhcJFYEHQGSbmHP7+FUEDU4G4BDDjyjzHwpQMGKesBaBezlnuNYW2RIxT4MAkIVs1LOMYUQEFZlRBOLeT2ejH5D7ojxX/FYdrLLbet2p1Bv594M8eH/xZMBoc+aZITGUpyPxZUWJ1usCWS/XbcesNUBALGD6tOMtoZA0YYdz5fjsK/BJwBbSLikcErat3KazAEWxIGBSWNktSJEfSe8Aot5Qogcx4edqqWvEI6aXk1+yaRpE3w7w2td5z/BN5nQ/LE6Ne1BM3qWewTdAShsiiGSH2fud8mYy/ghP/hpruZjj0+0N3eCM1kd1jAfu9e/iq0J2tbJWqqJYp5PA5LZLarRLRbSYC/F+Jy0Y6o+f1UiuUtJclVN7w+Q5i2g8FLuUtsEAHalarfDG3+PyjNm4hy7UM0llqlSm6NM29ekK2qoDTQYzCJznT6tl2oSvBgxcw+8HoYbKvw2LTn5lHEfuEDGCSeoJnSNcXrzXdOZpZae7gtJ6B3tuj9DWkBEp5J7SmOYghXaExTgWiiL882mF1fvlJpdo6POt8+XoK+3BHqTudqc0wbQO+JZiqS8zyaUZlIt8cNGl+1B6VLgSHTwc9jkVoyq4TojDvy+Rdc9dCuUFN/iPrG1RS+9tSv+yUtf4RtPbxggnBnu8gX+FyMt+0iVmd7/4A1tKJ71AIAAA="
-          )
-
-          blocks["NEXT"]=dec(
-              "H4sIADTjvGoC/23QOw+CMBAH8N1PcZOhCRKeCyPRgc24Godqj0isBynFQIzfXazER3Kd+vj9r9cCALSmvkmLUPUEhIPd9nQ6l6Rw8EzuFms5+tOBkXnRNBolibwke1/APOrKM0H7ktjtw0NQd4WWdPGEMGh7QxDyNGJoxNOYofEvdf3BcgnfTMJkEjbjJjsnNiSPGtV0NV5b3YyIpfJNoKYfEv/lU6Z8ynefMTT70Hlj9X764wl5DTRAlAEAAA=="
-          )
-
-          blocks["showEditWheel"]=dec(
-              "H4sIADTjvGoC/4WSX0vDMBTF3/cpQpmQQg1z4oOFOoadWJib7I8iKiO02Rppk5Kkm1L63U3qrGYDzUPovT05J/3dAgBAIegWKwLWJQMy5btRQtVjSkgGBYn9+5LFaYg/PMoS8u5HTLlVB+zXFmegwELJQEtRYaREPjfKVySLjCro+I5r6RnfBdc4IyzBAm2IiphUmMUE2rKUlyJovI1oKiZllsGeO0CK6zvsa13GnIiYRAz2vP75j4VZA19nmdOwzbudLmer6c0qHD7ZcTllpSJHgWd/Bl5c/ht4F02Wi5HbaXWG8ILmpCEcUpzxDbRMHMMfCyDIhkoluOPZr7tVw3mC8xZ1/cK6VbJGay5yrKD+CEkiyc38UKJH67r1gYuha3e+ABxkzYfjh+HMaZtulXr56ZUlOp584Jz0+olvNuf7Tm94i1GpaIbGPNZw0HLuaS+bn8RbEmKF4UFbI2t+w1/9unmqPwHFXK5ywAIAAA=="
-          )
-
-          blocks["showManualWheel"]=dec(
-              "H4sIADTjvGoC/4VR0WrbMBR9z1cI04EMnih7LM0gLFlqSJPiOpTSjXBr3cTqbMlIslsI/piy531FfmyS04U43dh9ELpH18fnnkMIIZUWDVgk61oSk6vna5A1FHc5YkGxrGJ+MVNyE24H5K0aKIgebtAmmCnN90ORwQIzi/ymllk+doRh7wM5lPhiu8dYcnyhOnK9homExwL/TRIODjRiTeXl+ZEQX6kCY1kJPzB1fLT35svmwkTv0GBkyCNYwcEQLkyl5O5Xg8I1aJwVXAB52r0S1+x+KucQotPjp1nwnmwvYTaZT9Or1Wwxn/YmQuZNpWEP1GhrLQ9QO+h7pZ6HX6BAyUEz53MsjQWZIT0yw5OmosQup7GAQm36ywcJboSxWpGyC/REeHC2rbzJcyjRPMjv7Td5tuVrtla6BEsr0AZjo+hfEmlPqJxcr5IeJF8tlslq8XU1Ht2H/xm9jufLdHIyFSSTaXybJqMkOODhNo/Kj5/7LrJuhU7/MPhw/olf+CP4s8QTNMBqKwo2U5n7I1veRo6lH4WBBt1ecJKQ97fb+Qhvu1v7G5dfWSY1AwAA"
-          )
-
-          blocks["showTimeWheelDialog"]=dec(
-              "H4sIADTjvGoC/81WXW/aMBR951dESJMcKYuAqlWLlEmQohWJAYKUSXupXHIDXoMTOQ4tq/jvs52QxiSs7daHIYUkvif381z7GoZhxIxsMQcjSKmRrKNHj2zg+xogvCY4jFaoYeQ/TngI3TlnhK6sYjVJ7+sFhBIuNNxEKesOKa8IvhGactBFcZQI2baqLKJzLJaRRIvL/PzlVmhRYvO5QG1xaDwyHDsjQgGzEd5FKUd8TRLTxnEc7l6gSikjQDnmJKLaF/ZiMPOGbm+koVcMbwnfOV+zu+0Oxt5gdnczmQ1/TMbeEToBPsW+L4JAfowuTatl5XezwO0bxaP02hb4BYFHpCny4Imr1ZNhqNoIlHMoRUVa73qtkjn5BU77IqgIRUDeLoYALwHRNAytw5vdn4yuzVq80OdGYcSQj9lDP0yhFnbIk8pQp8iUjt0Xb2ZDr7ekavKvFT9RxVcSt9ddWQuqO0X7FEUTAXXOrFI7mNpXG9UH9d+dX1latxzFnkDsvM4PxY1mt9morfVZJ2i8kyvvocIrNCi3gCpkfRPIzFraila97DbFDG8S2W7t1rkpSdS+apVoZL7JlMjpOyx1Lv/aUFb3D4iqfhPJTB8RRlwpvJkyn1odvyv/mnYQsQ3mqNK+P/EW2yknoT2KljgE+3ZuVUCyerYyXZVlWcikmtA8QddW8DFcvK9sR29jvrZbXeS7VbtckRKn5ZnKIGCQrJGpp1hFbP9XiS45rjRFdCHR7hrTFfjOcxHJy2aca/0Dsp6dyo0jcvpq3nB6ITCezR52PyWhDywjqua1LYspDzukjryqMGsCYbMqGsMKyymjn3IeUdR0e2N3MOrNmpZkUBU/zaeSHH8YUurQSwZilkKlyLKopJoJnYvxakQSDhSYzoYctQKeG9GycOt5k/HddDIfesPFwMyUuSFZPtRre5mYUIkSZQZUD+LcA58kG5Ik6NTpu69GJoLK4fvfyNYtsFAKAAA="
-          )
-
-          blocks["CALC"]=dec(
-              "H4sIADTjvGoC/72STUvDMBjH7/0UjzuMBOusdvMwyGWK4GEi6G30ENpnWtomJU32guy7m7Z2TVGGIphc8rz/HvIHAChVuuEaYW0ExDyPTW4touZPRsRvd3xP57fW++7B59lwBVupMkxY4B29reecFakwGqsF6i2iIGpS1m2wWgWR3xtXEe1L07WTFkaTtHqUepFzkREK4zH0wekwSHuoHyFcuwihRfhV9dStnjnVB8wrPLnF/4KGJ0H/gjJo5jmKyCGxomElVxU+VNLW1zZ1v/iskAneS2UVRZogVaiNElCri7QcfmBv+6TD9rgrMdZWcolRXKdSLFtgYnGzfP/C1StqejnYjdipx6FW0s1UxkbL5xG9gebTZl/GaMVZwXek47joJjuZ34B3WX7TwQ/a1Q8fl3pVcWADAAA="
-          )
-
-          blocks["WHEELFILE"]=dec(
-              "H4sIADTjvGoC/51XW2/iOBR+51dkR1opHiBLs+20RU1HKZcRWihVS1vt08iTGGI12Mi5ULbqf99jOyXkAtOWVgF8Ph+f6+fDCntPeEEMjy8tn/pBkiSWx1kseEgCLnDUaNDliovYwMwXnPpKSlhs9eT7c1wWLwReBdSLrB5mKWzfJx5TRrD4IbBPQdte2A2mB6R3AfaJKItTStbWhMeUs0Fao1zJH+DxJnjicUiZtcRxYOFf4LIX4igyZnRJHgNCQok1Gwa8PO10N3O+pRZXgqY4JkaKQ2NJWXfE6gT4ORdQRmOKQ7nQQF2lPtOMXhoKkWIhtyVEYpwMD7EnwiMjZsIxLdCIFHb3qIjEuQLOHqSKXoDZgvhd0wRdqH15D9rQd4clYdio2OkTFtF44wgS8QQOi6AsolWINxMSCxnzDFDYOE+Y4a/MVBqLnPRrHUYqX8lsOiqnpnpa7vVs9NMdj9y7n8Ox+wOVtggDMhH/63TmFcGSp8SXgm1EX7bRgChcQWEvBE+Y3+MhF2bnuZO98qDRqBdSqP9fIXFikRAleG1UXPNUAE2fhDFWLuYnSUsY5M1RyWoqSK5/bkrZpcyUAkHaysILWMuE+Lks/EOr3TlPnwlrjpQXlovZ/m5RlvInYmoNBSRIcEh9cM/MBa+73kNshaC+dp+zvsBQoaqhu7qvd0yKkhURVgGEduITGmtnTX1orZgPQ45jsygNnIDQRRDvEXvQwEQ4wV92lmmVHFU7kep+p8gkZsHTzrwF/2v5KEUgdoXAm+m8iFd7nodDuyP/wCTItolatZir86t+7/gwZng8/DY8O4w577m2+xtM0Z4CBLVkI7c0FVozGpIJ94nVG7uTmy0Q5bHTGbJ8yNatbI9b4pWCBp18glrw/Bu11m39LWjr72Xg0ZlCyjeVlLoTC9lSrFOSxBtoQM0Hd/KzNRyNxyWQJ7vYkbHouN9OB9t4fdCxow5q6ZJSDh2XPFLu5phmHSZDZG+/8VpyuhvSBcv8U5+t3uB6NrjNsXMgKD6fA21BZRpt27LsSs/DfZCRjEaWKcEQsu8li7SBUppHRb8CqAszVUyUth0FrQMoNkqbGaCAyP25o/8RBxhK2+E4HWSfzQ0SRsSwM6Kuy11hR323qFdtlUvt9Z1h26d2v1oNOyZvVmSOPeJUxodZJrE8QSQZVg7Yv6M/GLr341nrA1uupuN+sXOL1u7U7wyiXLXmy58d2/9iQbHApGKmNVSxBpasrma1rIP/Fer2+BTJyj6v0VAsZ21lfkPs78mz05OazO3r77vZ7fSfQQUm4L56lFeFY1sn8+0UUdfhkvRNTUk77dzZkpFe1N2J3qWg+RkF63adDZpFPqmkeVjJ+7mz/iqf8cQL1FhsEvns7gzKqHvFYe7HLOeedUCYBlrYk8AJjp6IX2KnHR2W25uNptc/+9PH6/blS6XA9DynNW4q0u1QVxYIEieCGdsprTi1HLBjMn0Y1NmhZt3NmyFtZVa9OU3HrxoKZKaEF45Kno1Q9QiVaz06HqFa6V53XxWbvh1y6bznjPaHD/lgcj6dg/ubugyAd/BjS3uILvR1usdDgGZGXehhEXgObUOrr54DUag6ChOrpFE1/pvoE57mn8rYurYrHlftMj1C7zGqesBr43/4n/KUtw8AAA=="
-          )
-
-          code=src.read_text(encoding="utf-8")
-
-          def replace_fun(code,name,new):
-              pattern=(
-                  r"(?ms)^    private fun "+
-                  re.escape(name)+
-                  r"\(.*?(?=^    private fun |\Z)"
-              )
-
-              result,count=re.subn(
-                  pattern,
-                  new+"\n\n",
-                  code,
-                  count=1
-              )
-
-              if count==0:
-                  raise SystemExit(
-                      "ERRO: função não encontrada: "+name
-                  )
-
-              return result
-
-          code=replace_fun(
-              code,
-              "showPunch",
-              blocks["SHOWPUNCH"]
-          )
-
-          code=replace_fun(
-              code,
-              "addPunchRow",
-              blocks["ADDPUNCH"]
-          )
-
-          code=replace_fun(
-              code,
-              "addExtraSwitch",
-              blocks["ADDEXTRA"]
-          )
-
-          code=replace_fun(
-              code,
-              "nextPunchIndex",
-              blocks["NEXT"]
-          )
-
-          code=replace_fun(
-              code,
-              "showEditWheel",
-              blocks["showEditWheel"]
-          )
-
-          code=replace_fun(
-              code,
-              "showManualWheel",
-              blocks["showManualWheel"]
-          )
-
-          marker="    private fun calculate(r:PunchDay):Calc{"
-
-          if marker not in code:
-              raise SystemExit(
-                  "ERRO: calculate não encontrado"
-              )
-
-          if "private fun showTimeWheelDialog(" not in code:
-              code=code.replace(
-                  marker,
-                  blocks["showTimeWheelDialog"]+
-                  "\n\n"+
-                  marker,
-                  1
-              )
-
-          code=replace_fun(
-              code,
-              "calculate",
-              blocks["CALC"]
-          )
-
-          src.write_text(
-              code,
-              encoding="utf-8"
-          )
-
-          wheel.parent.mkdir(
-              parents=True,
-              exist_ok=True
-          )
-
-          wheel.write_text(
-              blocks["WHEELFILE"],
-              encoding="utf-8"
-          )
-
-          print(
-              "LAYOUT, REGISTRO MANUAL E RODA PERSONALIZADA APLICADOS"
-          )
-
-      - name: Corrigir manifesto e validar
-        shell: python
-        run: |
-          from pathlib import Path
-
-          root=Path("ControleHoras")
-
-          manifest=root/"app/src/main/AndroidManifest.xml"
-          src=root/"app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
-          wheel=root/"app/src/main/java/com/didhuuu/controlehoras/TimeWheelView.kt"
-          icon=root/"app/src/main/res/drawable/controlehoras_icon.jpg"
-
-          m=manifest.read_text(
-              encoding="utf-8"
-          )
-
-          if (
-              'android:icon="@drawable/controlehoras_icon"'
-              not in m
-          ):
-
-              m=m.replace(
-                  "<application",
-                  '<application\n'
-                  '        android:icon="@drawable/controlehoras_icon"\n'
-                  '        android:roundIcon="@drawable/controlehoras_icon"',
-                  1
-              )
-
-              manifest.write_text(
-                  m,
-                  encoding="utf-8"
-              )
-
-          for p in (src,wheel,icon):
-
-              if (
-                  not p.exists()
-                  or p.stat().st_size==0
-              ):
-
-                  raise SystemExit(
-                      "ERRO: arquivo ausente: "+
-                      str(p)
-                  )
-
-          source=src.read_text(
-              encoding="utf-8"
-          )
-
-          for term in (
-              "extra2Enabled",
-              "showManualWheel",
-              "showEditWheel",
-              "nextPunchIndex",
-              "punchNames",
-              "WindowCompat.setDecorFitsSystemWindows"
-          ):
-
-              if term not in source:
-
-                  raise SystemExit(
-                      "ERRO: função/controle ausente: "+
-                      term
-                  )
-
-          if "Button(context)" in source:
-
-              raise SystemExit(
-                  "ERRO: Button(context) encontrado"
-              )
-
-          print("VALIDAÇÃO OK")
-
-      - name: Instalar Gradle 8.11.1
-        shell: bash
-        run: |
-          set -e
-
-          wget -q \
-            https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
-
-          unzip -q \
-            gradle-8.11.1-bin.zip
-
-          echo \
-            "$PWD/gradle-8.11.1/bin" \
-            >> "$GITHUB_PATH"
-
-          "$PWD/gradle-8.11.1/bin/gradle" \
-            --version
-
-      - name: Limpar projeto
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -e
-          gradle clean --no-daemon
-
-      - name: Gerar APK
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -e
-
-          gradle assembleDebug \
-            --no-daemon \
-            --stacktrace
-
-          APK="app/build/outputs/apk/debug/app-debug.apk"
-
-          test -s "$APK"
-
-          ls -lh "$APK"
-
-          echo "APK GERADO COM SUCESSO"
-
-      - name: Verificar APK
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -e
-
-          APK="app/build/outputs/apk/debug/app-debug.apk"
-
-          test -s "$APK"
-
-          unzip -t "$APK" >/dev/null
-
-          echo "APK VALIDADO"
-
-      - name: Publicar APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: ControleHoras-APK
-          path: ControleHoras/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+          blocks["SHOWPUNCH"] = dec(
+              "H4sIADTjvGoC/81Y3Y7aRhS+5ylclAtPSiwgyzZaxUm9LEksGYyAJlWT1WqwxzCNPWONh92liMve9iZSrypVfYm+QN4kT9BH6IzNj41tFrYbqQjZmDlzfM53vvNjK4qihAxfQ44Ub0aUaEpv+jPiTFWwqCirzzX0lTG91UM4QWr1XMgypU8Jp1WwkcGeioLQp3OEIg1HnSDkcxWklMiPUKJB132L0Y2KiUfbkLlqtYfIdBbI2zuYks9/MUwVB7ow4gy6VPtA2skFUqi0NUCYUQUFyqvUhkirApC5F0N8xsjmr2Ul446wVd/a62EWcZv1Zr6/wFzDrq5HyEcOR25nJWS6y4z6l2c721WgQT+ii/xGPVaZMiANQ0apI/EQesLQn2eRW9vtY4J0Sxwgs+CczrjqiECgW166S34ow4hwyAVamc3a285gZLYNq3BXhHhfmInJRHVDtXEKavLUTE6bK5Dbu8z9I63eeOzDMfLVajp61QIt0tsoxIQgpg+T88bXnPBKUNwDhoKdusEYnBvJhVro3EpVrXAREpdR7GoDzU9wirCIJrpa3eZKrIYuvSFXmKOgWMWWHQEMJakIDFAemXJXBPrDmEoCJPWOW2DiolvbeyV5uIfAmkMRc5DBLSTySa2DI8yhxBS+DldKLRxxJCNDxz+LP85WUMv4anahZAkxrxFj2E1qDyU9yqeCbuu9aphW/Pzxi5dgUcCuAkVpC4rBk5+c+lqp6PWZlNkjENLozCS8XAC7ZxYlk8J1sCjflqqr78VNLkVwvykI7h4VSS7nqlJO7UEK4uZwIVqAzqkLRYnfv2vbTkrligO6PLasrIgK9kuNRM7HPw4pm1JArw6hn/SkAJFIFCVFebQIKEFzzaMsgFzGRxMLkM3BslqqaIh/QXrjxCsrtdKyNvUpU4OZwBncVZLrsv4+A7V6rSCPl/m/NuVXwJFdXW
