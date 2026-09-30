@@ -10,6 +10,9 @@ permissions:
   contents: read
   actions: read
 
+env:
+  GH_TOKEN: ${{ github.token }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -26,19 +29,145 @@ jobs:
           java-version: '17'
 
       # ============================================================
-      # RECUPERA A BASE 70 + CORREÇÕES DA VERSÃO 80
-      # DIRETAMENTE DO WORKFLOW QUE JÁ EXISTE NO GITHUB.
+      # RECUPERA O WORKFLOW COMPLETO ANTERIOR
       #
-      # ISSO EVITA COLOCAR PYTHON/KOTLIN GIGANTE DENTRO DO YAML.
+      # O arquivo anterior possui as correções da Base 70,
+      # versão 80, roda azul/neon, registro manual, edição,
+      # intervalo 2, escala e geração do APK.
+      #
+      # O problema atual é somente que algumas strings Python
+      # perderam a indentação YAML.
+      #
+      # Aqui corrigimos a indentação AUTOMATICAMENTE antes de
+      # interpretar o YAML.
       # ============================================================
 
-      - name: Aplicar Base 70 e correções da versão 80
+      - name: Corrigir workflow e executar construção
         shell: python
         run: |
+          import os
           import subprocess
           import tempfile
           from pathlib import Path
-          from urllib.request import urlopen
+          from urllib.request import Request, urlopen
+
+          print("=" * 70)
+          print("CORRIGINDO WORKFLOW ANTERIOR")
+          print("=" * 70)
+
+          # Commit exato do workflow que contém todas as correções.
+          SOURCE_URL = (
+              "https://raw.githubusercontent.com/"
+              "didhuuu/ControleHoras/"
+              "7ace9abd46f05cf10baa6ed6b56af61a2b694472/"
+              ".github/workflows/build.yml"
+          )
+
+          request = Request(
+              SOURCE_URL,
+              headers={
+                  "User-Agent": "ControleHoras-Build"
+              }
+          )
+
+          source = urlopen(
+              request,
+              timeout=60
+          ).read().decode(
+              "utf-8"
+          )
+
+          print(
+              "Workflow anterior baixado:",
+              len(source),
+              "caracteres"
+          )
+
+          # --------------------------------------------------------
+          # CORREÇÃO CRÍTICA
+          #
+          # Os blocos:
+          #
+          # wheel_dialog = r'''
+          # edit_method = r'''
+          # manual_method = r'''
+          # wheel_code = r'''
+          #
+          # ficaram sem indentação YAML.
+          #
+          # O conteúdo precisa permanecer dentro do:
+          #
+          # run: |
+          #
+          # portanto colocamos 10 espaços em cada linha interna.
+          # --------------------------------------------------------
+
+          lines = source.splitlines()
+
+          fixed_lines = []
+
+          inside_raw = False
+
+          for line in lines:
+
+              if (
+                  not inside_raw
+                  and
+                  "= r'''" in line
+              ):
+                  inside_raw = True
+                  fixed_lines.append(
+                      line
+                  )
+                  continue
+
+              if inside_raw:
+
+                  fixed_lines.append(
+                      "          " +
+                      line
+                  )
+
+                  if line.strip() == "'''":
+                      inside_raw = False
+
+                  continue
+
+              fixed_lines.append(
+                  line
+              )
+
+          fixed = "\n".join(
+              fixed_lines
+          ) + "\n"
+
+          # --------------------------------------------------------
+          # GARANTIA
+          # --------------------------------------------------------
+
+          raw_blocks = [
+              "wheel_dialog = r'''",
+              "edit_method = r'''",
+              "manual_method = r'''",
+              "wheel_code = r'''"
+          ]
+
+          for block in raw_blocks:
+
+              if block not in fixed:
+
+                  raise SystemExit(
+                      "ERRO: bloco não encontrado: "
+                      + block
+                  )
+
+          print(
+              "Indentação dos blocos Python corrigida."
+          )
+
+          # --------------------------------------------------------
+          # INSTALAR PYYAML
+          # --------------------------------------------------------
 
           subprocess.run(
               [
@@ -54,44 +183,109 @@ jobs:
 
           import yaml
 
-          URL = (
-              "https://raw.githubusercontent.com/"
-              "didhuuu/ControleHoras/"
-              "894fb3f98dfda80c297f31474130324a094b6dc6/"
-              ".github/workflows/build.yml"
+          # --------------------------------------------------------
+          # VALIDAR YAML ANTES DE EXECUTAR
+          # --------------------------------------------------------
+
+          try:
+
+              data = yaml.safe_load(
+                  fixed
+              )
+
+          except Exception as error:
+
+              print("")
+              print(
+                  "=========================================="
+              )
+              print(
+                  "ERRO NO YAML CORRIGIDO"
+              )
+              print(
+                  "=========================================="
+              )
+              print(error)
+              raise
+
+          print("")
+          print(
+              "YAML corrigido foi interpretado com sucesso."
           )
 
-          print("Baixando workflow-base...")
-          workflow = urlopen(
-              URL,
-              timeout=60
-          ).read().decode(
-              "utf-8"
+          if not isinstance(
+              data,
+              dict
+          ):
+
+              raise SystemExit(
+                  "ERRO: YAML corrigido não é um objeto."
+              )
+
+          jobs = data.get(
+              "jobs"
           )
 
-          data = yaml.safe_load(
-              workflow
+          if not jobs:
+
+              raise SystemExit(
+                  "ERRO: jobs não encontrado."
+              )
+
+          build_job = jobs.get(
+              "build"
           )
 
-          steps = (
-              data
-              ["jobs"]
-              ["build"]
-              ["steps"]
+          if not build_job:
+
+              raise SystemExit(
+                  "ERRO: job build não encontrado."
+              )
+
+          steps = build_job.get(
+              "steps",
+              []
           )
 
-          def run_step(step):
+          print(
+              "Quantidade de etapas:",
+              len(steps)
+          )
+
+          # --------------------------------------------------------
+          # EXECUTOR DAS ETAPAS
+          # --------------------------------------------------------
+
+          def execute_step(
+              step
+          ):
 
               name = step.get(
                   "name",
-                  "sem nome"
+                  "Etapa sem nome"
               )
+
+              if "uses" in step:
+
+                  print("")
+                  print(
+                      "IGNORANDO ação externa:",
+                      name
+                  )
+
+                  return
 
               script = step.get(
                   "run"
               )
 
               if not script:
+
+                  print(
+                      "Sem script:",
+                      name
+                  )
+
                   return
 
               shell = step.get(
@@ -104,6 +298,17 @@ jobs:
                   "."
               )
 
+              cwd = Path(
+                  working_directory
+              )
+
+              if not cwd.is_absolute():
+
+                  cwd = (
+                      Path.cwd() /
+                      cwd
+                  )
+
               print("")
               print("=" * 70)
               print(
@@ -112,15 +317,45 @@ jobs:
               )
               print("=" * 70)
 
-              cwd = Path(
-                  working_directory
+              # ----------------------------------------------------
+              # VARIÁVEIS DA ETAPA
+              # ----------------------------------------------------
+
+              environment = os.environ.copy()
+
+              step_env = step.get(
+                  "env",
+                  {}
               )
 
-              if not cwd.is_absolute():
-                  cwd = (
-                      Path.cwd() /
-                      cwd
-                  )
+              if isinstance(
+                  step_env,
+                  dict
+              ):
+
+                  for key, value in step_env.items():
+
+                      if value is None:
+                          continue
+
+                      value = str(
+                          value
+                      )
+
+                      if value == "${{ github.token }}":
+
+                          value = os.environ.get(
+                              "GH_TOKEN",
+                              ""
+                          )
+
+                      environment[
+                          str(key)
+                      ] = value
+
+              # ----------------------------------------------------
+              # PYTHON
+              # ----------------------------------------------------
 
               if shell == "python":
 
@@ -129,12 +364,16 @@ jobs:
                           tempfile.gettempdir()
                       ) /
                       (
-                          "controlehoras_" +
+                          "controlehoras_"
+                          +
                           str(
                               abs(
-                                  hash(name)
+                                  hash(
+                                      name
+                                  )
                               )
-                          ) +
+                          )
+                          +
                           ".py"
                       )
                   )
@@ -149,11 +388,24 @@ jobs:
                           "python",
                           str(filename)
                       ],
-                      cwd=str(cwd),
+                      cwd=str(
+                          cwd
+                      ),
+                      env=environment,
                       check=True
                   )
 
-              else:
+                  return
+
+              # ----------------------------------------------------
+              # BASH
+              # ----------------------------------------------------
+
+              if shell in [
+                  "bash",
+                  "sh",
+                  ""
+              ]:
 
                   subprocess.run(
                       [
@@ -162,9 +414,41 @@ jobs:
                       ],
                       input=script,
                       text=True,
-                      cwd=str(cwd),
+                      cwd=str(
+                          cwd
+                      ),
+                      env=environment,
                       check=True
                   )
+
+                  return
+
+              # ----------------------------------------------------
+              # OUTROS SHELLS
+              # ----------------------------------------------------
+
+              subprocess.run(
+                  [
+                      "bash",
+                      "-e"
+                  ],
+                  input=script,
+                  text=True,
+                  cwd=str(
+                      cwd
+                  ),
+                  env=environment,
+                  check=True
+              )
+
+          # --------------------------------------------------------
+          # EXECUTAR TODAS AS ETAPAS RUN
+          #
+          # A etapa "Baixar projeto" é ignorada porque já fizemos
+          # checkout acima.
+          #
+          # Java também já foi configurado acima.
+          # --------------------------------------------------------
 
           for step in steps:
 
@@ -173,1407 +457,69 @@ jobs:
                   ""
               )
 
-              # Não executar ações externas do workflow-base.
-              if "uses" in step:
+              if name in [
+                  "Baixar projeto",
+                  "Configurar Java 17"
+              ]:
+
                   continue
 
-              # Parar antes da validação/build.
-              #
-              # A partir daqui nós fazemos nossa própria correção
-              # da roda e a própria validação.
-              if name in [
-                  "Validar código",
-                  "Validar código e ícone",
-                  "Instalar Gradle 8.11.1",
-                  "Limpar projeto",
-                  "Gerar APK"
-              ]:
-                  break
+              # A publicação original usa actions/upload-artifact.
+              # Será feita no final deste workflow.
+              if "Publicar APK" in name:
 
-              run_step(step)
+                  continue
+
+              execute_step(
+                  step
+              )
 
           print("")
           print("=" * 70)
-          print("BASE 70 + CORREÇÕES DA VERSÃO 80 APLICADAS")
+          print("TODAS AS ETAPAS DO WORKFLOW ANTERIOR TERMINARAM")
           print("=" * 70)
 
       # ============================================================
-      # CORREÇÃO ESTRUTURAL DO CARTÃO
-      #
-      # Corrige o antigo:
-      #
-      # box.addView(
-      #     card().apply{...},
-      #     0,0,0,dp(10)
-      # )
-      #
-      # que gera erro no Kotlin.
+      # GARANTIA FINAL DO APK
       # ============================================================
 
-      - name: Corrigir cartão estruturalmente
-        shell: python
-        run: |
-          from pathlib import Path
-          import re
-
-          file = Path(
-              "ControleHoras/"
-              "app/src/main/java/com/didhuuu/"
-              "controlehoras/MainActivity.kt"
-          )
-
-          code = file.read_text(
-              encoding="utf-8"
-          )
-
-          pattern = re.compile(
-              r"""
-              box\.addView\(
-                  \s*
-                  card\(\)\.apply\{
-                  (?P<body>.*?)
-                  \n\s*
-                  \},
-                  \s*0,
-                  \s*0,
-                  \s*0,
-                  \s*dp\(10\)
-                  \s*
-              \)
-              """,
-              re.DOTALL |
-              re.VERBOSE
-          )
-
-          match = pattern.search(
-              code
-          )
-
-          if not match:
-
-              # A correção pode já existir.
-              if (
-                  "val employeeCard=" in code
-                  and
-                  "LinearLayout.LayoutParams" in code
-              ):
-                  print(
-                      "Cartão já corrigido."
-                  )
-              else:
-                  raise SystemExit(
-                      "ERRO: cartão estrutural não encontrado."
-                  )
-
-          else:
-
-              body = match.group(
-                  "body"
-              )
-
-              replacement = (
-                  "val employeeCard="
-                  "(card() as ViewGroup).apply{"
-                  + body +
-                  "\n"
-                  "              }\n\n"
-                  "              box.addView(\n"
-                  "                  employeeCard,\n"
-                  "                  LinearLayout.LayoutParams(\n"
-                  "                      -1,\n"
-                  "                      -2\n"
-                  "                  ).apply{\n"
-                  "                      bottomMargin=dp(10)\n"
-                  "                  }\n"
-                  "              )"
-              )
-
-              code = (
-                  code[:match.start()]
-                  +
-                  replacement
-                  +
-                  code[match.end():]
-              )
-
-              file.write_text(
-                  code,
-                  encoding="utf-8"
-              )
-
-              print(
-                  "CARTÃO CORRIGIDO"
-              )
-
-      # ============================================================
-      # RODA AZUL / NEON
-      #
-      # Nada de NumberPicker.
-      #
-      # 00-23 horas
-      # 00-59 minutos
-      # toque para cima/baixo
-      # dois pontos fixos
-      # som de clique
-      # ============================================================
-
-      - name: Instalar roda azul neon
-        shell: python
-        run: |
-          from pathlib import Path
-          import re
-          import textwrap
-
-          root = Path(
-              "ControleHoras"
-          )
-
-          main = (
-              root /
-              "app/src/main/java/com/didhuuu/"
-              "controlehoras/MainActivity.kt"
-          )
-
-          wheel = (
-              root /
-              "app/src/main/java/com/didhuuu/"
-              "controlehoras/TimeWheelView.kt"
-          )
-
-          code = main.read_text(
-              encoding="utf-8"
-          )
-
-          # --------------------------------------------------------
-          # IMPORTS
-          # --------------------------------------------------------
-
-          imports = [
-              "import android.graphics.Canvas",
-              "import android.graphics.LinearGradient",
-              "import android.graphics.Paint",
-              "import android.graphics.Shader",
-              "import android.media.AudioManager",
-              "import android.media.ToneGenerator",
-              "import android.view.MotionEvent",
-              "import android.view.View",
-              "import android.view.ViewGroup"
-          ]
-
-          for imp in imports:
-
-              if imp not in code:
-
-                  marker = (
-                      "package "
-                      "com.didhuuu.controlehoras\n"
-                  )
-
-                  if marker in code:
-                      code = code.replace(
-                          marker,
-                          marker +
-                          imp +
-                          "\n",
-                          1
-                      )
-
-          # --------------------------------------------------------
-          # FUNÇÃO PARA LOCALIZAR FUNÇÃO KOTLIN
-          # --------------------------------------------------------
-
-          def function_start(
-              source,
-              name
-          ):
-
-              variants = [
-                  "    private fun " + name,
-                  "    fun " + name
-              ]
-
-              positions = []
-
-              for v in variants:
-
-                  p = source.find(
-                      v
-                  )
-
-                  if p >= 0:
-                      positions.append(
-                          p
-                      )
-
-              if not positions:
-                  return -1
-
-              return min(
-                  positions
-              )
-
-          def function_end(
-              source,
-              start
-          ):
-
-              if start < 0:
-                  return -1
-
-              brace = source.find(
-                  "{",
-                  start
-              )
-
-              if brace < 0:
-                  return -1
-
-              depth = 0
-              quote = None
-              escaped = False
-              i = brace
-
-              while i < len(source):
-
-                  ch = source[i]
-
-                  if quote:
-
-                      if escaped:
-                          escaped = False
-
-                      elif ch == "\\":
-                          escaped = True
-
-                      elif ch == quote:
-                          quote = None
-
-                  else:
-
-                      if ch in [
-                          '"',
-                          "'"
-                      ]:
-                          quote = ch
-
-                      elif ch == "{":
-                          depth += 1
-
-                      elif ch == "}":
-
-                          depth -= 1
-
-                          if depth == 0:
-                              return i + 1
-
-                  i += 1
-
-              return -1
-
-          # --------------------------------------------------------
-          # DIÁLOGO DA RODA
-          # --------------------------------------------------------
-
-          wheel_dialog = r'''
-    private fun showTimeWheelDialog(
-        title:String,
-        subtitle:String,
-        initialHour:Int,
-        initialMinute:Int,
-        positive:String,
-        onSave:(Int,Int)->Unit
-    ){
-
-        val wrap=
-            LinearLayout(this).apply{
-
-                orientation=
-                    LinearLayout.VERTICAL
-
-                gravity=
-                    Gravity.CENTER_HORIZONTAL
-
-                setPadding(
-                    dp(8),
-                    0,
-                    dp(8),
-                    0
-                )
-            }
-
-        wrap.addView(
-            TextView(this).apply{
-
-                text=subtitle
-
-                gravity=
-                    Gravity.CENTER
-
-                textSize=16f
-
-                setTypeface(
-                    null,
-                    Typeface.BOLD
-                )
-
-                setTextColor(
-                    darkBlue
-                )
-
-                setPadding(
-                    0,
-                    dp(2),
-                    0,
-                    dp(8)
-                )
-            }
-        )
-
-        val wheels=
-            LinearLayout(this).apply{
-
-                orientation=
-                    LinearLayout.HORIZONTAL
-
-                gravity=
-                    Gravity.CENTER
-            }
-
-        val hour=
-            TimeWheelView(
-                this,
-                0,
-                23,
-                initialHour
-            )
-
-        val minute=
-            TimeWheelView(
-                this,
-                0,
-                59,
-                initialMinute
-            )
-
-        val colon=
-            TextView(this).apply{
-
-                text=":"
-
-                textSize=34f
-
-                gravity=
-                    Gravity.CENTER
-
-                setTypeface(
-                    null,
-                    Typeface.BOLD
-                )
-
-                setTextColor(
-                    darkBlue
-                )
-            }
-
-        wheels.addView(
-            hour,
-            LinearLayout.LayoutParams(
-                dp(105),
-                dp(190)
-            )
-        )
-
-        wheels.addView(
-            colon,
-            LinearLayout.LayoutParams(
-                dp(30),
-                dp(190)
-            )
-        )
-
-        wheels.addView(
-            minute,
-            LinearLayout.LayoutParams(
-                dp(105),
-                dp(190)
-            )
-        )
-
-        wrap.addView(
-            wheels
-        )
-
-        val value=
-            TextView(this).apply{
-
-                text=
-                    "%02d:%02d".format(
-                        Locale.US,
-                        hour.value,
-                        minute.value
-                    )
-
-                textSize=30f
-
-                gravity=
-                    Gravity.CENTER
-
-                setTypeface(
-                    null,
-                    Typeface.BOLD
-                )
-
-                setTextColor(
-                    blue
-                )
-
-                setPadding(
-                    0,
-                    dp(5),
-                    0,
-                    dp(10)
-                )
-            }
-
-        fun refresh(){
-
-            value.text=
-                "%02d:%02d".format(
-                    Locale.US,
-                    hour.value,
-                    minute.value
-                )
-        }
-
-        hour.onValueChanged={
-            refresh()
-        }
-
-        minute.onValueChanged={
-            refresh()
-        }
-
-        wrap.addView(
-            value
-        )
-
-        val dialog=
-            AlertDialog.Builder(this)
-                .setTitle(title)
-                .setView(wrap)
-                .setNegativeButton(
-                    "CANCELAR",
-                    null
-                )
-                .setPositiveButton(
-                    positive,
-                    null
-                )
-                .create()
-
-        dialog.setOnShowListener{
-
-            dialog
-                .getButton(
-                    AlertDialog.BUTTON_POSITIVE
-                )
-                .setOnClickListener{
-
-                    onSave(
-                        hour.value,
-                        minute.value
-                    )
-
-                    dialog.dismiss()
-                }
-        }
-
-        dialog.show()
-    }
-'''
-
-          # --------------------------------------------------------
-          # EDITAR BATIDA
-          # --------------------------------------------------------
-
-          edit_method = r'''
-    private fun showEditWheel(
-        rec:PunchDay,
-        index:Int
-    ){
-
-        if(
-            rec.punches[index].isBlank()
-        ){
-
-            Toast.makeText(
-                this,
-                "Esse registro ainda está vazio. Use REGISTRO MANUAL.",
-                Toast.LENGTH_LONG
-            ).show()
-
-            return
-        }
-
-        val parts=
-            rec.punches[index]
-                .split(":")
-
-        val hour=
-            parts
-                .getOrNull(0)
-                ?.toIntOrNull()
-                ?.coerceIn(0,23)
-                ?:0
-
-        val minute=
-            parts
-                .getOrNull(1)
-                ?.toIntOrNull()
-                ?.coerceIn(0,59)
-                ?:0
-
-        showTimeWheelDialog(
-            "Editar registro",
-            "${punchNames[index]}\n${df.format(parseIso(rec.date))}",
-            hour,
-            minute,
-            "SALVAR"
-        ){h,m->
-
-            rec.punches[index]=
-                "%02d:%02d".format(
-                    Locale.US,
-                    h,
-                    m
-                )
-
-            saveData()
-
-            showPunch()
-        }
-    }
-'''
-
-          # --------------------------------------------------------
-          # REGISTRO MANUAL
-          # --------------------------------------------------------
-
-          manual_method = r'''
-    private fun showManualWheel(
-        empId:Long
-    ){
-
-        val r=
-            getRecord(
-                empId,
-                selectedPunchDate
-            )
-
-        val n=
-            nextPunchIndex(
-                r,
-                extraEnabled(
-                    empId,
-                    selectedPunchDate
-                )
-            )
-
-        if(n<0){
-
-            Toast.makeText(
-                this,
-                "As batidas disponíveis deste dia já estão preenchidas.",
-                Toast.LENGTH_LONG
-            ).show()
-
-            return
-        }
-
-        val now=
-            Calendar.getInstance()
-
-        showTimeWheelDialog(
-            "Registro manual",
-            "${punchNames[n]}\n${df.format(parseIso(selectedPunchDate))}",
-            now.get(Calendar.HOUR_OF_DAY),
-            now.get(Calendar.MINUTE),
-            "REGISTRAR"
-        ){h,m->
-
-            r.punches[n]=
-                "%02d:%02d".format(
-                    Locale.US,
-                    h,
-                    m
-                )
-
-            saveData()
-
-            showPunch()
-        }
-    }
-'''
-
-          # --------------------------------------------------------
-          # SUBSTITUIR SHOWEDITWHEEL + SHOWMANUALWHEEL
-          # --------------------------------------------------------
-
-          edit_start = function_start(
-              code,
-              "showEditWheel"
-          )
-
-          manual_start = function_start(
-              code,
-              "showManualWheel"
-          )
-
-          history_start = function_start(
-              code,
-              "showHistory"
-          )
-
-          if (
-              edit_start < 0
-              or
-              manual_start < 0
-              or
-              history_start < 0
-          ):
-
-              raise SystemExit(
-                  "ERRO: funções da roda não encontradas."
-              )
-
-          code = (
-              code[:edit_start]
-              +
-              wheel_dialog.strip()
-              +
-              "\n\n"
-              +
-              edit_method.strip()
-              +
-              "\n\n"
-              +
-              manual_method.strip()
-              +
-              "\n\n"
-              +
-              code[history_start:]
-          )
-
-          # --------------------------------------------------------
-          # GARANTIR QUE NÃO EXISTE NUMBERPICKER
-          # --------------------------------------------------------
-
-          if "NumberPicker" in code:
-
-              raise SystemExit(
-                  "ERRO: NumberPicker ainda existe."
-              )
-
-          main.write_text(
-              code,
-              encoding="utf-8"
-          )
-
-          # --------------------------------------------------------
-          # CLASSE DA RODA
-          # --------------------------------------------------------
-
-          wheel.parent.mkdir(
-              parents=True,
-              exist_ok=True
-          )
-
-          wheel_code = r'''package com.didhuuu.controlehoras
-
-import android.content.Context
-import android.graphics.Canvas
-import android.graphics.LinearGradient
-import android.graphics.Paint
-import android.graphics.Shader
-import android.media.AudioManager
-import android.media.ToneGenerator
-import android.view.MotionEvent
-import android.view.View
-import kotlin.math.abs
-
-class TimeWheelView(
-    context:Context,
-    private val minimum:Int,
-    private val maximum:Int,
-    initial:Int
-):View(context){
-
-    var value:Int=
-        initial.coerceIn(
-            minimum,
-            maximum
-        )
-        private set
-
-    var onValueChanged:
-        (() -> Unit)?=null
-
-    private val density=
-        resources
-            .displayMetrics
-            .density
-
-    private val paint=
-        Paint(
-            Paint.ANTI_ALIAS_FLAG
-        )
-
-    private val tone=
-        ToneGenerator(
-            AudioManager.STREAM_NOTIFICATION,
-            65
-        )
-
-    private var lastY=0f
-    private var accumulated=0f
-
-    private fun dp(
-        value:Int
-    ):Float{
-
-        return value*density
-    }
-
-    private fun change(
-        amount:Int
-    ){
-
-        val next=
-            (value+amount)
-                .coerceIn(
-                    minimum,
-                    maximum
-                )
-
-        if(
-            next==value
-        ){
-            return
-        }
-
-        value=next
-
-        tone.startTone(
-            ToneGenerator.TONE_PROP_CLICK,
-            35
-        )
-
-        onValueChanged?.invoke()
-
-        invalidate()
-    }
-
-    override fun onDraw(
-        canvas:Canvas
-    ){
-
-        super.onDraw(
-            canvas
-        )
-
-        val width=
-            width.toFloat()
-
-        val height=
-            height.toFloat()
-
-        val center=
-            height/2f
-
-        # Metallic outer body
-
-        paint.shader=
-            LinearGradient(
-                0f,
-                0f,
-                width,
-                0f,
-                intArrayOf(
-                    0xFF17191C.toInt(),
-                    0xFFB9BDC4.toInt(),
-                    0xFFF5F7FA.toInt(),
-                    0xFF9EA4AB.toInt(),
-                    0xFF17191C.toInt()
-                ),
-                null,
-                Shader.TileMode.CLAMP
-            )
-
-        canvas.drawRoundRect(
-            dp(4),
-            dp(3),
-            width-dp(4),
-            height-dp(3),
-            dp(18),
-            dp(18),
-            paint
-        )
-
-        paint.shader=null
-
-        # Blue neon center
-
-        paint.shader=
-            LinearGradient(
-                0f,
-                center-dp(34),
-                0f,
-                center+dp(34),
-                intArrayOf(
-                    0xFF003CFF.toInt(),
-                    0xFF008BFF.toInt(),
-                    0xFF0050FF.toInt()
-                ),
-                null,
-                Shader.TileMode.CLAMP
-            )
-
-        canvas.drawRoundRect(
-            dp(9),
-            center-dp(34),
-            width-dp(9),
-            center+dp(34),
-            dp(10),
-            dp(10),
-            paint
-        )
-
-        paint.shader=null
-
-        paint.textAlign=
-            Paint.Align.CENTER
-
-        for(
-            offset in -2..2
-        ){
-
-            var number=
-                value+offset
-
-            val range=
-                maximum-minimum+1
-
-            while(
-                number>maximum
-            ){
-                number-=range
-            }
-
-            while(
-                number<minimum
-            ){
-                number+=range
-            }
-
-            paint.textSize=
-                if(
-                    offset==0
-                ){
-                    dp(28)
-                }else{
-                    dp(19)
-                }
-
-            paint.color=
-                if(
-                    offset==0
-                ){
-                    0xFFFFFFFF.toInt()
-                }else{
-                    0xFFE2E7EF.toInt()
-                }
-
-            canvas.drawText(
-                "%02d".format(
-                    number
-                ),
-                width/2f,
-                center+
-                offset*dp(45)+
-                dp(9),
-                paint
-            )
-        }
-
-        # Neon selection markers
-
-        paint.color=
-            0xFF00D9FF.toInt()
-
-        paint.style=
-            Paint.Style.STROKE
-
-        paint.strokeWidth=
-            dp(2)
-
-        canvas.drawLine(
-            dp(3),
-            center-dp(30),
-            dp(19),
-            center,
-            paint
-        )
-
-        canvas.drawLine(
-            dp(3),
-            center+dp(30),
-            dp(19),
-            center,
-            paint
-        )
-
-        canvas.drawLine(
-            width-dp(3),
-            center-dp(30),
-            width-dp(19),
-            center,
-            paint
-        )
-
-        canvas.drawLine(
-            width-dp(3),
-            center+dp(30),
-            width-dp(19),
-            center,
-            paint
-        )
-
-        paint.style=
-            Paint.Style.FILL
-    }
-
-    override fun onTouchEvent(
-        event:MotionEvent
-    ):Boolean{
-
-        when(
-            event.actionMasked
-        ){
-
-            MotionEvent.ACTION_DOWN->{
-
-                lastY=
-                    event.y
-
-                accumulated=
-                    0f
-
-                return true
-            }
-
-            MotionEvent.ACTION_MOVE->{
-
-                val difference=
-                    event.y-lastY
-
-                accumulated+=
-                    difference
-
-                if(
-                    abs(accumulated)>=
-                    dp(28)
-                ){
-
-                    change(
-                        if(
-                            accumulated<0
-                        ){
-                            1
-                        }else{
-                            -1
-                        }
-                    )
-
-                    accumulated=
-                        0f
-                }
-
-                lastY=
-                    event.y
-
-                return true
-            }
-
-            MotionEvent.ACTION_UP->{
-
-                if(
-                    abs(accumulated)<
-                    dp(10)
-                ){
-
-                    change(
-                        if(
-                            event.y<
-                            height/2f
-                        ){
-                            1
-                        }else{
-                            -1
-                        }
-                    )
-                }
-
-                performClick()
-
-                return true
-            }
-        }
-
-        return true
-    }
-
-    override fun performClick():Boolean{
-
-        super.performClick()
-
-        return true
-    }
-}
-'''
-
-          # Kotlin não aceita comentários com #.
-          wheel_code = wheel_code.replace(
-              "# Metallic outer body",
-              "// Metallic outer body"
-          )
-
-          wheel_code = wheel_code.replace(
-              "# Blue neon center",
-              "// Blue neon center"
-          )
-
-          wheel_code = wheel_code.replace(
-              "# Neon selection markers",
-              "// Neon selection markers"
-          )
-
-          wheel.write_text(
-              textwrap.dedent(
-                  wheel_code
-              ).strip() +
-              "\n",
-              encoding="utf-8"
-          )
-
-          print(
-              "RODA AZUL/NEON INSTALADA"
-          )
-
-      # ============================================================
-      # RECUPERAR O ÍCONE APROVADO
-      #
-      # Primeiro tenta usar o artefato da versão aprovada.
-      # Se não estiver disponível, mantém o ícone criado pela Base 80.
-      # ============================================================
-
-      - name: Recuperar ícone aprovado
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -e
-
-          ICON_DIR="ControleHoras/app/src/main/res/drawable"
-
-          mkdir -p "$ICON_DIR"
-
-          if curl -fsSL \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/didhuuu/ControleHoras/actions/artifacts/11068205148/zip" \
-            -o /tmp/icon.zip
-          then
-
-            rm -rf /tmp/icon_extract
-
-            mkdir -p \
-              /tmp/icon_extract
-
-            if unzip -q -o \
-              /tmp/icon.zip \
-              -d /tmp/icon_extract
-            then
-
-              APK=$(
-                find \
-                  /tmp/icon_extract \
-                  -type f \
-                  -name "app-debug.apk" \
-                  | head -n 1
-              )
-
-              if [ -n "$APK" ]; then
-
-                rm -rf \
-                  /tmp/icon_apk
-
-                mkdir -p \
-                  /tmp/icon_apk
-
-                unzip -q -o \
-                  "$APK" \
-                  -d /tmp/icon_apk
-
-                APPROVED=$(
-                  find \
-                    /tmp/icon_apk/res \
-                    -type f \
-                    -name "controlehoras_icon.jpg" \
-                    | head -n 1
-                )
-
-                if [ -n "$APPROVED" ]; then
-
-                  cp \
-                    "$APPROVED" \
-                    "$ICON_DIR/controlehoras_icon.jpg"
-
-                  echo \
-                    "ÍCONE APROVADO RECUPERADO"
-
-                else
-
-                  echo \
-                    "Ícone do artefato não encontrado; mantendo ícone existente."
-
-                fi
-
-              fi
-
-            fi
-
-          else
-
-            echo \
-              "Artefato antigo indisponível; mantendo ícone existente."
-
-          fi
-
-          test -s \
-            "$ICON_DIR/controlehoras_icon.jpg"
-
-      # ============================================================
-      # VALIDAR ANTES DO GRADLE
-      # ============================================================
-
-      - name: Validar código final
+      - name: Verificar APK final
         shell: bash
         run: |
           set -e
 
-          ROOT="ControleHoras"
-
-          MAIN="$ROOT/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
-
-          WHEEL="$ROOT/app/src/main/java/com/didhuuu/controlehoras/TimeWheelView.kt"
-
-          ICON="$ROOT/app/src/main/res/drawable/controlehoras_icon.jpg"
-
-          MANIFEST="$ROOT/app/src/main/AndroidManifest.xml"
-
-          test -s "$MAIN"
-          test -s "$WHEEL"
-          test -s "$ICON"
-          test -s "$MANIFEST"
-
-          echo "Verificando roda..."
-
-          grep -q \
-            "TimeWheelView" \
-            "$MAIN"
-
-          grep -q \
-            "showTimeWheelDialog" \
-            "$MAIN"
-
-          grep -q \
-            "showManualWheel" \
-            "$MAIN"
-
-          grep -q \
-            "showEditWheel" \
-            "$MAIN"
-
-          grep -q \
-            "nextPunchIndex" \
-            "$MAIN"
-
-          echo "Verificando intervalo 2..."
-
-          grep -q \
-            "extra2Enabled" \
-            "$MAIN"
-
-          grep -q \
-            "extra2ReturnEnabled" \
-            "$MAIN"
-
-          echo "Verificando escala Base 70..."
-
-          grep -q \
-            "08:48" \
-            "$MAIN"
-
-          grep -q \
-            "07:20" \
-            "$MAIN"
-
-          echo "Verificando datas..."
-
-          grep -q \
-            "selectedPunchDate" \
-            "$MAIN"
-
-          echo "Verificando ícone..."
-
-          grep -q \
-            "controlehoras_icon" \
-            "$MANIFEST"
-
-          echo "Garantindo que NumberPicker não existe..."
-
-          if grep -q \
-            "NumberPicker" \
-            "$MAIN"
-          then
-            echo \
-              "ERRO: NumberPicker ainda encontrado."
-            exit 1
-          fi
-
-          if grep -q \
-            "NumberPicker" \
-            "$WHEEL"
-          then
-            echo \
-              "ERRO: NumberPicker encontrado na roda."
-            exit 1
-          fi
-
-          echo "Garantindo que DSR não foi adicionado..."
-
-          if grep -q \
-            "DSR" \
-            "$MAIN"
-          then
-            echo \
-              "ERRO: DSR encontrado."
-            exit 1
-          fi
-
-          echo "Garantindo que o cartão estrutural está correto..."
-
-          if grep -q \
-            "box.addView(.*0,.*0,.*0,.*dp(10)" \
-            "$MAIN"
-          then
-            echo \
-              "ERRO: addView antigo ainda existe."
-            exit 1
-          fi
+          APK="ControleHoras/app/build/outputs/apk/debug/app-debug.apk"
 
           echo ""
           echo "=============================================="
-          echo "VALIDAÇÃO FINAL OK"
+          echo "VERIFICANDO APK"
           echo "=============================================="
 
-      # ============================================================
-      # GRADLE
-      # ============================================================
+          if [ ! -f "$APK" ]; then
+            echo "ERRO: APK não foi gerado."
+            exit 1
+          fi
 
-      - name: Instalar Gradle 8.11.1
-        shell: bash
-        run: |
-          set -e
-
-          wget -q \
-            https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
-
-          unzip -q \
-            gradle-8.11.1-bin.zip
-
-          echo \
-            "$PWD/gradle-8.11.1/bin" \
-            >> "$GITHUB_PATH"
-
-          "$PWD/gradle-8.11.1/bin/gradle" \
-            --version
-
-      # ============================================================
-      # LIMPEZA
-      # ============================================================
-
-      - name: Limpar projeto
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -e
-
-          gradle \
-            clean \
-            --no-daemon
-
-      # ============================================================
-      # GERAR APK
-      # ============================================================
-
-      - name: Gerar APK
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -e
-
-          gradle \
-            assembleDebug \
-            --no-daemon \
-            --stacktrace
-
-          APK="app/build/outputs/apk/debug/app-debug.apk"
-
-          test -s "$APK"
-
-          echo ""
-          echo "=============================================="
-          echo "APK GERADO"
-          echo "=============================================="
-
-          ls -lh "$APK"
-
-      # ============================================================
-      # TESTE DO APK
-      # ============================================================
-
-      - name: Verificar APK
-        working-directory: ControleHoras
-        shell: bash
-        run: |
-          set -e
-
-          APK="app/build/outputs/apk/debug/app-debug.apk"
-
-          test -s "$APK"
+          if [ ! -s "$APK" ]; then
+            echo "ERRO: APK está vazio."
+            exit 1
+          fi
 
           unzip -t \
             "$APK" \
             >/dev/null
 
           echo ""
+          echo "APK ENCONTRADO:"
+          ls -lh "$APK"
+
+          echo ""
           echo "=============================================="
-          echo "APK VALIDADO COM SUCESSO"
+          echo "APK VALIDADO"
           echo "=============================================="
 
       # ============================================================
-      # PUBLICAR
+      # PUBLICAR APK
       # ============================================================
 
       - name: Publicar APK
