@@ -10,9 +10,6 @@ permissions:
   contents: read
   actions: read
 
-env:
-  GH_TOKEN: ${{ github.token }}
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -29,263 +26,105 @@ jobs:
           java-version: '17'
 
       # ============================================================
-      # RECUPERA O WORKFLOW COMPLETO ANTERIOR
+      # BASE CORRETA
       #
-      # O arquivo anterior possui as correções da Base 70,
-      # versão 80, roda azul/neon, registro manual, edição,
-      # intervalo 2, escala e geração do APK.
+      # 894fb3f98dfda80c297f31474130324a094b6dc6
       #
-      # O problema atual é somente que algumas strings Python
-      # perderam a indentação YAML.
-      #
-      # Aqui corrigimos a indentação AUTOMATICAMENTE antes de
-      # interpretar o YAML.
+      # É O COMMIT DO WORKFLOW-BASE.
+      # NÃO usar SHA de blob aqui.
       # ============================================================
 
-      - name: Corrigir workflow e executar construção
+      - name: Aplicar base ControleHoras
         shell: python
         run: |
-          import os
           import subprocess
           import tempfile
+          import os
           from pathlib import Path
           from urllib.request import Request, urlopen
 
-          print("=" * 70)
-          print("CORRIGINDO WORKFLOW ANTERIOR")
-          print("=" * 70)
+          import yaml
 
-          # Commit exato do workflow que contém todas as correções.
           SOURCE_URL = (
               "https://raw.githubusercontent.com/"
               "didhuuu/ControleHoras/"
-              "7ace9abd46f05cf10baa6ed6b56af61a2b694472/"
+              "894fb3f98dfda80c297f31474130324a094b6dc6/"
               ".github/workflows/build.yml"
           )
+
+          print("=" * 70)
+          print("BAIXANDO WORKFLOW BASE")
+          print("=" * 70)
+          print(SOURCE_URL)
 
           request = Request(
               SOURCE_URL,
               headers={
-                  "User-Agent": "ControleHoras-Build"
+                  "User-Agent": "ControleHoras"
               }
           )
 
-          source = urlopen(
+          workflow = urlopen(
               request,
               timeout=60
-          ).read().decode(
-              "utf-8"
-          )
+          ).read().decode("utf-8")
 
           print(
-              "Workflow anterior baixado:",
-              len(source),
-              "caracteres"
+              "Workflow recebido:",
+              len(workflow),
+              "bytes"
           )
 
-          # --------------------------------------------------------
-          # CORREÇÃO CRÍTICA
-          #
-          # Os blocos:
-          #
-          # wheel_dialog = r'''
-          # edit_method = r'''
-          # manual_method = r'''
-          # wheel_code = r'''
-          #
-          # ficaram sem indentação YAML.
-          #
-          # O conteúdo precisa permanecer dentro do:
-          #
-          # run: |
-          #
-          # portanto colocamos 10 espaços em cada linha interna.
-          # --------------------------------------------------------
+          data = yaml.safe_load(workflow)
 
-          lines = source.splitlines()
-
-          fixed_lines = []
-
-          inside_raw = False
-
-          for line in lines:
-
-              if (
-                  not inside_raw
-                  and
-                  "= r'''" in line
-              ):
-                  inside_raw = True
-                  fixed_lines.append(
-                      line
-                  )
-                  continue
-
-              if inside_raw:
-
-                  fixed_lines.append(
-                      "          " +
-                      line
-                  )
-
-                  if line.strip() == "'''":
-                      inside_raw = False
-
-                  continue
-
-              fixed_lines.append(
-                  line
-              )
-
-          fixed = "\n".join(
-              fixed_lines
-          ) + "\n"
-
-          # --------------------------------------------------------
-          # GARANTIA
-          # --------------------------------------------------------
-
-          raw_blocks = [
-              "wheel_dialog = r'''",
-              "edit_method = r'''",
-              "manual_method = r'''",
-              "wheel_code = r'''"
-          ]
-
-          for block in raw_blocks:
-
-              if block not in fixed:
-
-                  raise SystemExit(
-                      "ERRO: bloco não encontrado: "
-                      + block
-                  )
-
-          print(
-              "Indentação dos blocos Python corrigida."
-          )
-
-          # --------------------------------------------------------
-          # INSTALAR PYYAML
-          # --------------------------------------------------------
-
-          subprocess.run(
-              [
-                  "python",
-                  "-m",
-                  "pip",
-                  "install",
-                  "-q",
-                  "pyyaml"
-              ],
-              check=True
-          )
-
-          import yaml
-
-          # --------------------------------------------------------
-          # VALIDAR YAML ANTES DE EXECUTAR
-          # --------------------------------------------------------
-
-          try:
-
-              data = yaml.safe_load(
-                  fixed
-              )
-
-          except Exception as error:
-
-              print("")
-              print(
-                  "=========================================="
-              )
-              print(
-                  "ERRO NO YAML CORRIGIDO"
-              )
-              print(
-                  "=========================================="
-              )
-              print(error)
-              raise
-
-          print("")
-          print(
-              "YAML corrigido foi interpretado com sucesso."
-          )
-
-          if not isinstance(
-              data,
-              dict
-          ):
-
+          if not isinstance(data, dict):
               raise SystemExit(
-                  "ERRO: YAML corrigido não é um objeto."
+                  "ERRO: workflow base inválido."
               )
 
-          jobs = data.get(
-              "jobs"
-          )
+          jobs = data.get("jobs")
 
           if not jobs:
-
               raise SystemExit(
                   "ERRO: jobs não encontrado."
               )
 
-          build_job = jobs.get(
-              "build"
-          )
+          build = jobs.get("build")
 
-          if not build_job:
-
+          if not build:
               raise SystemExit(
                   "ERRO: job build não encontrado."
               )
 
-          steps = build_job.get(
-              "steps",
-              []
-          )
+          steps = build.get("steps", [])
+
+          if not steps:
+              raise SystemExit(
+                  "ERRO: etapas não encontradas."
+              )
 
           print(
-              "Quantidade de etapas:",
+              "Etapas encontradas:",
               len(steps)
           )
 
-          # --------------------------------------------------------
-          # EXECUTOR DAS ETAPAS
-          # --------------------------------------------------------
-
-          def execute_step(
-              step
-          ):
+          def execute_step(step):
 
               name = step.get(
                   "name",
-                  "Etapa sem nome"
+                  "Etapa"
               )
 
               if "uses" in step:
-
-                  print("")
                   print(
-                      "IGNORANDO ação externa:",
+                      "Ignorando uses:",
                       name
                   )
-
                   return
 
-              script = step.get(
-                  "run"
-              )
+              script = step.get("run")
 
               if not script:
-
-                  print(
-                      "Sem script:",
-                      name
-                  )
-
                   return
 
               shell = step.get(
@@ -293,17 +132,14 @@ jobs:
                   "bash"
               )
 
-              working_directory = step.get(
+              workdir = step.get(
                   "working-directory",
                   "."
               )
 
-              cwd = Path(
-                  working_directory
-              )
+              cwd = Path(workdir)
 
               if not cwd.is_absolute():
-
                   cwd = (
                       Path.cwd() /
                       cwd
@@ -311,66 +147,25 @@ jobs:
 
               print("")
               print("=" * 70)
-              print(
-                  "EXECUTANDO:",
-                  name
-              )
+              print("EXECUTANDO:", name)
               print("=" * 70)
 
-              # ----------------------------------------------------
-              # VARIÁVEIS DA ETAPA
-              # ----------------------------------------------------
-
-              environment = os.environ.copy()
-
-              step_env = step.get(
-                  "env",
-                  {}
-              )
-
-              if isinstance(
-                  step_env,
-                  dict
-              ):
-
-                  for key, value in step_env.items():
-
-                      if value is None:
-                          continue
-
-                      value = str(
-                          value
-                      )
-
-                      if value == "${{ github.token }}":
-
-                          value = os.environ.get(
-                              "GH_TOKEN",
-                              ""
-                          )
-
-                      environment[
-                          str(key)
-                      ] = value
-
-              # ----------------------------------------------------
-              # PYTHON
-              # ----------------------------------------------------
+              env = os.environ.copy()
 
               if shell == "python":
 
-                  filename = (
-                      Path(
-                          tempfile.gettempdir()
-                      ) /
+                  temp = Path(
+                      tempfile.gettempdir()
+                  )
+
+                  script_file = (
+                      temp /
                       (
                           "controlehoras_"
                           +
                           str(
                               abs(
-                                  hash(
-                                      name
-                                  )
+                                  hash(name)
                               )
                           )
                           +
@@ -378,7 +173,7 @@ jobs:
                       )
                   )
 
-                  filename.write_text(
+                  script_file.write_text(
                       script,
                       encoding="utf-8"
                   )
@@ -386,26 +181,14 @@ jobs:
                   subprocess.run(
                       [
                           "python",
-                          str(filename)
+                          str(script_file)
                       ],
-                      cwd=str(
-                          cwd
-                      ),
-                      env=environment,
+                      cwd=str(cwd),
+                      env=env,
                       check=True
                   )
 
-                  return
-
-              # ----------------------------------------------------
-              # BASH
-              # ----------------------------------------------------
-
-              if shell in [
-                  "bash",
-                  "sh",
-                  ""
-              ]:
+              else:
 
                   subprocess.run(
                       [
@@ -414,41 +197,25 @@ jobs:
                       ],
                       input=script,
                       text=True,
-                      cwd=str(
-                          cwd
-                      ),
-                      env=environment,
+                      cwd=str(cwd),
+                      env=env,
                       check=True
                   )
 
-                  return
-
-              # ----------------------------------------------------
-              # OUTROS SHELLS
-              # ----------------------------------------------------
-
-              subprocess.run(
-                  [
-                      "bash",
-                      "-e"
-                  ],
-                  input=script,
-                  text=True,
-                  cwd=str(
-                      cwd
-                  ),
-                  env=environment,
-                  check=True
-              )
-
           # --------------------------------------------------------
-          # EXECUTAR TODAS AS ETAPAS RUN
-          #
-          # A etapa "Baixar projeto" é ignorada porque já fizemos
-          # checkout acima.
-          #
-          # Java também já foi configurado acima.
+          # EXECUTA A BASE ATÉ ANTES DO BUILD.
+          # O BUILD SERÁ FEITO ABAIXO.
           # --------------------------------------------------------
+
+          stop_names = {
+              "Validar código",
+              "Validar código e ícone",
+              "Validar código final",
+              "Instalar Gradle 8.11.1",
+              "Limpar projeto",
+              "Gerar APK",
+              "Verificar APK"
+          }
 
           for step in steps:
 
@@ -457,74 +224,913 @@ jobs:
                   ""
               )
 
-              if name in [
+              if name in stop_names:
+                  break
+
+              if name in {
                   "Baixar projeto",
                   "Configurar Java 17"
-              ]:
-
+              }:
                   continue
 
-              # A publicação original usa actions/upload-artifact.
-              # Será feita no final deste workflow.
-              if "Publicar APK" in name:
-
-                  continue
-
-              execute_step(
-                  step
-              )
+              execute_step(step)
 
           print("")
           print("=" * 70)
-          print("TODAS AS ETAPAS DO WORKFLOW ANTERIOR TERMINARAM")
+          print("BASE APLICADA")
           print("=" * 70)
 
       # ============================================================
-      # GARANTIA FINAL DO APK
+      # CORRIGIR CARTÃO DO FUNCIONÁRIO
+      #
+      # Corrige:
+      #
+      # box.addView(view,0,0,0,dp(10))
+      #
+      # para um LayoutParams válido.
       # ============================================================
 
-      - name: Verificar APK final
-        shell: bash
+      - name: Corrigir cartão do funcionário
+        shell: python
         run: |
-          set -e
+          from pathlib import Path
+          import re
 
-          APK="ControleHoras/app/build/outputs/apk/debug/app-debug.apk"
+          main = Path(
+              "ControleHoras/"
+              "app/src/main/java/com/didhuuu/"
+              "controlehoras/MainActivity.kt"
+          )
 
-          echo ""
-          echo "=============================================="
-          echo "VERIFICANDO APK"
-          echo "=============================================="
+          if not main.exists():
+              raise SystemExit(
+                  "ERRO: MainActivity.kt não encontrado."
+              )
 
-          if [ ! -f "$APK" ]; then
-            echo "ERRO: APK não foi gerado."
-            exit 1
-          fi
+          code = main.read_text(
+              encoding="utf-8"
+          )
 
-          if [ ! -s "$APK" ]; then
-            echo "ERRO: APK está vazio."
-            exit 1
-          fi
+          pattern = re.compile(
+              r"""
+              box\.addView
+                  \s*
+                  card\(\.apply\{
+                  (?P<body>.*?)
+                  \n\s*
+                  \},
+                  \s*0,
+                  \s*0,
+                  \s*0,
+                  \s*dp10
+                  \s*
+              \)
+              """,
+              re.DOTALL |
+              re.VERBOSE
+          )
 
-          unzip -t \
-            "$APK" \
-            >/dev/null
+          match = pattern.search(code)
 
-          echo ""
-          echo "APK ENCONTRADO:"
-          ls -lh "$APK"
+          if match:
 
-          echo ""
-          echo "=============================================="
-          echo "APK VALIDADO"
-          echo "=============================================="
+              body = match.group("body")
+
+              replacement = (
+                  "val employeeCard="
+                  "(card() as ViewGroup).apply{"
+                  +
+                  body
+                  +
+                  "\n"
+                  "              }\n\n"
+                  "              box.addView(\n"
+                  "                  employeeCard,\n"
+                  "                  LinearLayout.LayoutParams(\n"
+                  "                      -1,\n"
+                  "                      -2\n"
+                  "                  ).apply{\n"
+                  "                      bottomMargin=dp(10)\n"
+                  "                  }\n"
+                  "              )"
+              )
+
+              code = (
+                  code[:match.start()]
+                  +
+                  replacement
+                  +
+                  code[match.end():]
+              )
+
+              main.write_text(
+                  code,
+                  encoding="utf-8"
+              )
+
+              print(
+                  "CARTÃO CORRIGIDO"
+              )
+
+          elif (
+              "val employeeCard=" in code
+              and
+              "LinearLayout.LayoutParams" in code
+          ):
+
+              print(
+                  "Cartão já estava corrigido."
+              )
+
+          else:
+
+              raise SystemExit(
+                  "ERRO: estrutura do cartão não encontrada."
+              )
 
       # ============================================================
-      # PUBLICAR APK
+      # RODA DE HORAS AZUL / NEON
+      #
+      # 00-23
+      # 00-59
+      # HH:MM
+      # toque para cima/baixo
+      # clique sonoro
       # ============================================================
 
-      - name: Publicar APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: ControleHoras-APK
-          path: ControleHoras/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+      - name: Instalar roda azul neon
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          import textwrap
+
+          root = Path("ControleHoras")
+
+          main = (
+              root /
+              "app/src/main/java/com/didhuuu/"
+              "controlehoras/MainActivity.kt"
+          )
+
+          wheel = (
+              root /
+              "app/src/main/java/com/didhuuu/"
+              "controlehoras/TimeWheelView.kt"
+          )
+
+          code = main.read_text(
+              encoding="utf-8"
+          )
+
+          # --------------------------------------------------------
+          # IMPORTS
+          # --------------------------------------------------------
+
+          imports = [
+              "import android.graphics.Canvas",
+              "import android.graphics.LinearGradient",
+              "import android.graphics.Paint",
+              "import android.graphics.Shader",
+              "import android.media.AudioManager",
+              "import android.media.ToneGenerator",
+              "import android.view.MotionEvent",
+              "import android.view.View",
+              "import android.view.ViewGroup"
+          ]
+
+          package_line = (
+              "package "
+              "com.didhuuu.controlehoras\n"
+          )
+
+          if package_line not in code:
+              raise SystemExit(
+                  "ERRO: package da MainActivity não encontrado."
+              )
+
+          for imp in imports:
+
+              if imp not in code:
+
+                  code = code.replace(
+                      package_line,
+                      package_line +
+                      imp +
+                      "\n",
+                      1
+                  )
+
+          # --------------------------------------------------------
+          # LOCALIZAR FUNÇÃO
+          # --------------------------------------------------------
+
+          def find_function(
+              source,
+              name
+          ):
+
+              candidates = [
+                  "    private fun " + name,
+                  "    fun " + name
+              ]
+
+              found = []
+
+              for item in candidates:
+
+                  pos = source.find(item)
+
+                  if pos >= 0:
+                      found.append(pos)
+
+              if not found:
+                  return -1
+
+              return min(found)
+
+          # --------------------------------------------------------
+          # DIÁLOGO
+          # --------------------------------------------------------
+
+          wheel_dialog = r'''
+    private fun showTimeWheelDialog(
+        title:String,
+        subtitle:String,
+        initialHour:Int,
+        initialMinute:Int,
+        positive:String,
+        onSave:(Int,Int)->Unit
+    ){
+
+        val wrap=
+            LinearLayout(this).apply{
+
+                orientation=
+                    LinearLayout.VERTICAL
+
+                gravity=
+                    Gravity.CENTER_HORIZONTAL
+
+                setPadding(
+                    dp(8),
+                    0,
+                    dp(8),
+                    0
+                )
+            }
+
+        wrap.addView(
+            TextView(this).apply{
+
+                text=subtitle
+
+                gravity=
+                    Gravity.CENTER
+
+                textSize=16f
+
+                setTypeface(
+                    null,
+                    Typeface.BOLD
+                )
+
+                setTextColor(
+                    darkBlue
+                )
+            }
+        )
+
+        val wheels=
+            LinearLayout(this).apply{
+
+                orientation=
+                    LinearLayout.HORIZONTAL
+
+                gravity=
+                    Gravity.CENTER
+            }
+
+        val hour=
+            TimeWheelView(
+                this,
+                0,
+                23,
+                initialHour
+            )
+
+        val minute=
+            TimeWheelView(
+                this,
+                0,
+                59,
+                initialMinute
+            )
+
+        val colon=
+            TextView(this).apply{
+
+                text=":"
+
+                textSize=34f
+
+                gravity=
+                    Gravity.CENTER
+
+                setTypeface(
+                    null,
+                    Typeface.BOLD
+                )
+
+                setTextColor(
+                    darkBlue
+                )
+            }
+
+        wheels.addView(
+            hour,
+            LinearLayout.LayoutParams(
+                dp(105),
+                dp(190)
+            )
+        )
+
+        wheels.addView(
+            colon,
+            LinearLayout.LayoutParams(
+                dp(30),
+                dp(190)
+            )
+        )
+
+        wheels.addView(
+            minute,
+            LinearLayout.LayoutParams(
+                dp(105),
+                dp(190)
+            )
+        )
+
+        wrap.addView(
+            wheels
+        )
+
+        val value=
+            TextView(this).apply{
+
+                text=
+                    "%02d:%02d".format(
+                        Locale.US,
+                        hour.value,
+                        minute.value
+                    )
+
+                textSize=30f
+
+                gravity=
+                    Gravity.CENTER
+
+                setTypeface(
+                    null,
+                    Typeface.BOLD
+                )
+
+                setTextColor(
+                    blue
+                )
+            }
+
+        fun refresh(){
+
+            value.text=
+                "%02d:%02d".format(
+                    Locale.US,
+                    hour.value,
+                    minute.value
+                )
+        }
+
+        hour.onValueChanged={
+            refresh()
+        }
+
+        minute.onValueChanged={
+            refresh()
+        }
+
+        wrap.addView(
+            value
+        )
+
+        val dialog=
+            AlertDialog.Builder(this)
+                .setTitle(title)
+                .setView(wrap)
+                .setNegativeButton(
+                    "CANCELAR",
+                    null
+                )
+                .setPositiveButton(
+                    positive,
+                    null
+                )
+                .create()
+
+        dialog.setOnShowListener{
+
+            dialog
+                .getButton(
+                    AlertDialog.BUTTON_POSITIVE
+                )
+                .setOnClickListener{
+
+                    onSave(
+                        hour.value,
+                        minute.value
+                    )
+
+                    dialog.dismiss()
+                }
+        }
+
+        dialog.show()
+    }
+'''
+
+          # --------------------------------------------------------
+          # EDITAR
+          # --------------------------------------------------------
+
+          edit_method = r'''
+    private fun showEditWheel(
+        rec:PunchDay,
+        index:Int
+    ){
+
+        if(
+            rec.punches[index].isBlank()
+        ){
+
+            Toast.makeText(
+                this,
+                "Esse registro ainda está vazio.",
+                Toast.LENGTH_LONG
+            ).show()
+
+            return
+        }
+
+        val parts=
+            rec.punches[index]
+                .split(":")
+
+        val hour=
+            parts
+                .getOrNull(0)
+                ?.toIntOrNull()
+                ?.coerceIn(0,23)
+                ?:0
+
+        val minute=
+            parts
+                .getOrNull(1)
+                ?.toIntOrNull()
+                ?.coerceIn(0,59)
+                ?:0
+
+        showTimeWheelDialog(
+            "Editar registro",
+            "${punchNames[index]}\n${df.format(parseIso(rec.date))}",
+            hour,
+            minute,
+            "SALVAR"
+        ){h,m->
+
+            rec.punches[index]=
+                "%02d:%02d".format(
+                    Locale.US,
+                    h,
+                    m
+                )
+
+            saveData()
+
+            showPunch()
+        }
+    }
+'''
+
+          # --------------------------------------------------------
+          # REGISTRO MANUAL
+          # --------------------------------------------------------
+
+          manual_method = r'''
+    private fun showManualWheel(
+        empId:Long
+    ){
+
+        val r=
+            getRecord(
+                empId,
+                selectedPunchDate
+            )
+
+        val n=
+            nextPunchIndex(
+                r,
+                extraEnabled(
+                    empId,
+                    selectedPunchDate
+                )
+            )
+
+        if(n<0){
+
+            Toast.makeText(
+                this,
+                "As batidas disponíveis deste dia já estão preenchidas.",
+                Toast.LENGTH_LONG
+            ).show()
+
+            return
+        }
+
+        val now=
+            Calendar.getInstance()
+
+        showTimeWheelDialog(
+            "Registro manual",
+            "${punchNames[n]}\n${df.format(parseIso(selectedPunchDate))}",
+            now.get(Calendar.HOUR_OF_DAY),
+            now.get(Calendar.MINUTE),
+            "REGISTRAR"
+        ){h,m->
+
+            r.punches[n]=
+                "%02d:%02d".format(
+                    Locale.US,
+                    h,
+                    m
+                )
+
+            saveData()
+
+            showPunch()
+        }
+    }
+'''
+
+          edit_start = find_function(
+              code,
+              "showEditWheel"
+          )
+
+          manual_start = find_function(
+              code,
+              "showManualWheel"
+          )
+
+          history_start = find_function(
+              code,
+              "showHistory"
+          )
+
+          if (
+              edit_start < 0
+              or
+              manual_start < 0
+              or
+              history_start < 0
+          ):
+
+              raise SystemExit(
+                  "ERRO: funções da roda não encontradas."
+              )
+
+          code = (
+              code[:edit_start]
+              +
+              textwrap.dedent(
+                  wheel_dialog
+              ).strip()
+              +
+              "\n\n"
+              +
+              textwrap.dedent(
+                  edit_method
+              ).strip()
+              +
+              "\n\n"
+              +
+              textwrap.dedent(
+                  manual_method
+              ).strip()
+              +
+              "\n\n"
+              +
+              code[history_start:]
+          )
+
+          if "NumberPicker" in code:
+              raise SystemExit(
+                  "ERRO: NumberPicker ainda existe."
+              )
+
+          main.write_text(
+              code,
+              encoding="utf-8"
+          )
+
+          # --------------------------------------------------------
+          # CLASSE DA RODA
+          # --------------------------------------------------------
+
+          wheel_code = r'''package com.didhuuu.controlehoras
+
+import android.content.Context
+import android.graphics.Canvas
+import android.graphics.LinearGradient
+import android.graphics.Paint
+import android.graphics.Shader
+import android.media.AudioManager
+import android.media.ToneGenerator
+import android.view.MotionEvent
+import android.view.View
+import kotlin.math.abs
+
+class TimeWheelView(
+    context:Context,
+    private val minimum:Int,
+    private val maximum:Int,
+    initial:Int
+):View(context){
+
+    var value:Int=
+        initial.coerceIn(
+            minimum,
+            maximum
+        )
+        private set
+
+    var onValueChanged:
+        (() -> Unit)?=null
+
+    private val density=
+        resources
+            .displayMetrics
+            .density
+
+    private val paint=
+        Paint(
+            Paint.ANTI_ALIAS_FLAG
+        )
+
+    private val tone=
+        ToneGenerator(
+            AudioManager.STREAM_NOTIFICATION,
+            65
+        )
+
+    private var lastY=0f
+
+    private var accumulated=0f
+
+    private fun dp(
+        value:Int
+    ):Float{
+
+        return value*density
+    }
+
+    private fun change(
+        amount:Int
+    ){
+
+        val next=
+            (value+amount)
+                .coerceIn(
+                    minimum,
+                    maximum
+                )
+
+        if(
+            next==value
+        ){
+            return
+        }
+
+        value=next
+
+        tone.startTone(
+            ToneGenerator.TONE_PROP_CLICK,
+            35
+        )
+
+        onValueChanged?.invoke()
+
+        invalidate()
+    }
+
+    override fun onDraw(
+        canvas:Canvas
+    ){
+
+        super.onDraw(
+            canvas
+        )
+
+        val width=
+            width.toFloat()
+
+        val height=
+            height.toFloat()
+
+        val center=
+            height/2f
+
+        paint.shader=
+            LinearGradient(
+                0f,
+                0f,
+                width,
+                0f,
+                intArrayOf(
+                    0xFF17191C.toInt(),
+                    0xFFB9BDC4.toInt(),
+                    0xFFF5F7FA.toInt(),
+                    0xFF9EA4AB.toInt(),
+                    0xFF17191C.toInt()
+                ),
+                null,
+                Shader.TileMode.CLAMP
+            )
+
+        canvas.drawRoundRect(
+            dp(4),
+            dp(3),
+            width-dp(4),
+            height-dp(3),
+            dp(18),
+            dp(18),
+            paint
+        )
+
+        paint.shader=null
+
+        paint.shader=
+            LinearGradient(
+                0f,
+                center-dp(34),
+                0f,
+                center+dp(34),
+                intArrayOf(
+                    0xFF003CFF.toInt(),
+                    0xFF008BFF.toInt(),
+                    0xFF0050FF.toInt()
+                ),
+                null,
+                Shader.TileMode.CLAMP
+            )
+
+        canvas.drawRoundRect(
+            dp(9),
+            center-dp(34),
+            width-dp(9),
+            center+dp(34),
+            dp(10),
+            dp(10),
+            paint
+        )
+
+        paint.shader=null
+
+        paint.textAlign=
+            Paint.Align.CENTER
+
+        for(
+            offset in -2..2
+        ){
+
+            var number=
+                value+offset
+
+            val range=
+                maximum-minimum+1
+
+            while(
+                number>maximum
+            ){
+                number-=range
+            }
+
+            while(
+                number<minimum
+            ){
+                number+=range
+            }
+
+            paint.textSize=
+                if(
+                    offset==0
+                ){
+                    dp(28)
+                }else{
+                    dp(19)
+                }
+
+            paint.color=
+                if(
+                    offset==0
+                ){
+                    0xFFFFFFFF.toInt()
+                }else{
+                    0xFFE2E7EF.toInt()
+                }
+
+            canvas.drawText(
+                "%02d".format(
+                    number
+                ),
+                width/2f,
+                center+
+                offset*dp(45)+
+                dp(9),
+                paint
+            )
+        }
+
+        paint.color=
+            0xFF00D9FF.toInt()
+
+        paint.style=
+            Paint.Style.STROKE
+
+        paint.strokeWidth=
+            dp(2)
+
+        canvas.drawLine(
+            dp(3),
+            center-dp(30),
+            dp(19),
+            center,
+            paint
+        )
+
+        canvas.drawLine(
+            dp(3),
+            center+dp(30),
+            dp(19),
+            center,
+            paint
+        )
+
+        canvas.drawLine(
+            width-dp(3),
+            center-dp(30),
+            width-dp(19),
+            center,
+            paint
+        )
+
+        canvas.drawLine(
+            width-dp(3),
+            center+dp(30),
+            width-dp(19),
+            center,
+            paint
+        )
+
+        paint.style=
+            Paint.Style.FILL
+    }
+
+    override fun onTouchEvent(
+        event:MotionEvent
+    ):Boolean{
+
+        when(
+            event.actionMasked
+        ){
+
+            MotionEvent.ACTION_DOWN->{
+
+                lastY=
+                    event.y
+
+                accumulated=
+                    0f
+
+                return true
+            }
+
+            MotionEvent.ACTION_MOVE->{
+
+                val difference=
+                    event.y-lastY
+
+                accumulated+=
+                    difference
+
+                if(
+                    abs(accumulated)>=
+                    dp(28)
