@@ -22,6 +22,7 @@ jobs:
       - name: Baixar projeto
         uses: actions/checkout@v4
 
+
       # ============================================================
       # 2 - JAVA 17
       # ============================================================
@@ -32,8 +33,9 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+
       # ============================================================
-      # 3 - EXTRAIR PROJETO
+      # 3 - EXTRAIR PROJETO ORIGINAL
       # ============================================================
 
       - name: Extrair projeto
@@ -57,11 +59,12 @@ jobs:
 
           echo "PROJETO ORIGINAL OK"
 
+
       # ============================================================
-      # 4 - BASE 70
+      # 4 - APLICAR EXATAMENTE A BASE 70
       # ============================================================
 
-      - name: Aplicar exatamente a base da versão 70
+      - name: Aplicar exatamente a Base 70
         shell: python
         run: |
           from pathlib import Path
@@ -85,17 +88,25 @@ jobs:
               timeout=60
           ).read().decode("utf-8")
 
+
           def extract_step(name, next_name):
 
-              start_marker = f"      - name: {name}"
-              end_marker = f"      - name: {next_name}"
+              start_marker = (
+                  f"      - name: {name}"
+              )
+
+              end_marker = (
+                  f"      - name: {next_name}"
+              )
 
               if start_marker not in workflow:
                   raise RuntimeError(
                       f"Etapa não encontrada: {name}"
                   )
 
-              start = workflow.index(start_marker)
+              start = workflow.index(
+                  start_marker
+              )
 
               if end_marker not in workflow[start:]:
                   raise RuntimeError(
@@ -107,13 +118,17 @@ jobs:
                   start
               )
 
-              block = workflow[start:end]
+              block = workflow[
+                  start:end
+              ]
 
-              marker = "        run: |\n"
+              marker = (
+                  "        run: |\n"
+              )
 
               if marker not in block:
                   raise RuntimeError(
-                      f"Bloco run não encontrado: {name}"
+                      f"Bloco Python não encontrado: {name}"
                   )
 
               pos = (
@@ -121,62 +136,74 @@ jobs:
                   + len(marker)
               )
 
-              lines = block[pos:].splitlines()
+              lines = block[
+                  pos:
+              ].splitlines()
 
-              return "\n".join(
-                  line[10:]
-                  if line.startswith("          ")
-                  else line
-                  for line in lines
-              ).rstrip() + "\n"
+              return (
+                  "\n".join(
+                      line[10:]
+                      if line.startswith("          ")
+                      else line
+                      for line in lines
+                  ).rstrip()
+                  + "\n"
+              )
+
 
           scripts = [
+
               extract_step(
                   "Aplicar versão 36",
                   "Adicionar seleção de data"
               ),
+
               extract_step(
                   "Adicionar seleção de data",
                   "Validar código"
               )
+
           ]
+
 
           for i, script in enumerate(scripts):
 
-              p = (
+              path = (
                   Path(tempfile.gettempdir())
                   / f"base70_{i}.py"
               )
 
-              p.write_text(
+              path.write_text(
                   script,
                   encoding="utf-8"
               )
 
               compile(
                   script,
-                  str(p),
+                  str(path),
                   "exec"
               )
 
               subprocess.run(
                   [
                       "python",
-                      str(p)
+                      str(path)
                   ],
                   check=True
               )
+
 
           print("========================================")
           print("BASE 70 APLICADA")
           print("ESCALA ORIGINAL PRESERVADA")
           print("========================================")
 
+
       # ============================================================
-      # 5 - VERSÃO 80
+      # 5 - FUNCIONALIDADES DA VERSÃO 80
       # ============================================================
 
-      - name: Aplicar funcionalidades da versão 80
+      - name: Aplicar correções da versão 80
         shell: python
         run: |
           from pathlib import Path
@@ -185,7 +212,7 @@ jobs:
           import tempfile
 
           print("========================================")
-          print("APLICANDO VERSÃO 80")
+          print("APLICANDO FUNCIONALIDADES DA VERSÃO 80")
           print("========================================")
 
           url = (
@@ -200,6 +227,7 @@ jobs:
               timeout=60
           ).read().decode("utf-8")
 
+
           start_marker = (
               "      - name: "
               "Aplicar correções finais da Base 70, "
@@ -209,6 +237,7 @@ jobs:
           end_marker = (
               "      - name: Validar código e ícone"
           )
+
 
           if start_marker not in workflow:
               raise RuntimeError(
@@ -224,9 +253,13 @@ jobs:
               start
           )
 
-          block = workflow[start:end]
+          block = workflow[
+              start:end
+          ]
 
-          marker = "        run: |\n"
+          marker = (
+              "        run: |\n"
+          )
 
           if marker not in block:
               raise RuntimeError(
@@ -238,45 +271,139 @@ jobs:
               + len(marker)
           )
 
-          lines = block[pos:].splitlines()
+          lines = block[
+              pos:
+          ].splitlines()
 
-          script = "\n".join(
-              line[10:]
-              if line.startswith("          ")
-              else line
-              for line in lines
-          ).rstrip() + "\n"
-
-          p = (
-              Path(tempfile.gettempdir())
-              / "funcionalidades_v80.py"
+          script = (
+              "\n".join(
+                  line[10:]
+                  if line.startswith("          ")
+                  else line
+                  for line in lines
+              ).rstrip()
+              + "\n"
           )
 
-          p.write_text(
+
+          path = (
+              Path(tempfile.gettempdir())
+              / "versao80.py"
+          )
+
+          path.write_text(
               script,
               encoding="utf-8"
           )
 
           compile(
               script,
-              str(p),
+              str(path),
               "exec"
           )
 
           subprocess.run(
               [
                   "python",
-                  str(p)
+                  str(path)
               ],
               check=True
           )
 
-          print("========================================")
           print("VERSÃO 80 APLICADA")
-          print("========================================")
+
 
       # ============================================================
-      # 6 - SOM DA ROLETA
+      # 6 - CORRIGIR CARTÃO DO FUNCIONÁRIO
+      #    CORREÇÃO DO ERRO addView DA VERSÃO 80
+      # ============================================================
+
+      - name: Corrigir cartão de funcionário
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          src = Path(
+              "ControleHoras/"
+              "app/src/main/java/com/didhuuu/"
+              "controlehoras/MainActivity.kt"
+          )
+
+          code = src.read_text(
+              encoding="utf-8"
+          )
+
+
+          pattern = re.compile(
+              r"box\.addView\("
+              r"\s*card\(\)\.apply\{"
+              r"(?P<body>.*?)"
+              r"\s*addView\(line\)\s*"
+              r"\},"
+              r"\s*0,"
+              r"\s*0,"
+              r"\s*0,"
+              r"\s*dp\(10\)"
+              r"\s*\)",
+              re.S
+          )
+
+
+          match = pattern.search(
+              code
+          )
+
+
+          if not match:
+              raise SystemExit(
+                  "ERRO: cartão de funcionário "
+                  "da versão 80 não encontrado."
+              )
+
+
+          body = match.group(
+              "body"
+          )
+
+
+          replacement = (
+              "val employeeCard="
+              "((card() as android.view.ViewGroup).apply{\n"
+              + body
+              + "\n})\n\n"
+              + "box.addView(\n"
+              + "    employeeCard,\n"
+              + "    LinearLayout.LayoutParams("
+              + "-1,"
+              + "-2"
+              + ").apply{"
+              + "bottomMargin=dp(10)"
+              + "}\n"
+              + ")"
+          )
+
+
+          code = (
+              code[:match.start()]
+              + replacement
+              + code[match.end():]
+          )
+
+
+          src.write_text(
+              code,
+              encoding="utf-8"
+          )
+
+
+          print(
+              "CARTÃO DE FUNCIONÁRIO CORRIGIDO"
+          )
+
+
+      # ============================================================
+      # 7 - CRIAR SOM MECÂNICO DA ROLETA
       # ============================================================
 
       - name: Criar som mecânico da roleta
@@ -288,7 +415,8 @@ jobs:
           import struct
 
           raw = Path(
-              "ControleHoras/app/src/main/res/raw"
+              "ControleHoras/"
+              "app/src/main/res/raw"
           )
 
           raw.mkdir(
@@ -296,15 +424,470 @@ jobs:
               exist_ok=True
           )
 
-          filename = raw / "roller_click.wav"
+          filename = (
+              raw / "roller_click.wav"
+          )
 
           rate = 44100
+
           duration = 0.035
 
-          frames = []
+          count = int(
+              rate * duration
+          )
 
-          for i in range(
-              int(rate * duration)
+          data = bytearray()
+
+
+          for i in range(count):
+
+              t = i / rate
+
+              amp = int(
+                  13000 *
+                  (1 - i / count)
+              )
+
+              value = int(
+                  amp *
+                  math.sin(
+                      2 *
+                      math.pi *
+                      1800 *
+                      t
+                  )
+              )
+
+              data.extend(
+                  struct.pack(
+                      "<h",
+                      value
+                  )
+              )
+
+
+          with wave.open(
+              str(filename),
+              "wb"
+          ) as wav:
+
+              wav.setnchannels(
+                  1
+              )
+
+              wav.setsampwidth(
+                  2
+              )
+
+              wav.setframerate(
+                  rate
+              )
+
+              wav.writeframes(
+                  bytes(data)
+              )
+
+
+          print(
+              f"SOM CRIADO: {filename}"
+          )
+
+
+      # ============================================================
+      # 8 - APLICAR ROLETA AZUL / NEON
+      #    USANDO O BLOCO ESTÁVEL DA ROLETA
+      #
+      #    O SCRIPT ANTIGO TINHA ASSIGNMENTS PYTHON
+      #    QUEBRADOS EM DUAS LINHAS.
+      #    AQUI ELE É REPARADO ANTES DE SER EXECUTADO.
+      # ============================================================
+
+      - name: Aplicar roleta azul neon
+        shell: python
+        run: |
+          from pathlib import Path
+          from urllib.request import urlopen
+          import subprocess
+          import tempfile
+          import re
+
+          print("========================================")
+          print("BAIXANDO BLOCO ESTÁVEL DA ROLETA")
+          print("========================================")
+
+
+          url = (
+              "https://raw.githubusercontent.com/"
+              "didhuuu/ControleHoras/"
+              "39fc6bfb41ebc7b01d6c435a85b5228e735f3f2/"
+              ".github/workflows/build.yml"
+          )
+
+
+          workflow = urlopen(
+              url,
+              timeout=60
+          ).read().decode("utf-8")
+
+
+          def extract_run_containing(
+              needle
           ):
 
-              t = i /
+              pos = workflow.index(
+                  needle
+              )
+
+
+              step_start = workflow.rfind(
+                  "      - name:",
+                  0,
+                  pos
+              )
+
+
+              if step_start < 0:
+                  raise RuntimeError(
+                      "Etapa da roleta não encontrada."
+                  )
+
+
+              next_step = workflow.find(
+                  "      - name:",
+                  pos + len(needle)
+              )
+
+
+              if next_step < 0:
+                  next_step = len(
+                      workflow
+                  )
+
+
+              block = workflow[
+                  step_start:
+                  next_step
+              ]
+
+
+              marker = (
+                  "        run: |\n"
+              )
+
+
+              if marker not in block:
+                  raise RuntimeError(
+                      "run da roleta não encontrado."
+                  )
+
+
+              pos2 = (
+                  block.index(marker)
+                  + len(marker)
+              )
+
+
+              lines = block[
+                  pos2:
+              ].splitlines()
+
+
+              return (
+                  "\n".join(
+                      line[10:]
+                      if line.startswith("          ")
+                      else line
+                      for line in lines
+                  ).rstrip()
+                  + "\n"
+              )
+
+
+          def repair_python_assignments(
+              source
+          ):
+
+              lines = source.splitlines()
+
+              output = []
+
+              in_triple = None
+
+              i = 0
+
+
+              while i < len(lines):
+
+                  line = lines[i]
+
+
+                  if in_triple is None:
+
+                      match = re.match(
+                          r"^(\s*)([A-Za-z_]\w*)=\s*$",
+                          line
+                      )
+
+
+                      if (
+                          match
+                          and
+                          i + 1 < len(lines)
+                          and
+                          lines[i + 1].strip()
+                      ):
+
+                          output.append(
+                              match.group(1)
+                              + match.group(2)
+                              + "="
+                              + lines[i + 1].lstrip()
+                          )
+
+                          i += 2
+
+                          continue
+
+
+                  output.append(
+                      line
+                  )
+
+
+                  for quote in (
+                      '"""',
+                      "'''"
+                  ):
+
+                      if (
+                          line.count(
+                              quote
+                          ) % 2
+                      ):
+
+                          if in_triple is None:
+
+                              in_triple = quote
+
+                          elif (
+                              in_triple
+                              == quote
+                          ):
+
+                              in_triple = None
+
+
+                  i += 1
+
+
+              return (
+                  "\n".join(output)
+                  + "\n"
+              )
+
+
+          script = extract_run_containing(
+              "ControleHorasTimeWheelView"
+          )
+
+
+          script = repair_python_assignments(
+              script
+          )
+
+
+          path = (
+              Path(tempfile.gettempdir())
+              / "roleta_completa.py"
+          )
+
+
+          path.write_text(
+              script,
+              encoding="utf-8"
+          )
+
+
+          # PRIMEIRO COMPILE.
+          # SE O SCRIPT AINDA TIVER ERRO,
+          # O BUILD PARA AQUI E MOSTRA O ERRO REAL.
+
+          compile(
+              script,
+              str(path),
+              "exec"
+          )
+
+
+          subprocess.run(
+              [
+                  "python",
+                  str(path)
+              ],
+              check=True
+          )
+
+
+          print("========================================")
+          print("ROLETA APLICADA COM SUCESSO")
+          print("========================================")
+
+
+      # ============================================================
+      # 9 - VALIDAR CÓDIGO FINAL
+      # ============================================================
+
+      - name: Validar código final
+        shell: bash
+        run: |
+          set -e
+
+          FILE="ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
+
+          echo "========================================"
+          echo "VALIDANDO MAINACTIVITY"
+          echo "========================================"
+
+          test -s "$FILE"
+
+          grep -q 'selectedPunchDate' "$FILE"
+
+          grep -q 'choosePunchDate' "$FILE"
+
+          grep -q 'dataButton' "$FILE"
+
+          grep -q 'private fun normalizeTime' "$FILE"
+
+          grep -q 'private fun timeEdit' "$FILE"
+
+          grep -q 'ControleHorasTimeWheelView' "$FILE"
+
+          grep -q 'showEditWheel' "$FILE"
+
+          grep -q 'showManualWheel' "$FILE"
+
+          grep -q 'punchNames' "$FILE"
+
+          grep -q 'extra2Enabled' "$FILE"
+
+          grep -q 'roller_click' "$FILE"
+
+
+          if grep -q 'NumberPicker' "$FILE"; then
+            echo "ERRO: NumberPicker antigo ainda presente"
+            exit 1
+          fi
+
+
+          if grep -q 'Button(context)' "$FILE"; then
+            echo "ERRO: Button(context)"
+            exit 1
+          fi
+
+
+          test -s \
+            "ControleHoras/app/src/main/res/raw/roller_click.wav"
+
+
+          echo "========================================"
+          echo "CÓDIGO FINAL VALIDADO"
+          echo "========================================"
+
+
+      # ============================================================
+      # 10 - INSTALAR GRADLE
+      # ============================================================
+
+      - name: Instalar Gradle 8.11.1
+        shell: bash
+        run: |
+          set -e
+
+          wget -q \
+            https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
+
+          unzip -q \
+            gradle-8.11.1-bin.zip
+
+          echo \
+            "$PWD/gradle-8.11.1/bin" \
+            >> "$GITHUB_PATH"
+
+          "$PWD/gradle-8.11.1/bin/gradle" \
+            --version
+
+
+      # ============================================================
+      # 11 - LIMPAR PROJETO
+      # ============================================================
+
+      - name: Limpar projeto
+        working-directory: ControleHoras
+        shell: bash
+        run: |
+          set -e
+
+          gradle \
+            clean \
+            --no-daemon
+
+
+      # ============================================================
+      # 12 - GERAR APK
+      # ============================================================
+
+      - name: Gerar APK
+        working-directory: ControleHoras
+        shell: bash
+        run: |
+          set -e
+
+          echo "========================================"
+          echo "GERANDO APK"
+          echo "========================================"
+
+          gradle \
+            assembleDebug \
+            --no-daemon \
+            --stacktrace
+
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+
+          test -s "$APK"
+
+          ls -lh "$APK"
+
+          echo "APK GERADO"
+
+
+      # ============================================================
+      # 13 - VALIDAR APK
+      # ============================================================
+
+      - name: Verificar APK
+        working-directory: ControleHoras
+        shell: bash
+        run: |
+          set -e
+
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+
+          test -s "$APK"
+
+          unzip -t "$APK" >/dev/null
+
+          echo "========================================"
+          echo "APK VALIDADO"
+          echo "========================================"
+
+
+      # ============================================================
+      # 14 - PUBLICAR APK
+      # ============================================================
+
+      - name: Publicar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ControleHoras-APK
+          path: ControleHoras/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
