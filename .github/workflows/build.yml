@@ -26,7 +26,7 @@ jobs:
           java-version: '17'
 
       # ============================================================
-      # BASE 70 + CORREÇÕES EXISTENTES
+      # APLICA A BASE ESTÁVEL
       # ============================================================
 
       - name: Aplicar base correta
@@ -60,7 +60,7 @@ jobs:
           )
 
           print("=" * 70)
-          print("BAIXANDO BASE")
+          print("BAIXANDO BASE ESTÁVEL")
           print("=" * 70)
 
           request = Request(
@@ -73,17 +73,13 @@ jobs:
           workflow = urlopen(
               request,
               timeout=60
-          ).read().decode(
-              "utf-8"
-          )
+          ).read().decode("utf-8")
 
-          data = yaml.safe_load(
-              workflow
-          )
+          data = yaml.safe_load(workflow)
 
           if not isinstance(data, dict):
               raise SystemExit(
-                  "ERRO: workflow inválido."
+                  "ERRO: workflow da base inválido."
               )
 
           steps = (
@@ -128,22 +124,14 @@ jobs:
                   "."
               )
 
-              cwd = Path(
-                  workdir
-              )
+              cwd = Path(workdir)
 
               if not cwd.is_absolute():
-                  cwd = (
-                      Path.cwd() /
-                      cwd
-                  )
+                  cwd = Path.cwd() / cwd
 
               print("")
               print("=" * 70)
-              print(
-                  "EXECUTANDO:",
-                  name
-              )
+              print("EXECUTANDO:", name)
               print("=" * 70)
 
               env = os.environ.copy()
@@ -151,18 +139,12 @@ jobs:
               if shell == "python":
 
                   script_file = (
-                      Path(
-                          tempfile.gettempdir()
-                      )
+                      Path(tempfile.gettempdir())
                       /
                       (
                           "controlehoras_"
                           +
-                          str(
-                              abs(
-                                  hash(name)
-                              )
-                          )
+                          str(abs(hash(name)))
                           +
                           ".py"
                       )
@@ -223,17 +205,15 @@ jobs:
               }:
                   continue
 
-              run_step(
-                  step
-              )
+              run_step(step)
 
           print("")
           print("=" * 70)
-          print("BASE APLICADA")
+          print("BASE ESTÁVEL APLICADA")
           print("=" * 70)
 
       # ============================================================
-      # CORREÇÃO DO CARTÃO
+      # CORREÇÃO DO CARTÃO DO FUNCIONÁRIO
       # ============================================================
 
       - name: Corrigir cartão
@@ -247,6 +227,11 @@ jobs:
               "app/src/main/java/com/didhuuu/"
               "controlehoras/MainActivity.kt"
           )
+
+          if not main.exists():
+              raise SystemExit(
+                  "ERRO: MainActivity.kt não encontrada."
+              )
 
           code = main.read_text(
               encoding="utf-8"
@@ -271,15 +256,11 @@ jobs:
               re.VERBOSE
           )
 
-          match = pattern.search(
-              code
-          )
+          match = pattern.search(code)
 
           if match:
 
-              body = match.group(
-                  "body"
-              )
+              body = match.group("body")
 
               replacement = (
                   "val employeeCard="
@@ -324,28 +305,32 @@ jobs:
           ):
 
               print(
-                  "Cartão já corrigido."
+                  "Cartão já estava corrigido."
               )
 
           else:
 
               raise SystemExit(
-                  "ERRO: cartão não encontrado."
+                  "ERRO: cartão de funcionário não encontrado."
               )
 
       # ============================================================
-      # RODA AZUL/NEON
+      # RODA DE HORAS AZUL / NEON
+      #
+      # SEM BASE64
+      # SEM NUMBERPICKER
+      # SEM ARQUIVO DE SOM EXTERNO
+      #
+      # O SOM É GERADO PELO ToneGenerator.
       # ============================================================
 
       - name: Instalar roda azul neon
         shell: python
         run: |
           from pathlib import Path
-          import base64
+          import re
 
-          root = Path(
-              "ControleHoras"
-          )
+          root = Path("ControleHoras")
 
           main = (
               root /
@@ -359,34 +344,32 @@ jobs:
               "controlehoras/TimeWheelView.kt"
           )
 
+          if not main.exists():
+              raise SystemExit(
+                  "ERRO: MainActivity.kt não encontrada."
+              )
+
           code = main.read_text(
               encoding="utf-8"
           )
 
-          imports = [
-              "import android.graphics.Canvas",
-              "import android.graphics.LinearGradient",
-              "import android.graphics.Paint",
-              "import android.graphics.Shader",
-              "import android.media.AudioManager",
-              "import android.media.ToneGenerator",
-              "import android.view.MotionEvent",
-              "import android.view.View",
-              "import android.view.ViewGroup"
-          ]
+          # --------------------------------------------------------
+          # IMPORTS NECESSÁRIOS
+          # --------------------------------------------------------
 
           package_line = (
-              "package "
-              "com.didhuuu.controlehoras\n"
+              "package com.didhuuu.controlehoras\n"
           )
 
-          if package_line not in code:
-              raise SystemExit(
-                  "ERRO: package não encontrado."
-              )
+          imports = [
+              "import android.view.ViewGroup",
+              "import android.widget.LinearLayout"
+          ]
 
           for imp in imports:
+
               if imp not in code:
+
                   code = code.replace(
                       package_line,
                       package_line +
@@ -396,187 +379,19 @@ jobs:
                   )
 
           # --------------------------------------------------------
-          # RODA / DIALOG
+          # NOMES DAS BATIDAS
           # --------------------------------------------------------
 
-          DIALOG = (
-              "ICAgIHByaXZhdGUgZnVuIHNob3dUaW1lV2hlZWxEaWFsb2coCiAgICAgICAgdGl0bGU6U3RyaW5nLAogICAgICAgIHN1YnRpdGxlOlN0cmluZywKICAgICAgICBpbml0aWFsSG91cjpJbnQsCiAgICAgICAgaW5pdGlhbE1pbnV0ZTpJbnQsCiAgICAgICAgcG9zaXRpdmU6U3RyaW5nLAogICAgICAgIG9uU2F2ZTooSW50LEludCktPlVuaXQKICAgICl7CgogICAgICAgIHZhbCB3cmFwPQogICAgICAgICAgICBMaW5lYXJMYXlvdXQodGhpcykuYXBwbHl7CiAgICAgICAgICAgICAgICBvcmllbnRhdGlvbj1MaW5lYXJMYXlvdXQuVkVSVElDQUwKICAgICAgICAgICAgICAgIGdyYXZpdHk9R3Jhdml0eS5DRU5URVJfSE9SSVpPTlRBTAogICAgICAgICAgICAgICAgc2V0UGFkZGluZyhkcCg4KSwwLGRwKDgpLDApCiAgICAgICAgICAgIH0KCiAgICAgICAgd3JhcC5hZGRWaWV3KAogICAgICAgICAgICBUZXh0Vmlldyh0aGlzKS5hcHBseXsKICAgICAgICAgICAgICAgIHRleHQ9c3VidGl0bGUKICAgICAgICAgICAgICAgIGdyYXZpdHk9R3Jhdml0eS5DRU5URVIKICAgICAgICAgICAgICAgIHRleHRTaXplPTE2ZgogICAgICAgICAgICAgICAgc2V0VHlwZWZhY2UobnVsbCxUeXBlZmFjZS5CT0xEKQogICAgICAgICAgICAgICAgc2V0VGV4dENvbG9yKGRhcmtCbHVlKQogICAgICAgICAgICB9CiAgICAgICAgKQoKICAgICAgICB2YWwgd2hlZWxzPQogICAgICAgICAgICBMaW5lYXJMYXlvdXQodGhpcykuYXBwbHl7CiAgICAgICAgICAgICAgICBvcmllbnRhdGlvbj1MaW5lYXJMYXlvdXQuSE9SSVpPTlRBTAogICAgICAgICAgICAgICAgZ3Jhdml0eT1HcmF2aXR5LkNFTlRFUgogICAgICAgICAgICB9CgogICAgICAgIHZhbCBob3VyPVRpbWVXaGVlbFZpZXcodGhpcywwLDIzLGluaXRpYWxIb3VyKQogICAgICAgIHZhbCBtaW51dGU9VGltZVdoZWVsVmlldyh0aGlzLDAsNTksaW5pdGlhbE1pbnV0ZSkKCiAgICAgICAgdmFsIGNvbG9uPVRleHRWaWV3KHRoaXMpLmFwcGx5ewogICAgICAgICAgICB0ZXh0PSI6IgogICAgICAgICAgICB0ZXh0U2l6ZT0zNGYKICAgICAgICAgICAgZ3Jhdml0eT1HcmF2aXR5LkNFTlRFUgogICAgICAgICAgICBzZXRUeXBlZmFjZShudWxsLFR5cGVmYWNlLkJPTEQpCiAgICAgICAgICAgIHNldFRleHRDb2xvcihkYXJrQmx1ZSkKICAgICAgICB9CgogICAgICAgIHdoZWVscy5hZGRWaWV3KGhvdXIsTGluZWFyTGF5b3V0LkxheW91dFBhcmFtcyhkcCgxMDUpLGRwKDE5MCkpKQogICAgICAgIHdoZWVscy5hZGRWaWV3KGNvbG9uLExpbmVhckxheW91dC5MYXlvdXRQYXJhbXMoZHAoMzApLGRwKDE5MCkpKQogICAgICAgIHdoZWVscy5hZGRWaWV3KG1pbnV0ZSxMaW5lYXJMYXlvdXQuTGF5b3V0UGFyYW1zKGRwKDEwNSksZHAoMTkwKSkpCgogICAgICAgIHdyYXAuYWRkVmlldyh3aGVlbHMpCgogICAgICAgIHZhbCB2YWx1ZT1UZXh0Vmlldyh0aGlzKS5hcHBseXsKICAgICAgICAgICAgdGV4dD0iJTAyZDolMDJkIi5mb3JtYXQoTG9jYWxlLlVTLGhvdXIudmFsdWUsbWludXRlLnZhbHVlKQogICAgICAgICAgICB0ZXh0U2l6ZT0zMGYKICAgICAgICAgICAgZ3Jhdml0eT1HcmF2aXR5LkNFTlRFUgogICAgICAgICAgICBzZXRUeXBlZmFjZShudWxsLFR5cGVmYWNlLkJPTEQpCiAgICAgICAgICAgIHNldFRleHRDb2xvcihibHVlKQogICAgICAgIH0KCiAgICAgICAgZnVuIHJlZnJlc2goKXsKICAgICAgICAgICAgdmFsdWUudGV4dD0iJTAyZDolMDJkIi5mb3JtYXQoTG9jYWxlLlVTLGhvdXIudmFsdWUsbWludXRlLnZhbHVlKQogICAgICAgIH0KCiAgICAgICAgaG91ci5vblZhbHVlQ2hhbmdlZD17cmVmcmVzaCgpfQogICAgICAgIG1pbnV0ZS5vblZhbHVlQ2hhbmdlZD17cmVmcmVzaCgpfQogICAgICAgIHdyYXAuYWRkVmlldyh2YWx1ZSkKCiAgICAgICAgdmFsIGRpYWxvZz0KICAgICAgICAgICAgQWxlcnREaWFsb2cuQnVpbGRlcih0aGlzKQogICAgICAgICAgICAgICAgLnNldFRpdGxlKHRpdGxlKQogICAgICAgICAgICAgICAgLnNldFZpZXcod3JhcCkKICAgICAgICAgICAgICAgIC5zZXROZWdhdGl2ZUJ1dHRvbigiQ0FOQ0VMQVIiLG51bGwpCiAgICAgICAgICAgICAgICAuc2V0UG9zaXRpdmVCdXR0b24ocG9zaXRpdmUsbnVsbCkKICAgICAgICAgICAgICAgIC5jcmVhdGUoKQoKICAgICAgICBkaWFsb2cuc2V0T25TaG93TGlzdGVuZXJ7CiAgICAgICAgICAgIGRpYWxvZy5nZXRCdXR0b24oQWxlcnREaWFsb2cuQlVUVE9OX1BPU0lUSVZFKS5zZXRPbkNsaWNrTGlzdGVuZXJ7CiAgICAgICAgICAgICAgICBvblNhdmUoaG91ci52YWx1ZSxtaW51dGUudmFsdWUpCiAgICAgICAgICAgICAgICBkaWFsb2cuZGlzbWlzcygpCiAgICAgICAgICAgIH0KICAgICAgICB9CgogICAgICAgIGRpYWxvZy5zaG93KCkKICAgIH0K"
-          )
-
-          EDIT = (
-              "ICAgIHByaXZhdGUgZnVuIHNob3dFZGl0V2hlZWwoCiAgICAgICAgcmVjOlB1bmNoRGF5LAogICAgICAgIGluZGV4OkludAogICAgKXsKCiAgICAgICAgaWYocmVjLnB1bmNoZXNbaW5kZXhdLmlzQmxhbmsoKSl7CiAgICAgICAgICAgIFRvYXN0Lm1ha2VUZXh0KAogICAgICAgICAgICAgICAgdGhpcywKICAgICAgICAgICAgICAgICJFc3NlIHJlZ2lzdHJvIGFpbmRhIGVzdMOhIHZhemlvLiIsCiAgICAgICAgICAgICAgICBUb2FzdC5MRU5HVEhfTE9ORwogICAgICAgICAgICApLnNob3coKQogICAgICAgICAgICByZXR1cm4KICAgICAgICB9CgogICAgICAgIHZhbCBwYXJ0cz1yZWMucHVuY2hlc1tpbmRleF0uc3BsaXQoIjoiKQogICAgICAgIHZhbCBob3VyPXBhcnRzLmdldE9yTnVsbCgwKT8udG9JbnRPck51bGwoKT8uY29lcmNlSW4oMCwyMykgPzogMAogICAgICAgIHZhbCBtaW51dGU9cGFydHMuZ2V0T3JOdWxsKDEpPy50b0ludE9yTnVsbCgpPy5jb2VyY2VJbigwLDU5KSA/OiAwCgogICAgICAgIHNob3dUaW1lV2hlZWxEaWFsb2coCiAgICAgICAgICAgICJFZGl0YXIgcmVnaXN0cm8iLAogICAgICAgICAgICAiJHtwdW5jaE5hbWVzW2luZGV4XX1cbiR7ZGYuZm9ybWF0KHBhcnNlSXNvKHJlYy5kYXRlKSl9IiwKICAgICAgICAgICAgaG91ciwKICAgICAgICAgICAgbWludXRlLAogICAgICAgICAgICAiU0FMVkFSIgogICAgICAgICl7aCxtLT4KICAgICAgICAgICAgcmVjLnB1bmNoZXNbaW5kZXhdPSIlMDJkOiUwMmQiLmZvcm1hdChMb2NhbGUuVVMsaCxtKQogICAgICAgICAgICBzYXZlRGF0YSgpCiAgICAgICAgICAgIHNob3dQdW5jaCgpCiAgICAgICAgfQogICAgfQo="
-          )
-
-          MANUAL = (
-              "ICAgIHByaXZhdGUgZnVuIHNob3dNYW51YWxXaGVlbCgKICAgICAgICBlbXBJZDpMb25nCiAgICApewoKICAgICAgICB2YWwgcj1nZXRSZWNvcmQoZW1wSWQsc2VsZWN0ZWRQdW5jaERhdGUpCgogICAgICAgIHZhbCBuPW5leHRQdW5jaEluZGV4KAogICAgICAgICAgICByLAogICAgICAgICAgICBleHRyYUVuYWJsZWQoZW1wSWQsc2VsZWN0ZWRQdW5jaERhdGUpCiAgICAgICAgKQoKICAgICAgICBpZihuPDApewogICAgICAgICAgICBUb2FzdC5tYWtlVGV4dCgKICAgICAgICAgICAgICAgIHRoaXMsCiAgICAgICAgICAgICAgICAiQXMgYmF0aWRhcyBkaXNwb27DrXZlaXMgZGVzdGUgZGlhIGrDoSBlc3TDo28gcHJlZW5jaGlkYXMuIiwKICAgICAgICAgICAgICAgIFRvYXN0LkxFTkdUSF9MT05HCiAgICAgICAgICAgICkuc2hvdygpCiAgICAgICAgICAgIHJldHVybgogICAgICAgIH0KCiAgICAgICAgdmFsIG5vdz1DYWxlbmRhci5nZXRJbnN0YW5jZSgpCgogICAgICAgIHNob3dUaW1lV2hlZWxEaWFsb2coCiAgICAgICAgICAgICJSZWdpc3RybyBtYW51YWwiLAogICAgICAgICAgICAiJHtwdW5jaE5hbWVzW25dfVxuJHtkZi5mb3JtYXQocGFyc2VJc28oc2VsZWN0ZWRQdW5jaERhdGUpKX0iLAogICAgICAgICAgICBub3cuZ2V0KENhbGVuZGFyLkhPVVJfT0ZfREFZKSwKICAgICAgICAgICAgbm93LmdldChDYWxlbmRhci5NSU5VVEUpLAogICAgICAgICAgICAiUkVHSVNUUkFSIgogICAgICAgICl7aCxtLT4KICAgICAgICAgICAgci5wdW5jaGVzW25dPSIlMDJkOiUwMmQiLmZvcm1hdChMb2NhbGUuVVMsaCxtKQogICAgICAgICAgICBzYXZlRGF0YSgpCiAgICAgICAgICAgIHNob3dQdW5jaCgpCiAgICAgICAgfQogICAgfQo="
-          )
-
-          WHEEL = (
-              "cGFja2FnZSBjb20uZGlkaHV1dS5jb250cm9sZWhvcmFzCgppbXBvcnQgYW5kcm9pZC5jb250ZW50LkNvbnRleHQKaW1wb3J0IGFuZHJvaWQuZ3JhcGhpY3MuQ2FudmFzCmltcG9ydCBhbmRyb2lkLmdyYXBoaWNzLkxpbmVhckdyYWRpZW50CmltcG9ydCBhbmRyb2lkLmdyYXBoaWNzLlBhaW50CmltcG9ydCBhbmRyb2lkLmdyYXBoaWNzLlNoYWRlcgppbXBvcnQgYW5kcm9pZC5tZWRpYS5BdWRpb01hbmFnZXIKaW1wb3J0IGFuZHJvaWQubWVkaWEuVG9uZUdlbmVyYXRvcgppbXBvcnQgYW5kcm9pZC52aWV3Lk1vdGlvbkV2ZW50CmltcG9ydCBhbmRyb2lkLnZpZXcuVmlldwppbXBvcnQga290bGluLm1hdGguYWJzCgpjbGFzcyBUaW1lV2hlZWxWaWV3KAogICAgY29udGV4dDpDb250ZXh0LAogICAgcHJpdmF0ZSB2YWwgbWluaW11bTpJbnQsCiAgICBwcml2YXRlIHZh bCBtYXhpbXVtOkludCwKICAgIGluaXRpYWw6SW50Cik6Vmlldyhjb250ZXh0KXsKCiAgICB2YXIgdmFsdWU6SW50PWluaXRpYWwuY29lcmNlSW4obWluaW11bSxtYXhpbXVtKQogICAgICAgIHByaXZhdGUgc2V0CgogICAgdmFyIG9uVmFsdWVDaGFuZ2VkOigoKS0+VW5pdCk/PW51bGwKCiAgICBwcml2YXRlIHZhbCBkZW5zaXR5PXJlc291cmNlcy5kaXNwbGF5TWV0cmljcy5kZW5zaXR5CgogICAgcHJpdmF0ZSB2YWwgcGFpbnQ9UGFpbnQoUGFpbnQuQU5USV9BTElBU19GTEFHKQoKICAgIHByaXZhdGUgdmFsIHRvbmU9VG9uZUdlbmVyYXRvcigKICAgICAgICBBdWRpb01hbmFnZXIuU1RSRUFNX05PVElGSUNBVElPTiwKICAgICAgICA2NQogICAgKQoKICAgIHByaXZhdGUgdmFyIGxhc3RZPTBmCiAgICBwcml2YXRlIHZhciBhY2N1bGF0ZWQ9MGYKICAgIHByaXZhdGUgZnVuIGRwKHZhbHVlOkludCk6RmxvYXQ9dmFsdWUqZGVuc2l0eQoKICAgIHByaXZhdGUgZnVuIGNoYW5nZShhbW91bnQ6SW50KXsKICAgICAgICB2YWwgbmV4dD0odmFsdWUrYW1vdW50KS5jb2VyY2VJbihtaW5pbXVtLG1heGltdW0pCiAgICAgICAgaWYobmV4dD09dmFsdWUpcmV0dXJuCiAgICAgICAgdmFsdWU9bmV4dAogICAgICAgIHRvbmUuc3RhcnRUb25lKFRvbmVHZW5lcmF0b3IuVE9ORV9QUk9QX0NMSUNLLDM1KQogICAgICAgIG9uVmFsdWVDaGFuZ2VkPy5pbnZva2UoKQogICAgICAgIGludmFsaWRhdGUoKQogICAgfQoKICAgIG92ZXJyaWRlIGZ1biBvbkRyYXcoY2FudmFzOkNhbnZhcyl7CiAgICAgICAgc3VwZXIub25EcmF3KGNhbnZhcykKCiAgICAgICAgdmFsIHdpZHRoPXdpZHRoLnRvRmxvYXQoKQogICAgICAgIHZhbCBoZWlnaHQ9aGVpZ2h0LnRvRmxvYXQoKQogICAgICAgIHZhbCBjZW50ZXI9aGVpZ2h0LzJmCgogICAgICAgIHBhaW50LnNoYWRlcj1MaW5lYXJHcmFkaWVudCgKICAgICAgICAgICAgMGYsMGYsd2lkdGgsMGYsCiAgICAgICAgICAgIGludEFycmF5T2YoCiAgICAgICAgICAgICAgICAweEZGMTcxOTFDLnRvSW50KCksCiAgICAgICAgICAgICAgICAweEZGQjlCREM0LnRvSW50KCksCiAgICAgICAgICAgICAgICAweEZGRjVGN0ZBLnRvSW50KCksCiAgICAgICAgICAgICAgICAweEZGOUVBNEFCLnRvSW50KCksCiAgICAgICAgICAgICAgICAweEZGMTcxOTFDLnRvSW50KCkKICAgICAgICAgICAgKSwKICAgICAgICAgICAgbnVsbCwKICAgICAgICAgICAgU2hhZGVyLlRpbGVNb2RlLkNMQU1QCiAgICAgICAgKQoKICAgICAgICBjYW52YXMuZHJhd1JvdW5kUmVjdCgKICAgICAgICAgICAgZHAoNCksZHAoMyksd2lkdGgtZHAoNCksaGVpZ2h0LWRwKDMpLAogICAgICAgICAgICBkcCgxOCksZHAoMTgpLHBhaW50CiAgICAgICAgKQoKICAgICAgICBwYWludC5zaGFkZXI9TGluZWFyR3JhZGllbnQoCiAgICAgICAgICAgIDBmLGNlbnRlci1kcCgzNCksMGYsY2VudGVyK2RwKDM0KSwKICAgICAgICAgICAgaW50QXJyYXlPZigKICAgICAgICAgICAgICAgIDB4RkYwMDNDRkYudG9JbnQoKSwKICAgICAgICAgICAgICAgIDB4RkYwMDhCRkYudG9JbnQoKSwKICAgICAgICAgICAgICAgIDB4RkYwMDUwRkYudG9JbnQoKQogICAgICAgICAgICApLAogICAgICAgICAgICBudWxsLAogICAgICAgICAgICBTaGFkZXIuVGlsZU1vZGUuQ0xBTVAKICAgICAgICApCgogICAgICAgIGNhbnZhcy5kcmF3Um91bmRSZWN0KAogICAgICAgICAgICBkcCg5KSxjZW50ZXItZHAoMzQpLHdpZHRoLWRwKDkpLGNlbnRlcitkcCgzNCksCiAgICAgICAgICAgIGRwKDEwKSxkcCgxMCkscGFpbnQKICAgICAgICApCgogICAgICAgIHBhaW50LnNoYWRlcj1udWxsCiAgICAgICAgcGFpbnQudGV4dEFsaWduPVBhaW50LkFsaWduLkNFTlRFUgoKICAgICAgICBmb3Iob2Zmc2V0IGluIC0yLi4yKXsKICAgICAgICAgICAgdmFyIG51bWJl cj12YWx1ZStvZmZzZXQKICAgICAgICAgICAgdmFsIHJhbmdlPW1heGltdW0tbWluaW11bSsxCgogICAgICAgICAgICB3aGlsZShudW1iZXI+bWF4aW11bSludW1iZXItPXJhbmdlCiAgICAgICAgICAgIHdoaWxlKG51bWJl cjxtaW5pbXVtKW51bWJl rKz1yYW5nZQoKICAgICAgICAgICAgcGFpbnQudGV4dFNpemU9aWYob2Zmc2V0PT0wKWRwKDI4KSBlbHNlIGRwKDE5KQogICAgICAgICAgICBwYWludC5jb2xvcj1pZihvZmZzZXQ9PTApCiAgICAgICAgICAgICAgICAweEZGRkZGRkZGLnRvSW50KCkKICAgICAgICAgICAgZWxzZQogICAgICAgICAgICAgICAgMHhGRkUyRTdFRS50b0ludCgpCgogICAgICAgICAgICBjYW52YXMuZHJhd1RleHQoCiAgICAgICAgICAgICAgICAiJTAyZCIuZm9ybWF0KG51bWJlciksCiAgICAgICAgICAgICAgICB3aWR0aC8yZiwKICAgICAgICAgICAgICAgIGNlbnRlck9mZnNldCpkcCg0NSkrZHAoOSksCiAgICAgICAgICAgICAgICBwYWludAogICAgICAgICAgICApCiAgICAgICAgfQoKICAgICAgICBwYWludC5jb2xvcj0weEZGMDBEOUZGLnRvSW50KCkKICAgICAgICBwYWludC5zdHlsZT1QYWludC5TdHlsZS5TVFJPS0UKICAgICAgICBwYWludC5zdHJva2VXaWR0aD1kcCgyKQoKICAgICAgICBjYW52YXMuZHJhd0xpbmUoZHAoMyksY2VudGVyLWRwKDMwKSxkcCgxOSksY2VudGVyLHBhaW50KQogICAgICAgIGNhbnZhcy5kcmF3TGluZShkcCgzKSxjZW50ZXIrZHAgKDMwKSxkcCgxOSksY2VudGVyLHBhaW50KQogICAgICAgIGNhbnZhcy5kcmF3TGluZSh3aWR0aC1kcCgzKSxjZW50ZXItZHAgKDE5KSx3aWR0aC1kcCgxOSksY2VudGVyLHBhaW50KQogICAgICAgIGNhbnZhcy5kcmF3TGluZSh3aWR0aC1kcCgzKSxjZW50ZXIrZHAgKDMwKSx3aWR0aC1kcCgxOSksY2VudGVyLHBhaW50KQoKICAgICAgICBwYWludC5zdHlsZT1QYWludC5TdHlsZS5GSUxMCiAgICB9CgogICAgb3ZlcnJpZGUgZnVuIG9uVG91Y2hFdmVudChldmVudDpNb3Rpb25FdmVudCk6Qm9vbGVhbn97CiAgICAgICAgd2hlbihldmVudC5hY3Rpb25NYXNrZWQpewogICAgICAgICAgICBNb3Rpb25FdmVudC5BQ1RJT05fRE9XTj0+ewogICAgICAgICAgICAgICAgbGFzdFk9ZXZlbnQueQogICAgICAgICAgICAgICAgYWNjdW11bGF0ZWQ9MGYKICAgICAgICAgICAgICAgIHJldHVybiB0cnVlCiAgICAgICAgICAgIH0KCiAgICAgICAgICAgIE1vdGlvbkV2ZW50LkFDVElPTl9NT1ZFLT57CiAgICAgICAgICAgICAgICBhY2N1bXVsYXRlZDcrPWV2ZW50LnktbGFzdFkKCiAgICAgICAgICAgICAgICBpZihhYnMoYWNjdW11bGF0ZWQpPj1kcCgyOCkpewogICAgICAgICAgICAgICAgICAgIGNoYW5nZShpZihhY2N1bGF0ZWQ8MCkxIGVsc2UgLTEpCiAgICAgICAgICAgICAgICAgICAgYWNj dW11bGF0ZWQ9MGYKICAgICAgICAgICAgICAgIH0KCiAgICAgICAgICAgICAgICBsYXN0WT1ldmVudC55CiAgICAgICAgICAgICAgICByZXR1cm4gdHJ1ZQogICAgICAgICAgICB9CgogICAgICAgICAgICBNb3Rpb25FdmVudC5BQ1RJT05fVVAtPnsKICAgICAgICAgICAgICAgIGlmKGFicyhhY2N1bGF0ZWQpPGRwKDEwKSl7CiAgICAgICAgICAgICAgICAgICAgY2hhbmdlKGlmKGV2ZW50LnktPGhlaWdodC8yZikxIGVsc2UgLTEpCiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICBwZXJmb3JtQ2xpY2soKQogICAgICAgICAgICAgICAgcmV0dXJuIHRydWUKICAgICAgICAgICAgfQogICAgICAgIH0KCiAgICAgICAgcmV0dXJuIHRydWUKICAgIH0KCiAgICBvdmVycmlkZSBmdW4gcGVyZm9ybUNsaWNrKCk6Qm9vbGVhbn57CiAgICAgICAgc3VwZXIucGVyZm9ybUNsaWNrKCkKICAgICAgICByZXR1cm4gdHJ1ZQogICAgfQp9Cg=="
-          )
-
-          def decode(value):
-              return base64.b64decode(
-                  value
-              ).decode(
-                  "utf-8"
-              )
-
-          dialog = decode(DIALOG)
-          edit = decode(EDIT)
-          manual = decode(MANUAL)
-          wheel_code = decode(WHEEL)
-
-          # Corrige automaticamente erros conhecidos da roda.
-          wheel_code = wheel_code.replace(
-              "ToneGenerator.TONE_PROP_CLICK",
-              "ToneGenerator.TONE_PROP_BEEP"
-          )
-
-          wheel_code = wheel_code.replace(
-              "acculated",
-              "accumulated"
-          )
-
-          def find_function(
-              source,
-              name
-          ):
-
-              positions = []
-
-              for prefix in [
-                  "    private fun ",
-                  "    fun "
-              ]:
-
-                  pos = source.find(
-                      prefix + name
-                  )
-
-                  if pos >= 0:
-                      positions.append(pos)
-
-              if not positions:
-                  return -1
-
-              return min(
-                  positions
-              )
-
-          edit_start = find_function(
-              code,
-              "showEditWheel"
-          )
-
-          manual_start = find_function(
-              code,
-              "showManualWheel"
-          )
-
-          history_start = find_function(
-              code,
-              "showHistory"
-          )
-
-          if (
-              edit_start < 0
-              or
-              manual_start < 0
-              or
-              history_start < 0
-          ):
-
-              raise SystemExit(
-                  "ERRO: funções da roda não encontradas."
-              )
-
-          code = (
-              code[:edit_start]
-              +
-              dialog
-              +
-              "\n\n"
-              +
-              edit
-              +
-              "\n\n"
-              +
-              manual
-              +
-              "\n\n"
-              +
-              code[history_start:]
-          )
-
-          if "NumberPicker" in code:
-
-              raise SystemExit(
-                  "ERRO: NumberPicker ainda existe."
-              )
-
-          main.write_text(
-              code,
-              encoding="utf-8"
-          )
-
-          wheel.parent.mkdir(
-              parents=True,
-              exist_ok=True
-          )
-
-          wheel.write_text(
-              wheel_code,
-              encoding="utf-8"
-          )
-
-          print(
-              "RODA AZUL/NEON INSTALADA"
-          )
-
-      # ============================================================
-      # CORRIGIR PUNCHNAMES + ERROS FINAIS DA RODA
-      # ============================================================
-
-      - name: Corrigir erros finais da roda
-        shell: python
-        run: |
-          from pathlib import Path
-
-          root = Path(
-              "ControleHoras"
-          )
-
-          main = (
-              root /
-              "app/src/main/java/com/didhuuu/"
-              "controlehoras/MainActivity.kt"
-          )
-
-          wheel = (
-              root /
-              "app/src/main/java/com/didhuuu/"
-              "controlehoras/TimeWheelView.kt"
-          )
-
-          code = main.read_text(
-              encoding="utf-8"
-          )
-
-          # --------------------------------------------------------
-          # PUNCHNAMES
-          # --------------------------------------------------------
-
-          punch_names = """
-          private val punchNames = arrayOf(
-              "Entrada",
-              "Saída",
-              "Retorno",
-              "Saída intervalo 2",
-              "Retorno intervalo 2",
-              "Saída"
-          )
-          """
+          punch_names = [
+              "    private val punchNames = arrayOf(",
+              '        "Entrada",',
+              '        "Saída",',
+              '        "Retorno",',
+              '        "Saída intervalo 2",',
+              '        "Retorno intervalo 2",',
+              '        "Saída"',
+              "    )"
+          ]
 
           if "private val punchNames" not in code:
 
@@ -604,90 +419,1042 @@ jobs:
                   +
                   "\n"
                   +
-                  punch_names
+                  "\n".join(
+                      punch_names
+                  )
                   +
                   "\n"
                   +
                   code[brace_pos + 1:]
               )
 
-              print(
-                  "punchNames adicionado."
+          # --------------------------------------------------------
+          # LOCALIZA UMA FUNÇÃO KOTLIN COMPLETA
+          # --------------------------------------------------------
+
+          def find_method_span(
+              source,
+              name
+          ):
+
+              pattern = re.compile(
+                  r"(?m)^\s*"
+                  r"(?:private\s+|public\s+|internal\s+)?"
+                  r"fun\s+"
+                  +
+                  re.escape(name)
+                  +
+                  r"\s*\("
+              )
+
+              match = pattern.search(
+                  source
+              )
+
+              if not match:
+                  return None
+
+              start = match.start()
+
+              brace = source.find(
+                  "{",
+                  match.end()
+              )
+
+              if brace < 0:
+                  return None
+
+              depth = 0
+              i = brace
+              state = "code"
+
+              while i < len(source):
+
+                  ch = source[i]
+
+                  nxt = (
+                      source[i + 1]
+                      if i + 1 < len(source)
+                      else ""
+                  )
+
+                  nxt2 = (
+                      source[i + 2]
+                      if i + 2 < len(source)
+                      else ""
+                  )
+
+                  if state == "code":
+
+                      if (
+                          ch == "/"
+                          and
+                          nxt == "/"
+                      ):
+                          state = "line"
+                          i += 2
+                          continue
+
+                      if (
+                          ch == "/"
+                          and
+                          nxt == "*"
+                      ):
+                          state = "block"
+                          i += 2
+                          continue
+
+                      if (
+                          ch == '"'
+                          and
+                          nxt == '"'
+                          and
+                          nxt2 == '"'
+                      ):
+                          state = "triple"
+                          i += 3
+                          continue
+
+                      if ch == '"':
+                          state = "double"
+                          i += 1
+                          continue
+
+                      if ch == "'":
+                          state = "char"
+                          i += 1
+                          continue
+
+                      if ch == "{":
+                          depth += 1
+
+                      elif ch == "}":
+
+                          depth -= 1
+
+                          if depth == 0:
+                              return (
+                                  start,
+                                  i + 1
+                              )
+
+                      i += 1
+                      continue
+
+                  if state == "line":
+
+                      if ch == "\n":
+                          state = "code"
+
+                      i += 1
+                      continue
+
+                  if state == "block":
+
+                      if (
+                          ch == "*"
+                          and
+                          nxt == "/"
+                      ):
+                          state = "code"
+                          i += 2
+
+                      else:
+                          i += 1
+
+                      continue
+
+                  if state == "triple":
+
+                      if (
+                          ch == '"'
+                          and
+                          nxt == '"'
+                          and
+                          nxt2 == '"'
+                      ):
+                          state = "code"
+                          i += 3
+
+                      else:
+                          i += 1
+
+                      continue
+
+                  if state == "double":
+
+                      if ch == "\\":
+                          i += 2
+
+                      elif ch == '"':
+                          state = "code"
+                          i += 1
+
+                      else:
+                          i += 1
+
+                      continue
+
+                  if state == "char":
+
+                      if ch == "\\":
+                          i += 2
+
+                      elif ch == "'":
+                          state = "code"
+                          i += 1
+
+                      else:
+                          i += 1
+
+              return None
+
+          # --------------------------------------------------------
+          # SUBSTITUIÇÃO DE FUNÇÃO
+          # --------------------------------------------------------
+
+          def replace_method(
+              source,
+              name,
+              new_code
+          ):
+
+              span = find_method_span(
+                  source,
+                  name
+              )
+
+              if not span:
+                  raise SystemExit(
+                      "ERRO: função "
+                      +
+                      name
+                      +
+                      " não encontrada."
+                  )
+
+              start, end = span
+
+              return (
+                  source[:start]
+                  +
+                  new_code
+                  +
+                  source[end:]
+              )
+
+          # --------------------------------------------------------
+          # DIALOG DA RODA
+          # --------------------------------------------------------
+
+          dialog_code = r'''
+              private fun showTimeWheelDialog(
+                  title: String,
+                  subtitle: String,
+                  initialHour: Int,
+                  initialMinute: Int,
+                  positive: String,
+                  onSave: (Int, Int) -> Unit
+              ) {
+                  val wrap =
+                      android.widget.LinearLayout(this).apply {
+                          orientation =
+                              android.widget.LinearLayout.VERTICAL
+
+                          gravity =
+                              android.view.Gravity.CENTER_HORIZONTAL
+
+                          setPadding(
+                              dp(8),
+                              dp(8),
+                              dp(8),
+                              0
+                          )
+                      }
+
+                  val sub =
+                      android.widget.TextView(this).apply {
+
+                          text =
+                              subtitle
+
+                          gravity =
+                              android.view.Gravity.CENTER
+
+                          textSize =
+                              16f
+
+                          setTypeface(
+                              null,
+                              android.graphics.Typeface.BOLD
+                          )
+
+                          setTextColor(
+                              0xFF173F68.toInt()
+                          )
+
+                          setPadding(
+                              0,
+                              0,
+                              0,
+                              dp(8)
+                          )
+                      }
+
+                  wrap.addView(sub)
+
+                  val wheels =
+                      android.widget.LinearLayout(this).apply {
+
+                          orientation =
+                              android.widget.LinearLayout.HORIZONTAL
+
+                          gravity =
+                              android.view.Gravity.CENTER
+                      }
+
+                  val hour =
+                      TimeWheelView(
+                          this,
+                          0,
+                          23,
+                          initialHour
+                      )
+
+                  val minute =
+                      TimeWheelView(
+                          this,
+                          0,
+                          59,
+                          initialMinute
+                      )
+
+                  val colon =
+                      android.widget.TextView(this).apply {
+
+                          text =
+                              ":"
+
+                          textSize =
+                              34f
+
+                          gravity =
+                              android.view.Gravity.CENTER
+
+                          setTypeface(
+                              null,
+                              android.graphics.Typeface.BOLD
+                          )
+
+                          setTextColor(
+                              0xFF777777.toInt()
+                          )
+                      }
+
+                  wheels.addView(
+                      hour,
+                      android.widget.LinearLayout.LayoutParams(
+                          dp(105),
+                          dp(190)
+                      )
+                  )
+
+                  wheels.addView(
+                      colon,
+                      android.widget.LinearLayout.LayoutParams(
+                          dp(30),
+                          dp(190)
+                      )
+                  )
+
+                  wheels.addView(
+                      minute,
+                      android.widget.LinearLayout.LayoutParams(
+                          dp(105),
+                          dp(190)
+                      )
+                  )
+
+                  wrap.addView(wheels)
+
+                  val value =
+                      android.widget.TextView(this).apply {
+
+                          textSize =
+                              30f
+
+                          gravity =
+                              android.view.Gravity.CENTER
+
+                          setTypeface(
+                              null,
+                              android.graphics.Typeface.BOLD
+                          )
+
+                          setTextColor(
+                              0xFF1565C0.toInt()
+                          )
+
+                          setPadding(
+                              0,
+                              dp(6),
+                              0,
+                              dp(2)
+                          )
+                      }
+
+                  fun refresh() {
+
+                      value.text =
+                          "%02d:%02d".format(
+                              java.util.Locale.US,
+                              hour.value,
+                              minute.value
+                          )
+                  }
+
+                  hour.onValueChanged = {
+                      refresh()
+                  }
+
+                  minute.onValueChanged = {
+                      refresh()
+                  }
+
+                  refresh()
+
+                  wrap.addView(value)
+
+                  val dialog =
+                      android.app.AlertDialog
+                          .Builder(this)
+                          .setTitle(title)
+                          .setView(wrap)
+                          .setNegativeButton(
+                              "CANCELAR",
+                              null
+                          )
+                          .setPositiveButton(
+                              positive,
+                              null
+                          )
+                          .create()
+
+                  dialog.setOnShowListener {
+
+                      dialog
+                          .getButton(
+                              android.app.AlertDialog
+                                  .BUTTON_POSITIVE
+                          )
+                          .setOnClickListener {
+
+                              onSave(
+                                  hour.value,
+                                  minute.value
+                              )
+
+                              dialog.dismiss()
+                          }
+                  }
+
+                  dialog.show()
+              }
+          '''
+
+          # --------------------------------------------------------
+          # EDIÇÃO DE REGISTRO EXISTENTE
+          # --------------------------------------------------------
+
+          edit_code = r'''
+              private fun showEditWheel(
+                  rec: PunchDay,
+                  index: Int
+              ) {
+
+                  if (
+                      index !in rec.punches.indices
+                      ||
+                      rec.punches[index].isBlank()
+                  ) {
+
+                      Toast.makeText(
+                          this,
+                          "Esse registro ainda está vazio. Use REGISTRO MANUAL.",
+                          Toast.LENGTH_LONG
+                      ).show()
+
+                      return
+                  }
+
+                  val parts =
+                      rec.punches[index]
+                          .split(":")
+
+                  val hour =
+                      parts
+                          .getOrNull(0)
+                          ?.toIntOrNull()
+                          ?.coerceIn(0, 23)
+                          ?: 0
+
+                  val minute =
+                      parts
+                          .getOrNull(1)
+                          ?.toIntOrNull()
+                          ?.coerceIn(0, 59)
+                          ?: 0
+
+                  showTimeWheelDialog(
+                      "Editar registro",
+                      "${punchNames[index]}\n${rec.date}",
+                      hour,
+                      minute,
+                      "SALVAR"
+                  ) { h, m ->
+
+                      rec.punches[index] =
+                          "%02d:%02d".format(
+                              java.util.Locale.US,
+                              h,
+                              m
+                          )
+
+                      saveData()
+
+                      showPunch()
+                  }
+              }
+          '''
+
+          # --------------------------------------------------------
+          # REGISTRO MANUAL
+          # --------------------------------------------------------
+
+          manual_code = r'''
+              private fun showManualWheel(
+                  empId: Long
+              ) {
+
+                  val r =
+                      getRecord(
+                          empId,
+                          selectedPunchDate
+                      )
+
+                  val n =
+                      nextPunchIndex(
+                          r,
+                          extraEnabled(
+                              empId,
+                              selectedPunchDate
+                          )
+                      )
+
+                  if (n < 0) {
+
+                      Toast.makeText(
+                          this,
+                          "As batidas disponíveis deste dia já estão preenchidas.",
+                          Toast.LENGTH_LONG
+                      ).show()
+
+                      return
+                  }
+
+                  val now =
+                      java.util.Calendar
+                          .getInstance()
+
+                  showTimeWheelDialog(
+                      "Registro manual",
+                      "${punchNames[n]}\n${selectedPunchDate}",
+                      now.get(
+                          java.util.Calendar.HOUR_OF_DAY
+                      ),
+                      now.get(
+                          java.util.Calendar.MINUTE
+                      ),
+                      "REGISTRAR"
+                  ) { h, m ->
+
+                      r.punches[n] =
+                          "%02d:%02d".format(
+                              java.util.Locale.US,
+                              h,
+                              m
+                          )
+
+                      saveData()
+
+                      showPunch()
+                  }
+              }
+          '''
+
+          # --------------------------------------------------------
+          # APLICA AS FUNÇÕES
+          # --------------------------------------------------------
+
+          code = replace_method(
+              code,
+              "showEditWheel",
+              edit_code
+          )
+
+          code = replace_method(
+              code,
+              "showManualWheel",
+              manual_code
+          )
+
+          dialog_span = find_method_span(
+              code,
+              "showTimeWheelDialog"
+          )
+
+          if dialog_span:
+
+              a, b = dialog_span
+
+              code = (
+                  code[:a]
+                  +
+                  dialog_code
+                  +
+                  code[b:]
               )
 
           else:
 
-              print(
-                  "punchNames já existe."
+              history_pos = code.find(
+                  "    private fun showHistory("
               )
+
+              if history_pos < 0:
+
+                  history_pos = code.find(
+                      "    fun showHistory("
+                  )
+
+              if history_pos < 0:
+
+                  raise SystemExit(
+                      "ERRO: showHistory não encontrada."
+                  )
+
+              code = (
+                  code[:history_pos]
+                  +
+                  dialog_code
+                  +
+                  "\n\n"
+                  +
+                  code[history_pos:]
+              )
+
+          # --------------------------------------------------------
+          # RODA CUSTOMIZADA
+          # --------------------------------------------------------
+
+          wheel_code = r'''
+          package com.didhuuu.controlehoras
+
+          import android.content.Context
+          import android.graphics.Canvas
+          import android.graphics.LinearGradient
+          import android.graphics.Paint
+          import android.graphics.Shader
+          import android.media.AudioManager
+          import android.media.ToneGenerator
+          import android.view.MotionEvent
+          import android.view.View
+          import kotlin.math.abs
+
+          class TimeWheelView(
+              context: Context,
+              private val minimum: Int,
+              private val maximum: Int,
+              initial: Int
+          ) : View(context) {
+
+              var value: Int =
+                  initial.coerceIn(
+                      minimum,
+                      maximum
+                  )
+                  private set
+
+              var onValueChanged:
+                  (() -> Unit)? = null
+
+              private val density =
+                  resources
+                      .displayMetrics
+                      .density
+
+              private val paint =
+                  Paint(
+                      Paint.ANTI_ALIAS_FLAG
+                  )
+
+              private val tone =
+                  ToneGenerator(
+                      AudioManager.STREAM_NOTIFICATION,
+                      65
+                  )
+
+              private var lastY =
+                  0f
+
+              private var accumulated =
+                  0f
+
+              private fun dp(
+                  value: Float
+              ): Float =
+                  value * density
+
+              private fun change(
+                  delta: Int
+              ) {
+
+                  val next =
+                      (
+                          value + delta
+                      ).coerceIn(
+                          minimum,
+                          maximum
+                      )
+
+                  if (
+                      next == value
+                  ) {
+                      return
+                  }
+
+                  value =
+                      next
+
+                  tone.startTone(
+                      ToneGenerator
+                          .TONE_PROP_BEEP,
+                      35
+                  )
+
+                  onValueChanged
+                      ?.invoke()
+
+                  invalidate()
+              }
+
+              override fun onDraw(
+                  canvas: Canvas
+              ) {
+
+                  super.onDraw(
+                      canvas
+                  )
+
+                  val width =
+                      width.toFloat()
+
+                  val height =
+                      height.toFloat()
+
+                  val center =
+                      height / 2f
+
+                  paint.shader =
+                      LinearGradient(
+                          0f,
+                          0f,
+                          width,
+                          0f,
+                          intArrayOf(
+                              0xFF17191C.toInt(),
+                              0xFFB9BDC4.toInt(),
+                              0xFFF5F7FA.toInt(),
+                              0xFF9EA4AB.toInt(),
+                              0xFF17191C.toInt()
+                          ),
+                          null,
+                          Shader.TileMode.CLAMP
+                      )
+
+                  canvas.drawRoundRect(
+                      dp(4f),
+                      dp(3f),
+                      width - dp(4f),
+                      height - dp(3f),
+                      dp(18f),
+                      dp(18f),
+                      paint
+                  )
+
+                  paint.shader =
+                      LinearGradient(
+                          0f,
+                          center - dp(34f),
+                          0f,
+                          center + dp(34f),
+                          intArrayOf(
+                              0xFF003CFF.toInt(),
+                              0xFF008BFF.toInt(),
+                              0xFF0050FF.toInt()
+                          ),
+                          null,
+                          Shader.TileMode.CLAMP
+                      )
+
+                  canvas.drawRoundRect(
+                      dp(9f),
+                      center - dp(34f),
+                      width - dp(9f),
+                      center + dp(34f),
+                      dp(10f),
+                      dp(10f),
+                      paint
+                  )
+
+                  paint.shader =
+                      null
+
+                  paint.textAlign =
+                      Paint.Align.CENTER
+
+                  val range =
+                      maximum -
+                      minimum +
+                      1
+
+                  for (
+                      offset in -2..2
+                  ) {
+
+                      var number =
+                          value + offset
+
+                      while (
+                          number > maximum
+                      ) {
+                          number -= range
+                      }
+
+                      while (
+                          number < minimum
+                      ) {
+                          number += range
+                      }
+
+                      paint.textSize =
+                          if (
+                              offset == 0
+                          ) {
+                              dp(28f)
+                          } else {
+                              dp(19f)
+                          }
+
+                      paint.color =
+                          if (
+                              offset == 0
+                          ) {
+                              0xFFFFFFFF.toInt()
+                          } else {
+                              0xFFE2E7EE.toInt()
+                          }
+
+                      canvas.drawText(
+                          "%02d".format(
+                              number
+                          ),
+                          width / 2f,
+                          center +
+                              offset *
+                              dp(45f) +
+                              dp(9f),
+                          paint
+                      )
+                  }
+
+                  paint.color =
+                      0xFF00D9FF.toInt()
+
+                  paint.style =
+                      Paint.Style.STROKE
+
+                  paint.strokeWidth =
+                      dp(2f)
+
+                  canvas.drawLine(
+                      dp(3f),
+                      center - dp(30f),
+                      dp(19f),
+                      center,
+                      paint
+                  )
+
+                  canvas.drawLine(
+                      dp(3f),
+                      center + dp(30f),
+                      dp(19f),
+                      center,
+                      paint
+                  )
+
+                  canvas.drawLine(
+                      width - dp(3f),
+                      center - dp(30f),
+                      width - dp(19f),
+                      center,
+                      paint
+                  )
+
+                  canvas.drawLine(
+                      width - dp(3f),
+                      center + dp(30f),
+                      width - dp(19f),
+                      center,
+                      paint
+                  )
+
+                  paint.style =
+                      Paint.Style.FILL
+              }
+
+              override fun onTouchEvent(
+                  event: MotionEvent
+              ): Boolean {
+
+                  when (
+                      event.actionMasked
+                  ) {
+
+                      MotionEvent.ACTION_DOWN -> {
+
+                          lastY =
+                              event.y
+
+                          accumulated =
+                              0f
+
+                          return true
+                      }
+
+                      MotionEvent.ACTION_MOVE -> {
+
+                          accumulated +=
+                              event.y -
+                              lastY
+
+                          if (
+                              abs(
+                                  accumulated
+                              ) >=
+                              dp(28f)
+                          ) {
+
+                              change(
+                                  if (
+                                      accumulated < 0f
+                                  ) {
+                                      1
+                                  } else {
+                                      -1
+                                  }
+                              )
+
+                              accumulated =
+                                  0f
+                          }
+
+                          lastY =
+                              event.y
+
+                          return true
+                      }
+
+                      MotionEvent.ACTION_UP -> {
+
+                          if (
+                              abs(
+                                  accumulated
+                              ) < dp(10f)
+                          ) {
+
+                              change(
+                                  if (
+                                      event.y <
+                                      height / 2f
+                                  ) {
+                                      1
+                                  } else {
+                                      -1
+                                  }
+                              )
+                          }
+
+                          performClick()
+
+                          return true
+                      }
+
+                      MotionEvent.ACTION_CANCEL -> {
+
+                          accumulated =
+                              0f
+
+                          return true
+                      }
+                  }
+
+                  return true
+              }
+
+              override fun performClick():
+                  Boolean {
+
+                  super.performClick()
+
+                  return true
+              }
+          }
+          '''
+
+          # Remove somente a indentação extra
+          wheel_code = "\n".join(
+              line[10:]
+              if line.startswith("          ")
+              else line
+              for line in wheel_code.splitlines()
+          )
+
+          wheel.parent.mkdir(
+              parents=True,
+              exist_ok=True
+          )
+
+          wheel.write_text(
+              wheel_code.strip() + "\n",
+              encoding="utf-8"
+          )
 
           main.write_text(
               code,
               encoding="utf-8"
           )
 
-          # --------------------------------------------------------
-          # CORREÇÕES DA TIMEWHEEL
-          # --------------------------------------------------------
-
-          wheel_code = wheel.read_text(
-              encoding="utf-8"
-          )
-
-          wheel_code = wheel_code.replace(
-              "ToneGenerator.TONE_PROP_CLICK",
-              "ToneGenerator.TONE_PROP_BEEP"
-          )
-
-          wheel_code = wheel_code.replace(
-              "acculated",
-              "accumulated"
-          )
-
-          wheel.write_text(
-              wheel_code,
-              encoding="utf-8"
-          )
-
-          # --------------------------------------------------------
-          # VERIFICAÇÕES
-          # --------------------------------------------------------
-
-          final_main = main.read_text(
-              encoding="utf-8"
-          )
-
-          final_wheel = wheel.read_text(
-              encoding="utf-8"
-          )
-
-          if "private val punchNames" not in final_main:
-              raise SystemExit(
-                  "ERRO: punchNames não foi criado."
-              )
-
-          if "ToneGenerator.TONE_PROP_CLICK" in final_wheel:
-              raise SystemExit(
-                  "ERRO: TONE_PROP_CLICK ainda existe."
-              )
-
-          if "acculated" in final_wheel:
-              raise SystemExit(
-                  "ERRO: acculated ainda existe."
-              )
-
-          if "accumulated" not in final_wheel:
-              raise SystemExit(
-                  "ERRO: accumulated não encontrado."
-              )
-
           print("")
           print("=" * 70)
-          print("CORREÇÕES DA RODA APLICADAS")
+          print("RODA AZUL/NEON INSTALADA")
+          print("SEM BASE64")
+          print("SEM NUMBERPICKER")
+          print("SOM MECÂNICO PELO TONEGENERATOR")
           print("=" * 70)
 
       # ============================================================
-      # VALIDAÇÃO
+      # VALIDAÇÃO ANTES DO GRADLE
       # ============================================================
 
       - name: Validar código final
@@ -701,34 +1468,56 @@ jobs:
 
           WHEEL="$ROOT/app/src/main/java/com/didhuuu/controlehoras/TimeWheelView.kt"
 
+          echo "Verificando arquivos..."
+
           test -s "$MAIN"
           test -s "$WHEEL"
 
-          grep -q "TimeWheelView" "$MAIN"
+          echo "Verificando roda..."
+
+          grep -q "class TimeWheelView" "$WHEEL"
+
           grep -q "showTimeWheelDialog" "$MAIN"
+
           grep -q "showManualWheel" "$MAIN"
+
           grep -q "showEditWheel" "$MAIN"
 
           grep -q "punchNames" "$MAIN"
 
+          echo "Verificando escala..."
+
           grep -q "08:48" "$MAIN"
+
           grep -q "07:20" "$MAIN"
 
+          echo "Verificando datas..."
+
           grep -q "selectedPunchDate" "$MAIN"
+
+          echo "Verificando intervalo 2..."
 
           grep -q "extra2Enabled" "$MAIN"
 
           grep -q "extra2ReturnEnabled" "$MAIN"
 
+          echo "Verificando rolagem..."
+
+          grep -q "MotionEvent" "$WHEEL"
+
           grep -q "accumulated" "$WHEEL"
 
+          echo "Verificando som..."
+
+          grep -q "TONE_PROP_BEEP" "$WHEEL"
+
           if grep -q "NumberPicker" "$MAIN"; then
-            echo "ERRO: NumberPicker encontrado."
+            echo "ERRO: NumberPicker encontrado na MainActivity."
             exit 1
           fi
 
           if grep -q "NumberPicker" "$WHEEL"; then
-            echo "ERRO: NumberPicker encontrado."
+            echo "ERRO: NumberPicker encontrado na roda."
             exit 1
           fi
 
@@ -738,18 +1527,18 @@ jobs:
           fi
 
           if grep -q "acculated" "$WHEEL"; then
-            echo "ERRO: acculated encontrado."
+            echo "ERRO: variável acculated encontrada."
             exit 1
           fi
 
           if grep -q "DSR" "$MAIN"; then
-            echo "ERRO: DSR encontrado."
+            echo "ERRO: DSR encontrado. DSR não faz parte desta versão."
             exit 1
           fi
 
           echo ""
           echo "=============================================="
-          echo "VALIDAÇÃO OK"
+          echo "VALIDAÇÃO PRÉ-GRADLE OK"
           echo "=============================================="
 
       # ============================================================
@@ -774,6 +1563,10 @@ jobs:
           "$PWD/gradle-8.11.1/bin/gradle" \
             --version
 
+      # ============================================================
+      # LIMPEZA
+      # ============================================================
+
       - name: Limpar projeto
         working-directory: ControleHoras
         shell: bash
@@ -781,6 +1574,10 @@ jobs:
           set -e
 
           gradle clean --no-daemon
+
+      # ============================================================
+      # GERAR APK
+      # ============================================================
 
       - name: Gerar APK
         working-directory: ControleHoras
@@ -795,7 +1592,10 @@ jobs:
 
           APK="app/build/outputs/apk/debug/app-debug.apk"
 
-          test -s "$APK"
+          if [ ! -s "$APK" ]; then
+            echo "ERRO: APK não foi gerado."
+            exit 1
+          fi
 
           echo ""
           echo "=============================================="
@@ -803,6 +1603,10 @@ jobs:
           echo "=============================================="
 
           ls -lh "$APK"
+
+      # ============================================================
+      # TESTE DO APK
+      # ============================================================
 
       - name: Verificar APK
         working-directory: ControleHoras
@@ -822,6 +1626,10 @@ jobs:
           echo "=============================================="
           echo "APK VALIDADO COM SUCESSO"
           echo "=============================================="
+
+      # ============================================================
+      # PUBLICAR APK
+      # ============================================================
 
       - name: Publicar APK
         uses: actions/upload-artifact@v4
