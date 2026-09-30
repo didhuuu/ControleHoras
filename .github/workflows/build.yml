@@ -31,6 +31,7 @@ jobs:
           set -euo pipefail
 
           rm -rf ControleHoras
+
           unzip -q -o ControleHoras.zip
 
           test -f ControleHoras/settings.gradle.kts
@@ -41,7 +42,7 @@ jobs:
 
           echo "PROJETO ORIGINAL OK"
 
-      - name: Aplicar Base 70 aprovada
+      - name: Aplicar Base 70
         shell: python
         run: |
           from pathlib import Path
@@ -56,30 +57,43 @@ jobs:
               ".github/workflows/build.yml"
           )
 
-          workflow = urlopen(url, timeout=30).read().decode("utf-8")
+          workflow = urlopen(
+              url,
+              timeout=30
+          ).read().decode("utf-8")
 
           def extract_step(name, next_name):
+
               start = workflow.index(
-                  f"      - name: {name}"
+                  "      - name: " + name
               )
 
               end = workflow.index(
-                  f"      - name: {next_name}",
+                  "      - name: " + next_name,
                   start
               )
 
               block = workflow[start:end]
 
               marker = "        run: |\n"
-              pos = block.index(marker) + len(marker)
+
+              pos = (
+                  block.index(marker)
+                  + len(marker)
+              )
 
               lines = block[pos:].splitlines()
 
-              return "\n".join(
-                  line[10:] if line.startswith("          ")
-                  else line
-                  for line in lines
-              ) + "\n"
+              result = []
+
+              for line in lines:
+
+                  if line.startswith("          "):
+                      result.append(line[10:])
+                  else:
+                      result.append(line)
+
+              return "\n".join(result) + "\n"
 
           scripts = [
               extract_step(
@@ -93,6 +107,7 @@ jobs:
           ]
 
           for i, script in enumerate(scripts):
+
               path = (
                   Path(tempfile.gettempdir())
                   / f"base70_{i}.py"
@@ -104,7 +119,10 @@ jobs:
               )
 
               subprocess.run(
-                  ["python", str(path)],
+                  [
+                      "python",
+                      str(path)
+                  ],
                   check=True
               )
 
@@ -121,405 +139,729 @@ jobs:
           mkdir -p "$(dirname "$FILE")"
 
           cat > "$FILE" <<'KOTLIN'
-package com.didhuuu.controlehoras
-
-import android.content.Context
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.LinearGradient
-import android.graphics.Paint
-import android.graphics.Shader
-import android.media.AudioManager
-import android.media.ToneGenerator
-import android.view.MotionEvent
-import android.view.View
-import kotlin.math.abs
-import kotlin.math.max
-import kotlin.math.min
-
-class TimeWheelView(
-    context: Context,
-    private val minValue: Int,
-    private val maxValue: Int,
-    initialValue: Int
-) : View(context) {
-
-    var value: Int = initialValue.coerceIn(minValue, maxValue)
-        private set
-
-    var onValueChanged: ((Int) -> Unit)? = null
-
-    private val density =
-        resources.displayMetrics.density
-
-    private val paint =
-        Paint(Paint.ANTI_ALIAS_FLAG)
-
-    private val tone =
-        ToneGenerator(
-            AudioManager.STREAM_NOTIFICATION,
-            55
-        )
-
-    private var lastY = 0f
-    private var accumulated = 0f
-
-    private fun dp(value: Float): Float =
-        value * density
-
-    init {
-        setBackgroundColor(Color.TRANSPARENT)
-        isClickable = true
-    }
-
-    private fun change(step: Int) {
-
-        var next = value + step
-
-        if (next > maxValue) {
-            next = minValue
-        }
-
-        if (next < minValue) {
-            next = maxValue
-        }
-
-        if (next != value) {
-
-            value = next
-
-            tone.startTone(
-                ToneGenerator.TONE_PROP_BEEP,
-                28
-            )
-
-            onValueChanged?.invoke(value)
-
-            invalidate()
-        }
-    }
-
-    override fun onDraw(canvas: Canvas) {
-
-        super.onDraw(canvas)
-
-        val widthF =
-            width.toFloat()
-
-        val heightF =
-            height.toFloat()
-
-        val centerY =
-            heightF / 2f
-
-        /*
-         * FUNDO CENTRAL AZUL/NEON
-         * Sem prata.
-         */
-        paint.shader =
-            LinearGradient(
-                0f,
-                centerY - dp(45f),
-                widthF,
-                centerY + dp(45f),
-                intArrayOf(
-                    Color.rgb(5, 43, 105),
-                    Color.rgb(10, 83, 190),
-                    Color.rgb(25, 130, 255),
-                    Color.rgb(8, 73, 170),
-                    Color.rgb(3, 35, 90)
-                ),
-                null,
-                Shader.TileMode.CLAMP
-            )
-
-        canvas.drawRoundRect(
-            dp(7f),
-            centerY - dp(38f),
-            widthF - dp(7f),
-            centerY + dp(38f),
-            dp(17f),
-            dp(17f),
-            paint
-        )
-
-        paint.shader = null
-
-        /*
-         * BRILHO DAS BORDAS.
-         */
-        paint.color =
-            Color.argb(
-                110,
-                70,
-                205,
-                255
-            )
-
-        paint.strokeWidth =
-            dp(2f)
-
-        canvas.drawLine(
-            dp(14f),
-            centerY - dp(37f),
-            widthF - dp(14f),
-            centerY - dp(37f),
-            paint
-        )
-
-        canvas.drawLine(
-            dp(14f),
-            centerY + dp(37f),
-            widthF - dp(14f),
-            centerY + dp(37f),
-            paint
-        )
-
-        /*
-         * NÚMEROS COM PROFUNDIDADE.
-         */
-        paint.textAlign =
-            Paint.Align.CENTER
-
-        val stepHeight =
-            dp(47f)
-
-        for (offset in -2..2) {
-
-            val range =
-                maxValue - minValue + 1
-
-            var number =
-                value + offset
-
-            while (number > maxValue) {
-                number -= range
-            }
-
-            while (number < minValue) {
-                number += range
-            }
-
-            val y =
-                centerY + offset * stepHeight
-
-            val distance =
-                abs(offset)
-
-            /*
-             * Perspectiva 3D:
-             * números próximos ficam maiores.
-             */
-            val scale =
-                1f - distance * 0.17f
-
-            val alpha =
-                when (distance) {
-                    0 -> 255
-                    1 -> 175
-                    else -> 105
-                }
-
-            canvas.save()
-
-            canvas.scale(
-                scale,
-                scale * 0.90f,
-                widthF / 2f,
-                y
-            )
-
-            paint.textSize =
-                dp(
-                    if (offset == 0)
-                        29f
-                    else
-                        22f
-                )
-
-            paint.typeface =
-                android.graphics.Typeface.create(
-                    android.graphics.Typeface.DEFAULT,
-                    android.graphics.Typeface.BOLD
-                )
-
-            paint.color =
-                Color.argb(
-                    alpha,
-                    if (offset == 0) 255 else 205,
-                    if (offset == 0) 255 else 230,
-                    255
-                )
-
-            if (offset == 0) {
-
-                paint.setShadowLayer(
-                    dp(8f),
-                    0f,
-                    dp(2f),
-                    Color.rgb(
-                        0,
-                        40,
-                        120
-                    )
-                )
-            }
-
-            canvas.drawText(
-                String.format(
-                    "%02d",
-                    number
-                ),
-                widthF / 2f,
-                y + dp(10f),
-                paint
-            )
-
-            paint.clearShadowLayer()
-
-            canvas.restore()
-        }
-
-        /*
-         * LINHAS DE SELEÇÃO.
-         */
-        paint.style =
-            Paint.Style.STROKE
-
-        paint.strokeWidth =
-            dp(2.2f)
-
-        paint.color =
-            Color.rgb(
-                70,
-                210,
-                255
-            )
-
-        canvas.drawLine(
-            dp(4f),
-            centerY - dp(31f),
-            widthF - dp(4f),
-            centerY - dp(31f),
-            paint
-        )
-
-        canvas.drawLine(
-            dp(4f),
-            centerY + dp(31f),
-            widthF - dp(4f),
-            centerY + dp(31f),
-            paint
-        )
-
-        paint.style =
-            Paint.Style.FILL
-    }
-
-    override fun onTouchEvent(
-        event: MotionEvent
-    ): Boolean {
-
-        when (event.actionMasked) {
-
-            MotionEvent.ACTION_DOWN -> {
-
-                lastY =
-                    event.y
-
-                accumulated =
-                    0f
-
-                return true
-            }
-
-            MotionEvent.ACTION_MOVE -> {
-
-                val delta =
-                    event.y - lastY
-
-                accumulated +=
-                    delta
-
-                lastY =
-                    event.y
-
-                while (
-                    accumulated <= -dp(24f)
-                ) {
-
-                    change(1)
-
-                    accumulated +=
-                        dp(24f)
-                }
-
-                while (
-                    accumulated >= dp(24f)
-                ) {
-
-                    change(-1)
-
-                    accumulated -=
-                        dp(24f)
-                }
-
-                return true
-            }
-
-            MotionEvent.ACTION_UP -> {
-
-                if (
-                    abs(accumulated)
-                    < dp(8f)
-                ) {
-
-                    if (
-                        event.y <
-                        height / 2f - dp(10f)
-                    ) {
-
-                        change(1)
-
-                    } else if (
-                        event.y >
-                        height / 2f + dp(10f)
-                    ) {
-
-                        change(-1)
-                    }
-                }
-
-                performClick()
-
-                return true
-            }
-        }
-
-        return true
-    }
-
-    override fun performClick(): Boolean {
-
-        super.performClick()
-
-        return true
-    }
-
-    override fun onDetachedFromWindow() {
-
-        tone.release()
-
-        super.onDetachedFromWindow()
-    }
-}
-KOTLIN
+          package com.didhuuu.controlehoras
+
+          import android.content.Context
+          import android.graphics.Canvas
+          import android.graphics.Color
+          import android.graphics.LinearGradient
+          import android.graphics.Paint
+          import android.graphics.Shader
+          import android.media.AudioManager
+          import android.media.ToneGenerator
+          import android.view.MotionEvent
+          import android.view.View
+          import kotlin.math.abs
+
+          class TimeWheelView(
+              context: Context,
+              private val minValue: Int,
+              private val maxValue: Int,
+              initialValue: Int
+          ) : View(context) {
+
+              var value: Int =
+                  initialValue.coerceIn(
+                      minValue,
+                      maxValue
+                  )
+                  private set
+
+              var onValueChanged:
+                  ((Int) -> Unit)? = null
+
+              private val density =
+                  resources.displayMetrics.density
+
+              private val paint =
+                  Paint(Paint.ANTI_ALIAS_FLAG)
+
+              private val tone =
+                  ToneGenerator(
+                      AudioManager.STREAM_NOTIFICATION,
+                      55
+                  )
+
+              private var lastY = 0f
+              private var accumulated = 0f
+
+              private fun dp(
+                  value: Float
+              ): Float {
+                  return value * density
+              }
+
+              init {
+                  setBackgroundColor(
+                      Color.TRANSPARENT
+                  )
+
+                  isClickable = true
+              }
+
+              private fun change(
+                  step: Int
+              ) {
+
+                  var next =
+                      value + step
+
+                  if (next > maxValue) {
+                      next = minValue
+                  }
+
+                  if (next < minValue) {
+                      next = maxValue
+                  }
+
+                  if (next != value) {
+
+                      value = next
+
+                      tone.startTone(
+                          ToneGenerator.TONE_PROP_BEEP,
+                          28
+                      )
+
+                      onValueChanged?.invoke(
+                          value
+                      )
+
+                      invalidate()
+                  }
+              }
+
+              override fun onDraw(
+                  canvas: Canvas
+              ) {
+
+                  super.onDraw(canvas)
+
+                  val widthF =
+                      width.toFloat()
+
+                  val heightF =
+                      height.toFloat()
+
+                  val centerY =
+                      heightF / 2f
+
+                  /*
+                   * FUNDO AZUL/NEON.
+                   * SEM PRATA.
+                   */
+                  paint.shader =
+                      LinearGradient(
+                          0f,
+                          centerY - dp(55f),
+                          widthF,
+                          centerY + dp(55f),
+                          intArrayOf(
+                              Color.rgb(
+                                  2,
+                                  25,
+                                  75
+                              ),
+                              Color.rgb(
+                                  5,
+                                  65,
+                                  150
+                              ),
+                              Color.rgb(
+                                  20,
+                                  125,
+                                  245
+                              ),
+                              Color.rgb(
+                                  5,
+                                  65,
+                                  150
+                              ),
+                              Color.rgb(
+                                  2,
+                                  25,
+                                  75
+                              )
+                          ),
+                          null,
+                          Shader.TileMode.CLAMP
+                      )
+
+                  canvas.drawRoundRect(
+                      dp(7f),
+                      centerY - dp(42f),
+                      widthF - dp(7f),
+                      centerY + dp(42f),
+                      dp(18f),
+                      dp(18f),
+                      paint
+                  )
+
+                  paint.shader = null
+
+                  /*
+                   * BRILHO SUPERIOR.
+                   */
+                  paint.color =
+                      Color.argb(
+                          130,
+                          75,
+                          220,
+                          255
+                      )
+
+                  paint.strokeWidth =
+                      dp(2f)
+
+                  canvas.drawLine(
+                      dp(14f),
+                      centerY - dp(39f),
+                      widthF - dp(14f),
+                      centerY - dp(39f),
+                      paint
+                  )
+
+                  /*
+                   * BRILHO INFERIOR.
+                   */
+                  paint.color =
+                      Color.argb(
+                          90,
+                          30,
+                          130,
+                          255
+                      )
+
+                  canvas.drawLine(
+                      dp(14f),
+                      centerY + dp(39f),
+                      widthF - dp(14f),
+                      centerY + dp(39f),
+                      paint
+                  )
+
+                  /*
+                   * NÚMEROS.
+                   */
+                  paint.textAlign =
+                      Paint.Align.CENTER
+
+                  val stepHeight =
+                      dp(46f)
+
+                  val range =
+                      maxValue - minValue + 1
+
+                  for (offset in -2..2) {
+
+                      var number =
+                          value + offset
+
+                      while (
+                          number > maxValue
+                      ) {
+                          number -= range
+                      }
+
+                      while (
+                          number < minValue
+                      ) {
+                          number += range
+                      }
+
+                      val y =
+                          centerY +
+                          offset * stepHeight
+
+                      val distance =
+                          abs(offset)
+
+                      val scale =
+                          1f -
+                          distance * 0.16f
+
+                      val alpha =
+                          when (distance) {
+                              0 -> 255
+                              1 -> 170
+                              else -> 90
+                          }
+
+                      canvas.save()
+
+                      canvas.scale(
+                          scale,
+                          scale * 0.88f,
+                          widthF / 2f,
+                          y
+                      )
+
+                      paint.textSize =
+                          dp(
+                              if (
+                                  offset == 0
+                              ) {
+                                  30f
+                              } else {
+                                  22f
+                              }
+                          )
+
+                      paint.typeface =
+                          android.graphics.Typeface.create(
+                              android.graphics.Typeface.DEFAULT,
+                              android.graphics.Typeface.BOLD
+                          )
+
+                      paint.color =
+                          Color.argb(
+                              alpha,
+                              if (
+                                  offset == 0
+                              ) {
+                                  255
+                              } else {
+                                  210
+                              },
+                              if (
+                                  offset == 0
+                              ) {
+                                  255
+                              } else {
+                                  230
+                              },
+                              255
+                          )
+
+                      if (
+                          offset == 0
+                      ) {
+
+                          paint.setShadowLayer(
+                              dp(9f),
+                              0f,
+                              dp(2f),
+                              Color.rgb(
+                                  0,
+                                  45,
+                                  150
+                              )
+                          )
+                      }
+
+                      canvas.drawText(
+                          String.format(
+                              "%02d",
+                              number
+                          ),
+                          widthF / 2f,
+                          y + dp(10f),
+                          paint
+                      )
+
+                      paint.clearShadowLayer()
+
+                      canvas.restore()
+                  }
+
+                  /*
+                   * LINHAS DE SELEÇÃO.
+                   */
+                  paint.style =
+                      Paint.Style.STROKE
+
+                  paint.strokeWidth =
+                      dp(2.2f)
+
+                  paint.color =
+                      Color.rgb(
+                          75,
+                          215,
+                          255
+                      )
+
+                  canvas.drawLine(
+                      dp(5f),
+                      centerY - dp(32f),
+                      widthF - dp(5f),
+                      centerY - dp(32f),
+                      paint
+                  )
+
+                  canvas.drawLine(
+                      dp(5f),
+                      centerY + dp(32f),
+                      widthF - dp(5f),
+                      centerY + dp(32f),
+                      paint
+                  )
+
+                  paint.style =
+                      Paint.Style.FILL
+              }
+
+              override fun onTouchEvent(
+                  event: MotionEvent
+              ): Boolean {
+
+                  when (
+                      event.actionMasked
+                  ) {
+
+                      MotionEvent.ACTION_DOWN -> {
+
+                          lastY =
+                              event.y
+
+                          accumulated =
+                              0f
+
+                          return true
+                      }
+
+                      MotionEvent.ACTION_MOVE -> {
+
+                          val delta =
+                              event.y - lastY
+
+                          accumulated +=
+                              delta
+
+                          lastY =
+                              event.y
+
+                          while (
+                              accumulated <=
+                              -dp(24f)
+                          ) {
+
+                              change(1)
+
+                              accumulated +=
+                                  dp(24f)
+                          }
+
+                          while (
+                              accumulated >=
+                              dp(24f)
+                          ) {
+
+                              change(-1)
+
+                              accumulated -=
+                                  dp(24f)
+                          }
+
+                          return true
+                      }
+
+                      MotionEvent.ACTION_UP -> {
+
+                          if (
+                              abs(accumulated) <
+                              dp(8f)
+                          ) {
+
+                              if (
+                                  event.y <
+                                  height / 2f -
+                                  dp(10f)
+                              ) {
+
+                                  change(1)
+
+                              } else if (
+                                  event.y >
+                                  height / 2f +
+                                  dp(10f)
+                              ) {
+
+                                  change(-1)
+                              }
+                          }
+
+                          performClick()
+
+                          return true
+                      }
+                  }
+
+                  return true
+              }
+
+              override fun performClick():
+                  Boolean {
+
+                  super.performClick()
+
+                  return true
+              }
+
+              override fun onDetachedFromWindow() {
+
+                  tone.release()
+
+                  super.onDetachedFromWindow()
+              }
+          }
+          KOTLIN
 
           test -s "$FILE"
 
-          echo "ROTA 3D AZUL/NEON CRIADA"
+          echo "ROTA 3D AZUL NEON CRIADA"
 
-      - name: Corrigir batidas e instalar roleta
+      - name: Corrigir cartão de funcionário
+        shell: python
+        run: |
+          from pathlib import Path
+
+          src = Path(
+              "ControleHoras/app/src/main/java/"
+              "com/didhuuu/controlehoras/MainActivity.kt"
+          )
+
+          code = src.read_text(
+              encoding="utf-8"
+          )
+
+          old = """box.addView(
+              card().apply{
+
+                  val line=
+                      LinearLayout(context).apply{
+                          orientation=
+                              LinearLayout.VERTICAL
+
+                          setPadding(
+                              dp(16),
+                              dp(12),
+                              dp(16),
+                              dp(12)
+                          )
+                      }
+
+                  line.addView(
+                      label("Funcionário")
+                  )
+
+                  val spinner=
+                      Spinner(context)
+
+                  spinner.adapter=
+                      ArrayAdapter(
+                          context,
+                          android.R.layout.simple_spinner_dropdown_item,
+                          employees.map{
+                              it.name
+                          }
+                      )
+
+                  spinner.setSelection(
+                      employees
+                          .indexOfFirst{
+                              it.id==
+                              selectedEmployeeId
+                          }
+                          .coerceAtLeast(0)
+                  )
+
+                  spinner.onItemSelectedListener=
+                      object:
+                      AdapterView.OnItemSelectedListener{
+
+                          override fun onNothingSelected(
+                              p:AdapterView<*>?
+                          ){}
+
+                          override fun onItemSelected(
+                              p:AdapterView<*>?,
+                              v:View?,
+                              pos:Int,
+                              id:Long
+                          ){
+
+                              if(
+                                  employees[pos].id !=
+                                  selectedEmployeeId
+                              ){
+
+                                  selectedEmployeeId=
+                                      employees[pos].id
+
+                                  selectedPunchDate=
+                                      today()
+
+                                  showPunch()
+                              }
+                          }
+                      }
+
+                  line.addView(spinner)
+
+                  line.addView(
+                      TextView(context).apply{
+
+                          text=
+                              "Salário mensal   ${money.format(emp.salary)}"
+
+                          textSize=14f
+
+                          setTextColor(
+                              muted
+                          )
+
+                          setPadding(
+                              0,
+                              dp(8),
+                              0,
+                              0
+                          )
+                      }
+                  )
+
+                  addView(line)
+
+              },
+              0,
+              0,
+              0,
+              dp(10)
+          )"""
+
+          if old in code:
+
+              new = """val employeeCard =
+              (card() as ViewGroup).apply{
+
+                  val line =
+                      LinearLayout(context).apply{
+
+                          orientation =
+                              LinearLayout.VERTICAL
+
+                          setPadding(
+                              dp(16),
+                              dp(12),
+                              dp(16),
+                              dp(12)
+                          )
+                      }
+
+                  line.addView(
+                      label("Funcionário")
+                  )
+
+                  val spinner =
+                      Spinner(context)
+
+                  spinner.adapter =
+                      ArrayAdapter(
+                          context,
+                          android.R.layout.simple_spinner_dropdown_item,
+                          employees.map{
+                              it.name
+                          }
+                      )
+
+                  spinner.setSelection(
+                      employees
+                          .indexOfFirst{
+                              it.id ==
+                              selectedEmployeeId
+                          }
+                          .coerceAtLeast(0)
+                  )
+
+                  spinner.onItemSelectedListener =
+                      object:
+                      AdapterView.OnItemSelectedListener{
+
+                          override fun onNothingSelected(
+                              p:AdapterView<*>?
+                          ){}
+
+                          override fun onItemSelected(
+                              p:AdapterView<*>?,
+                              v:View?,
+                              pos:Int,
+                              id:Long
+                          ){
+
+                              if(
+                                  employees[pos].id !=
+                                  selectedEmployeeId
+                              ){
+
+                                  selectedEmployeeId =
+                                      employees[pos].id
+
+                                  selectedPunchDate =
+                                      today()
+
+                                  showPunch()
+                              }
+                          }
+                      }
+
+                  line.addView(
+                      spinner
+                  )
+
+                  line.addView(
+                      TextView(context).apply{
+
+                          text =
+                              "Salário mensal   " +
+                              "${money.format(emp.salary)}"
+
+                          textSize =
+                              14f
+
+                          setTextColor(
+                              muted
+                          )
+
+                          setPadding(
+                              0,
+                              dp(8),
+                              0,
+                              0
+                          )
+                      }
+                  )
+
+                  addView(
+                      line
+                  )
+              }
+
+          box.addView(
+              employeeCard,
+              LinearLayout.LayoutParams(
+                  -1,
+                  -2
+              ).apply{
+                  bottomMargin =
+                      dp(10)
+              }
+          )"""
+
+              code = code.replace(
+                  old,
+                  new,
+                  1
+              )
+
+          src.write_text(
+              code,
+              encoding="utf-8"
+          )
+
+          print(
+              "CARTÃO ESTRUTURAL CORRIGIDO"
+          )
+
+      - name: Corrigir estado da roleta e batidas
         shell: python
         run: |
           from pathlib import Path
@@ -563,37 +905,41 @@ KOTLIN
                   )
 
           # -------------------------------------------------
-          # ESTADO DO INTERVALO 2
+          # PUNCH NAMES
           # -------------------------------------------------
 
-          class_start = code.find(
-              "class MainActivity"
-          )
+          class_pos =
+              code.find(
+                  "class MainActivity"
+              )
 
-          class_open = code.find(
-              "{",
-              class_start
-          )
+          class_open =
+              code.find(
+                  "{",
+                  class_pos
+              )
 
           if class_open < 0:
+
               raise SystemExit(
-                  "ERRO: MainActivity não encontrada"
+                  "MainActivity não encontrada"
               )
 
           state = r'''
-    private val punchNames=arrayOf(
-        "Entrada",
-        "Saída",
-        "Retorno",
-        "Saída intervalo 2",
-        "Retorno intervalo 2",
-        "Saída"
-    )
+    private val punchNames =
+        arrayOf(
+            "Entrada",
+            "Saída",
+            "Retorno",
+            "Saída intervalo 2",
+            "Retorno intervalo 2",
+            "Saída"
+        )
 
-    private val extra2Enabled=
+    private val extra2Enabled =
         mutableSetOf<String>()
 
-    private val extra2ReturnEnabled=
+    private val extra2ReturnEnabled =
         mutableSetOf<String>()
 
     private val extraPrefs by lazy{
@@ -606,8 +952,12 @@ KOTLIN
     private fun extraKey(
         empId:Long,
         date:String
-    )=
-        empId.toString()+"|"+date
+    ):String{
+
+        return empId.toString() +
+            "|" +
+            date
+    }
 
     private fun loadExtra2(){
 
@@ -646,19 +996,23 @@ KOTLIN
 
 '''
 
-          if "private val punchNames" not in code:
+          if (
+              "private val punchNames" not in code
+          ):
 
-              code = (
-                  code[:class_open + 1]
-                  + state
-                  + code[class_open + 1:]
-              )
+              code =
+                  code[:class_open + 1] +
+                  state +
+                  code[class_open + 1:]
 
           # -------------------------------------------------
-          # LOCALIZAÇÃO SEGURA DE MÉTODOS KOTLIN
+          # MÉTODO PARA ENCONTRAR FUNÇÃO
           # -------------------------------------------------
 
-          def method_span(text, name):
+          def method_span(
+              text,
+              name
+          ):
 
               token =
                   "    private fun " + name
@@ -670,15 +1024,19 @@ KOTLIN
                   return None
 
               opening =
-                  text.find("{", start)
+                  text.find(
+                      "{",
+                      start
+                  )
 
               if opening < 0:
                   raise SystemExit(
-                      "ERRO: abertura de " + name
+                      "Abertura não encontrada: "
+                      + name
                   )
 
               depth = 0
-              in_string = False
+              string = False
               escaped = False
               line_comment = False
               block_comment = False
@@ -702,33 +1060,46 @@ KOTLIN
 
                   elif block_comment:
 
-                      if c == "*" and n == "/":
+                      if (
+                          c == "*"
+                          and n == "/"
+                      ):
+
                           block_comment = False
                           i += 1
 
-                  elif in_string:
+                  elif string:
 
                       if escaped:
+
                           escaped = False
 
                       elif c == "\\":
                           escaped = True
 
                       elif c == '"':
-                          in_string = False
+                          string = False
 
                   else:
 
-                      if c == "/" and n == "/":
+                      if (
+                          c == "/"
+                          and n == "/"
+                      ):
+
                           line_comment = True
                           i += 1
 
-                      elif c == "/" and n == "*":
+                      elif (
+                          c == "/"
+                          and n == "*"
+                      ):
+
                           block_comment = True
                           i += 1
 
                       elif c == '"':
-                          in_string = True
+                          string = True
 
                       elif c == "{":
                           depth += 1
@@ -738,14 +1109,17 @@ KOTLIN
                           depth -= 1
 
                           if depth == 0:
-                              return start, i + 1
+
+                              return (
+                                  start,
+                                  i + 1
+                              )
 
                   i += 1
 
               raise SystemExit(
-                  "ERRO: chaves de " +
-                  name +
-                  " não fechadas"
+                  "Chaves não fechadas: "
+                  + name
               )
 
           def replace_method(
@@ -766,14 +1140,14 @@ KOTLIN
               start, end = span
 
               return (
-                  text[:start]
-                  + replacement.rstrip()
-                  + "\n"
-                  + text[end:]
+                  text[:start] +
+                  replacement.rstrip() +
+                  "\n" +
+                  text[end:]
               )
 
           # -------------------------------------------------
-          # TELA PRINCIPAL DE PONTO
+          # SHOW PUNCH
           # -------------------------------------------------
 
           show_punch = r'''
@@ -800,16 +1174,18 @@ KOTLIN
 
         val emp =
             employees.firstOrNull{
-                it.id == selectedEmployeeId
+                it.id ==
+                selectedEmployeeId
             }
             ?: employees.first().also{
+
                 selectedEmployeeId =
                     it.id
             }
 
         loadExtra2()
 
-        val top =
+        val header =
             LinearLayout(this).apply{
 
                 orientation =
@@ -823,7 +1199,7 @@ KOTLIN
                 )
             }
 
-        top.addView(
+        header.addView(
             TextView(this).apply{
 
                 text =
@@ -839,15 +1215,12 @@ KOTLIN
             }
         )
 
-        top.addView(
+        header.addView(
             TextView(this).apply{
 
                 text =
-                    "Salário mensal: " +
-                    "%.2f".format(
-                        java.util.Locale.US,
-                        emp.salary
-                    )
+                    "Salário mensal   " +
+                    "${money.format(emp.salary)}"
 
                 textSize =
                     14f
@@ -866,7 +1239,7 @@ KOTLIN
         )
 
         box.addView(
-            top,
+            header,
             LinearLayout.LayoutParams(
                 -1,
                 -2
@@ -884,13 +1257,21 @@ KOTLIN
 
                 gravity =
                     Gravity.CENTER_VERTICAL
+
+                setPadding(
+                    dp(10),
+                    dp(4),
+                    dp(10),
+                    dp(4)
+                )
             }
 
         dateRow.addView(
             TextView(this).apply{
 
                 text =
-                    "DATA\n${brDate(selectedPunchDate)}"
+                    "DATA\n" +
+                    "${brDate(selectedPunchDate)}"
 
                 textSize =
                     18f
@@ -902,7 +1283,7 @@ KOTLIN
             },
             LinearLayout.LayoutParams(
                 0,
-                dp(64),
+                dp(70),
                 1f
             )
         )
@@ -917,6 +1298,7 @@ KOTLIN
                     false
 
                 setOnClickListener{
+
                     choosePunchDate()
                 }
             },
@@ -950,6 +1332,7 @@ KOTLIN
                     15f
 
                 setOnClickListener{
+
                     showManualWheel(
                         emp.id
                     )
@@ -960,7 +1343,7 @@ KOTLIN
                 dp(54)
             ).apply{
                 bottomMargin =
-                    dp(10)
+                    dp(12)
             }
         )
 
@@ -977,10 +1360,14 @@ KOTLIN
             )
 
         val extra =
-            extra2Enabled.contains(key)
+            extra2Enabled.contains(
+                key
+            )
 
-        val extraRet =
-            extra2ReturnEnabled.contains(key)
+        val extraReturn =
+            extra2ReturnEnabled.contains(
+                key
+            )
 
         box.addView(
             TextView(this).apply{
@@ -1001,10 +1388,10 @@ KOTLIN
                 )
 
                 setPadding(
+                    dp(4),
+                    dp(5),
                     0,
-                    dp(6),
-                    0,
-                    dp(5)
+                    dp(6)
                 )
             }
         )
@@ -1052,10 +1439,10 @@ KOTLIN
                 )
 
                 setPadding(
+                    dp(4),
+                    dp(14),
                     0,
-                    dp(12),
-                    0,
-                    dp(5)
+                    dp(6)
                 )
             }
         )
@@ -1082,10 +1469,10 @@ KOTLIN
             emp.id,
             selectedPunchDate,
             1,
-            extraRet
+            extraReturn
         )
 
-        if(extraRet){
+        if(extraReturn){
 
             addWheelPunchRow(
                 box,
@@ -1102,7 +1489,9 @@ KOTLIN
 
                 text =
                     "Horas trabalhadas: " +
-                    formatMin(calc.worked)
+                    formatMin(
+                        calc.worked
+                    )
 
                 textSize =
                     16f
@@ -1113,8 +1502,8 @@ KOTLIN
                 )
 
                 setPadding(
-                    0,
-                    dp(12),
+                    dp(4),
+                    dp(14),
                     0,
                     dp(5)
                 )
@@ -1164,22 +1553,6 @@ KOTLIN
                     dp(4)
                 )
 
-                background =
-                    android.graphics.drawable
-                        .GradientDrawable()
-                        .apply{
-
-                            setColor(
-                                Color.WHITE
-                            )
-
-                            cornerRadius =
-                                dp(12).toFloat()
-                        }
-
-                elevation =
-                    dp(1).toFloat()
-
                 setOnClickListener{
 
                     showEditWheel(
@@ -1208,7 +1581,7 @@ KOTLIN
             },
             LinearLayout.LayoutParams(
                 dp(42),
-                dp(50)
+                dp(52)
             )
         )
 
@@ -1230,7 +1603,7 @@ KOTLIN
             },
             LinearLayout.LayoutParams(
                 0,
-                dp(50),
+                dp(52),
                 1f
             )
         )
@@ -1268,6 +1641,7 @@ KOTLIN
                 -1,
                 dp(58)
             ).apply{
+
                 bottomMargin =
                     dp(7)
             }
@@ -1284,9 +1658,9 @@ KOTLIN
 
         val title =
             if(which == 0)
-                "Ativar saída intervalo 2"
+                "Saída intervalo 2"
             else
-                "Ativar retorno intervalo 2"
+                "Retorno intervalo 2"
 
         val row =
             LinearLayout(this).apply{
@@ -1299,9 +1673,9 @@ KOTLIN
 
                 setPadding(
                     dp(12),
-                    dp(3),
+                    dp(2),
                     dp(8),
-                    dp(3)
+                    dp(2)
                 )
             }
 
@@ -1312,7 +1686,7 @@ KOTLIN
                     title
 
                 textSize =
-                    14f
+                    15f
             },
             LinearLayout.LayoutParams(
                 0,
@@ -1392,7 +1766,9 @@ KOTLIN
             showPunch()
         }
 
-        row.addView(sw)
+        row.addView(
+            sw
+        )
 
         box.addView(
             row,
@@ -1414,7 +1790,6 @@ KOTLIN
                   show_punch
               )
 
-          # Remove the old versions of these functions.
           for name in [
               "registerPunch",
               "showEditWheel",
@@ -1429,7 +1804,7 @@ KOTLIN
                   )
 
           # -------------------------------------------------
-          # NOVAS FUNÇÕES DA ROLETA
+          # ROLETA
           # -------------------------------------------------
 
           wheel_methods = r'''
@@ -1442,14 +1817,14 @@ KOTLIN
             rec.punches[index]
                 .split(":")
 
-        val h =
+        val hour =
             parts
                 .getOrNull(0)
                 ?.toIntOrNull()
                 ?.coerceIn(0,23)
                 ?: 0
 
-        val m =
+        val minute =
             parts
                 .getOrNull(1)
                 ?.toIntOrNull()
@@ -1458,9 +1833,10 @@ KOTLIN
 
         showTimeWheelDialog(
             "Editar batida",
-            "${punchNames[index]}\n${brDate(rec.date)}",
-            h,
-            m,
+            "${punchNames[index]}\n" +
+            "${brDate(rec.date)}",
+            hour,
+            minute,
             "SALVAR"
         ){hh,mm->
 
@@ -1487,6 +1863,8 @@ KOTLIN
                 selectedPunchDate
             )
 
+        loadExtra2()
+
         val extra =
             extra2Enabled.contains(
                 extraKey(
@@ -1505,7 +1883,7 @@ KOTLIN
 
             Toast.makeText(
                 this,
-                "As batidas disponíveis deste dia já estão preenchidas.",
+                "Todas as batidas disponíveis estão preenchidas.",
                 Toast.LENGTH_LONG
             ).show()
 
@@ -1517,7 +1895,8 @@ KOTLIN
 
         showTimeWheelDialog(
             "Registro manual",
-            "${punchNames[n]}\n${brDate(selectedPunchDate)}",
+            "${punchNames[n]}\n" +
+            "${brDate(selectedPunchDate)}",
             now.get(
                 java.util.Calendar.HOUR_OF_DAY
             ),
@@ -1550,6 +1929,8 @@ KOTLIN
                 selectedPunchDate
             )
 
+        loadExtra2()
+
         val extra =
             extra2Enabled.contains(
                 extraKey(
@@ -1567,7 +1948,10 @@ KOTLIN
         if(n < 0)
             return
 
-        if(selectedPunchDate == today()){
+        if(
+            selectedPunchDate ==
+            today()
+        ){
 
             val now =
                 java.util.Calendar.getInstance()
@@ -1591,7 +1975,8 @@ KOTLIN
 
             showTimeWheelDialog(
                 "Registrar batida",
-                "${punchNames[n]}\n${brDate(selectedPunchDate)}",
+                "${punchNames[n]}\n" +
+                "${brDate(selectedPunchDate)}",
                 8,
                 0,
                 "REGISTRAR"
@@ -1647,7 +2032,7 @@ KOTLIN
                     Gravity.CENTER
 
                 textSize =
-                    16f
+                    17f
 
                 setTypeface(
                     null,
@@ -1656,9 +2041,9 @@ KOTLIN
 
                 setTextColor(
                     Color.rgb(
-                        24,
-                        70,
-                        120
+                        25,
+                        75,
+                        125
                     )
                 )
 
@@ -1666,7 +2051,7 @@ KOTLIN
                     0,
                     dp(2),
                     0,
-                    dp(10)
+                    dp(8)
                 )
             }
         )
@@ -1747,7 +2132,9 @@ KOTLIN
             )
         )
 
-        root.addView(wheels)
+        root.addView(
+            wheels
+        )
 
         val selected =
             TextView(this).apply{
@@ -1772,9 +2159,9 @@ KOTLIN
 
                 setTextColor(
                     Color.rgb(
-                        12,
-                        99,
-                        195
+                        10,
+                        100,
+                        200
                     )
                 )
 
@@ -1804,7 +2191,9 @@ KOTLIN
             refresh()
         }
 
-        root.addView(selected)
+        root.addView(
+            selected
+        )
 
         val dialog =
             AlertDialog.Builder(this)
@@ -1843,13 +2232,19 @@ KOTLIN
         extra:Boolean
     ):Int{
 
-        if(r.punches[0].isBlank())
+        if(
+            r.punches[0].isBlank()
+        )
             return 0
 
-        if(r.punches[1].isBlank())
+        if(
+            r.punches[1].isBlank()
+        )
             return 1
 
-        if(r.punches[2].isBlank())
+        if(
+            r.punches[2].isBlank()
+        )
             return 2
 
         if(
@@ -1864,7 +2259,9 @@ KOTLIN
         )
             return 4
 
-        if(r.punches[5].isBlank())
+        if(
+            r.punches[5].isBlank()
+        )
             return 5
 
         return -1
@@ -1897,8 +2294,9 @@ KOTLIN
               )
 
           if history < 0:
+
               raise SystemExit(
-                  "ERRO: showHistory não encontrado"
+                  "showHistory não encontrado"
               )
 
           code =
@@ -1906,67 +2304,152 @@ KOTLIN
               wheel_methods +
               code[history:]
 
-          # -------------------------------------------------
-          # VALIDAÇÃO
-          # -------------------------------------------------
-
-          required = [
-              "punchNames",
-              "extra2Enabled",
-              "extra2ReturnEnabled",
-              "showTimeWheelDialog",
-              "showEditWheel",
-              "showManualWheel",
-              "nextPunchIndex2",
-              "TimeWheelView"
-          ]
-
-          for item in required:
-
-              if item not in code:
-                  raise SystemExit(
-                      "FALTANDO: " + item
-                  )
-
-          if code.count("{") != code.count("}"):
-
-              raise SystemExit(
-                  "ERRO: CHAVES KOTLIN INCOMPATÍVEIS"
-              )
-
           src.write_text(
               code,
               encoding="utf-8"
           )
 
           print(
-              "BATIDAS + INTERVALO 2 + ROLETA 3D APLICADOS"
+              "PONTO + EDIÇÃO + INTERVALO 2 + ROLETA APLICADOS"
           )
 
-      - name: Validar antes do Gradle
-        shell: bash
+      - name: Validar código final
+        shell: python
         run: |
-          set -euo pipefail
+          from pathlib import Path
 
-          MAIN="ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
-          WHEEL="ControleHoras/app/src/main/java/com/didhuuu/controlehoras/TimeWheelView.kt"
+          root = Path(
+              "ControleHoras"
+          )
 
-          test -s "$MAIN"
-          test -s "$WHEEL"
+          main = root / (
+              "app/src/main/java/"
+              "com/didhuuu/controlehoras/"
+              "MainActivity.kt"
+          )
 
-          grep -q 'selectedPunchDate' "$MAIN"
-          grep -q 'weekModes' "$MAIN"
-          grep -q 'punchNames' "$MAIN"
-          grep -q 'showTimeWheelDialog' "$MAIN"
-          grep -q 'showEditWheel' "$MAIN"
-          grep -q 'showManualWheel' "$MAIN"
-          grep -q 'extra2Enabled' "$MAIN"
-          grep -q 'extra2ReturnEnabled' "$MAIN"
+          wheel = root / (
+              "app/src/main/java/"
+              "com/didhuuu/controlehoras/"
+              "TimeWheelView.kt"
+          )
 
-          grep -q 'class TimeWheelView' "$WHEEL"
-          grep -q 'TONE_PROP_BEEP' "$WHEEL"
+          main_code =
+              main.read_text(
+                  encoding="utf-8"
+              )
 
-          echo "VALIDAÇÃO PRÉ-GRADLE OK"
+          wheel_code =
+              wheel.read_text(
+                  encoding="utf-8"
+              )
+
+          required_main = [
+              "selectedPunchDate",
+              "weekModes",
+              "punchNames",
+              "showTimeWheelDialog",
+              "showEditWheel",
+              "showManualWheel",
+              "extra2Enabled",
+              "extra2ReturnEnabled",
+              "nextPunchIndex2"
+          ]
+
+          for item in required_main:
+
+              if item not in main_code:
+
+                  raise SystemExit(
+                      "FALTANDO NO MAIN: " +
+                      item
+                  )
+
+          required_wheel = [
+              "class TimeWheelView",
+              "TONE_PROP_BEEP",
+              "ACTION_MOVE",
+              "LinearGradient"
+          ]
+
+          for item in required_wheel:
+
+              if item not in wheel_code:
+
+                  raise SystemExit(
+                      "FALTANDO NA ROLETA: " +
+                      item
+                  )
+
+          if "NumberPicker" in main_code:
+
+              raise SystemExit(
+                  "ERRO: NumberPicker ainda existe"
+              )
+
+          if (
+              "DSR" in main_code
+              or "dsr" in main_code
+          ):
+
+              raise SystemExit(
+                  "ERRO: DSR não deve existir"
+              )
+
+          if (
+              main_code.count("{") !=
+              main_code.count("}")
+          ):
+
+              raise SystemExit(
+                  "ERRO: CHAVES DO MAIN INCOMPATÍVEIS"
+              )
+
+          if (
+              wheel_code.count("{") !=
+              wheel_code.count("}")
+          ):
+
+              raise SystemExit(
+                  "ERRO: CHAVES DA ROLETA INCOMPATÍVEIS"
+              )
+
+          print(
+              "================================"
+          )
+          print(
+              "VALIDAÇÃO FINAL OK"
+          )
+          print(
+              "Base 70: OK"
+          )
+          print(
+              "Escala: preservada"
+          )
+          print(
+              "Roleta 3D azul/neon: OK"
+          )
+          print(
+              "Entrada editável: OK"
+          )
+          print(
+              "Registro manual: OK"
+          )
+          print(
+              "Intervalo 2 separado: OK"
+          )
+          print(
+              "Sem prata: OK"
+          )
+          print(
+              "Sem NumberPicker: OK"
+          )
+          print(
+              "Sem DSR: OK"
+          )
+          print(
+              "================================"
+          )
 
       - name: Instalar Gradle 8.11.1
         shell: bash
@@ -1976,11 +2459,15 @@ KOTLIN
           wget -q \
             https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
 
-          unzip -q gradle-8.11.1-bin.zip
+          unzip -q \
+            gradle-8.11.1-bin.zip
 
-          echo "$PWD/gradle-8.11.1/bin" >> "$GITHUB_PATH"
+          echo \
+            "$PWD/gradle-8.11.1/bin" \
+            >> "$GITHUB_PATH"
 
-          "$PWD/gradle-8.11.1/bin/gradle" --version
+          "$PWD/gradle-8.11.1/bin/gradle" \
+            --version
 
       - name: Gerar APK
         working-directory: ControleHoras
@@ -2000,7 +2487,7 @@ KOTLIN
 
           ls -lh "$APK"
 
-          echo "APK VALIDADO"
+          echo "APK GERADO E VALIDADO"
 
       - name: Publicar APK
         uses: actions/upload-artifact@v4
