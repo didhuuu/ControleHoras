@@ -101,8 +101,8 @@ jobs:
           for i, script in enumerate(scripts):
 
               p = (
-                  Path(tempfile.gettempdir()) /
-                  f"base70_{i}.py"
+                  Path(tempfile.gettempdir())
+                  / f"base70_{i}.py"
               )
 
               p.write_text(
@@ -115,7 +115,9 @@ jobs:
                   check=True
               )
 
-          print("BASE 70 APLICADA")
+          print(
+              "BASE 70 APLICADA"
+          )
 
       - name: Aplicar funcionalidades da versão 80
         shell: python
@@ -150,7 +152,10 @@ jobs:
 
           marker = "        run: |\n"
 
-          pos = block.index(marker) + len(marker)
+          pos = (
+              block.index(marker)
+              + len(marker)
+          )
 
           lines = block[pos:].splitlines()
 
@@ -265,9 +270,25 @@ jobs:
           from urllib.request import urlopen
           import subprocess
           import tempfile
+          import re
 
           # ==========================================================
-          # BAIXAR IMPLEMENTAÇÃO DA ROLETA
+          # ARQUIVO PRINCIPAL
+          # ==========================================================
+
+          src = Path(
+              "ControleHoras/app/src/main/java/"
+              "com/didhuuu/controlehoras/MainActivity.kt"
+          )
+
+          if not src.exists():
+
+              raise SystemExit(
+                  "ERRO: MainActivity.kt não encontrado"
+              )
+
+          # ==========================================================
+          # BAIXAR A IMPLEMENTAÇÃO ORIGINAL DA ROLETA
           # ==========================================================
 
           url = (
@@ -281,10 +302,6 @@ jobs:
               url,
               timeout=30
           ).read().decode("utf-8")
-
-          # ==========================================================
-          # LOCALIZAR A ETAPA DA ROLETA
-          # ==========================================================
 
           step_name = (
               "      - name: "
@@ -302,19 +319,15 @@ jobs:
           if end <= start:
 
               raise SystemExit(
-                  "ERRO: etapa da roleta não encontrada"
+                  "ERRO: etapa original da roleta não encontrada"
               )
 
           block = workflow[start:end]
 
           marker = "        run: |\n"
 
-          marker_pos = block.index(
-              marker
-          )
-
           pos = (
-              marker_pos
+              block.index(marker)
               + len(marker)
           )
 
@@ -328,7 +341,7 @@ jobs:
           ) + "\n"
 
           # ==========================================================
-          # 1. REMOVER BLOCO ANTIGO DE BATIDA VAZIA
+          # REMOVER O BLOCO PROBLEMÁTICO DE BATIDA VAZIA
           # ==========================================================
 
           bad_start = script.find(
@@ -345,7 +358,7 @@ jobs:
               if bad_end < 0:
 
                   raise SystemExit(
-                      "ERRO: final do bloco antigo não encontrado"
+                      "ERRO: final do bloco de batida vazia não encontrado"
                   )
 
               script = (
@@ -358,20 +371,7 @@ jobs:
               )
 
           # ==========================================================
-          # 2. GARANTIR QUE O BLOCO ANTIGO NÃO SOBROU
-          # ==========================================================
-
-          if (
-              "'''if(rec.punches[index].isBlank())"
-              in script
-          ):
-
-              raise SystemExit(
-                  "ERRO: bloco problemático ainda existe"
-              )
-
-          # ==========================================================
-          # 3. CORRIGIR main_index
+          # CORRIGIR main_index
           # ==========================================================
 
           script = script.replace(
@@ -386,147 +386,316 @@ jobs:
               "main_index = code.find("
           )
 
-          if "main_index=\n" in script:
+          # ==========================================================
+          # EXTRAIR A IMPLEMENTAÇÃO COMPLETA DA FUNÇÃO DA ROLETA
+          # DIRETAMENTE DA VARIÁVEL wheel_dialog DO SCRIPT ORIGINAL.
+          # ==========================================================
+
+          wheel_begin_marker = (
+              "wheel_dialog = r'''"
+          )
+
+          wheel_end_marker = (
+              "\n          '''"
+          )
+
+          wheel_begin = script.find(
+              wheel_begin_marker
+          )
+
+          if wheel_begin < 0:
 
               raise SystemExit(
-                  "ERRO: main_index ainda está quebrado"
+                  "ERRO: wheel_dialog não encontrado no script original"
               )
 
+          wheel_begin += len(
+              wheel_begin_marker
+          )
+
+          wheel_end = script.find(
+              wheel_end_marker,
+              wheel_begin
+          )
+
+          if wheel_end < 0:
+
+              raise SystemExit(
+                  "ERRO: fim de wheel_dialog não encontrado"
+              )
+
+          wheel_dialog = script[
+              wheel_begin:wheel_end
+          ]
+
           # ==========================================================
-          # 4. CORREÇÃO PRINCIPAL
+          # GRAVAR UMA CÓPIA DO SCRIPT ORIGINAL CORRIGIDO
+          # ==========================================================
+
+          fixed_script = script
+
+          # ==========================================================
+          # IMPEDIR O SCRIPT ANTIGO DE BLOQUEAR A ROLETA
           #
-          # O SCRIPT ORIGINAL FAZIA:
+          # O código antigo verificava somente:
           #
-          # if "showControleHorasWheelDialog(" not in code:
+          # showControleHorasWheelDialog(
           #
-          # Isso encontra chamadas da função e não a declaração.
+          # Isso pode encontrar uma chamada e não a declaração.
           #
-          # O correto é procurar:
+          # A declaração real precisa ser:
           #
           # private fun showControleHorasWheelDialog(
-          #
-          # Assim a função será realmente inserida.
           # ==========================================================
 
-          old_check = (
-              'if "showControleHorasWheelDialog(" not in code:'
+          fixed_script = fixed_script.replace(
+              'if "showControleHorasWheelDialog(" not in code:',
+              'if "private fun showControleHorasWheelDialog(" not in code:'
           )
 
-          new_check = (
-              'if "private fun showControleHorasWheelDialog(" '
-              'not in code:'
+          # ==========================================================
+          # CORRIGIR A MESMA VERIFICAÇÃO CASO ESTEJA FORMATADA
+          # EM MAIS DE UMA LINHA.
+          # ==========================================================
+
+          fixed_script = re.sub(
+              r'if\s+"showControleHorasWheelDialog\("\s+not\s+in\s+code:',
+              'if "private fun showControleHorasWheelDialog(" not in code:',
+              fixed_script
           )
 
-          if old_check not in script:
-
-              print(
-                  "AVISO: verificação original da roleta "
-                  "não encontrada exatamente"
-              )
-
-          else:
-
-              script = script.replace(
-                  old_check,
-                  new_check
-              )
-
-              print(
-                  "VERIFICAÇÃO DA DECLARAÇÃO DA ROLETA CORRIGIDA"
-              )
-
           # ==========================================================
-          # 5. GARANTIR QUE A CORREÇÃO FOI APLICADA
+          # VALIDAR SINTAXE DO SCRIPT ANTES DE EXECUTAR
           # ==========================================================
 
-          if (
-              old_check in script
-          ):
-
-              raise SystemExit(
-                  "ERRO: verificação antiga da roleta ainda existe"
-              )
-
-          if (
-              new_check not in script
-          ):
-
-              raise SystemExit(
-                  "ERRO: nova verificação da roleta não foi instalada"
-              )
-
-          # ==========================================================
-          # 6. TESTE DE SINTAXE
-          # ==========================================================
-
-          try:
-
-              compile(
-                  script,
-                  "corrigir_tela.py",
-                  "exec"
-              )
-
-          except SyntaxError as exc:
-
-              print(
-                  "=========================================="
-              )
-
-              print(
-                  "ERRO DE SINTAXE NO SCRIPT DA ROLETA"
-              )
-
-              print(
-                  f"Linha: {exc.lineno}"
-              )
-
-              print(
-                  f"Coluna: {exc.offset}"
-              )
-
-              print(
-                  f"Texto: {exc.text}"
-              )
-
-              print(
-                  "=========================================="
-              )
-
-              raise
+          compile(
+              fixed_script,
+              "corrigir_tela.py",
+              "exec"
+          )
 
           print(
               "SINTAXE DA ROLETA OK"
           )
 
-          # ==========================================================
-          # 7. GRAVAR SCRIPT CORRIGIDO
-          # ==========================================================
-
-          p = (
+          temp_script = (
               Path(tempfile.gettempdir())
               / "corrigir_tela.py"
           )
 
-          p.write_text(
-              script,
+          temp_script.write_text(
+              fixed_script,
               encoding="utf-8"
           )
 
           # ==========================================================
-          # 8. EXECUTAR
+          # EXECUTAR A CORREÇÃO ORIGINAL
           # ==========================================================
 
           subprocess.run(
               [
                   "python",
-                  str(p)
+                  str(temp_script)
               ],
               check=True
           )
 
           print(
-              "TELA + ROLETA + SOM APLICADOS"
+              "SCRIPT ORIGINAL DA ROLETA EXECUTADO"
+          )
+
+          # ==========================================================
+          # LER NOVAMENTE O MAINACTIVITY
+          # ==========================================================
+
+          code = src.read_text(
+              encoding="utf-8"
+          )
+
+          # ==========================================================
+          # CORREÇÃO DEFINITIVA:
+          #
+          # Se a declaração da roleta NÃO estiver presente,
+          # nós mesmos inserimos a implementação completa.
+          #
+          # Não dependemos mais da decisão do script antigo.
+          # ==========================================================
+
+          function_signature = (
+              "private fun showControleHorasWheelDialog("
+          )
+
+          if function_signature not in code:
+
+              print(
+                  "ROLETA NÃO FOI INSERIDA PELO SCRIPT ORIGINAL"
+              )
+
+              anchor = code.find(
+                  "    private fun showManualWheel("
+              )
+
+              if anchor < 0:
+
+                  raise SystemExit(
+                      "ERRO: showManualWheel não encontrado para inserir a roleta"
+                  )
+
+              insertion = (
+                  "\n"
+                  + wheel_dialog
+                  + "\n"
+              )
+
+              code = (
+                  code[:anchor]
+                  + insertion
+                  + code[anchor:]
+              )
+
+              src.write_text(
+                  code,
+                  encoding="utf-8"
+              )
+
+              print(
+                  "ROLETA INSERIDA DIRETAMENTE NO MainActivity.kt"
+              )
+
+          else:
+
+              print(
+                  "DECLARAÇÃO DA ROLETA JÁ EXISTE"
+              )
+
+          # ==========================================================
+          # RECARREGAR APÓS A INSERÇÃO
+          # ==========================================================
+
+          code = src.read_text(
+              encoding="utf-8"
+          )
+
+          # ==========================================================
+          # GARANTIR MANIFESTO
+          # ==========================================================
+
+          manifest = Path(
+              "ControleHoras/app/src/main/AndroidManifest.xml"
+          )
+
+          m = manifest.read_text(
+              encoding="utf-8"
+          )
+
+          if (
+              'android:icon="@drawable/controlehoras_icon"'
+              not in m
+          ):
+
+              m = m.replace(
+                  "<application",
+                  '<application\n'
+                  '        android:icon="@drawable/controlehoras_icon"\n'
+                  '        android:roundIcon="@drawable/controlehoras_icon"',
+                  1
+              )
+
+              manifest.write_text(
+                  m,
+                  encoding="utf-8"
+              )
+
+          # ==========================================================
+          # VALIDAÇÃO FINAL DA ROLETA
+          # ==========================================================
+
+          required = [
+              "ControleHorasTimeWheelView",
+              "showControleHorasWheelDialog",
+              "showManualWheel",
+              "showEditWheel",
+              "punchNames",
+              "controleHorasPunchPage",
+              "extra2Enabled",
+              "nextPunchIndex"
+          ]
+
+          missing = []
+
+          for item in required:
+
+              if item not in code:
+
+                  missing.append(
+                      item
+                  )
+
+          if missing:
+
+              raise SystemExit(
+                  "ERRO: recursos ainda ausentes: "
+                  + ", ".join(missing)
+              )
+
+          if (
+              "private fun showControleHorasWheelDialog("
+              not in code
+          ):
+
+              raise SystemExit(
+                  "ERRO FINAL: declaração da roleta não está no MainActivity.kt"
+              )
+
+          if "NumberPicker(" in code:
+
+              raise SystemExit(
+                  "ERRO: NumberPicker ainda presente"
+              )
+
+          if (
+              "Esse registro ainda está vazio"
+              in code
+          ):
+
+              raise SystemExit(
+                  "ERRO: mensagem antiga ainda presente"
+              )
+
+          if "roller_click.wav" not in code:
+
+              print(
+                  "AVISO: referência textual ao som não encontrada; "
+                  "arquivo será validado separadamente"
+              )
+
+          src.write_text(
+              code,
+              encoding="utf-8"
+          )
+
+          print(
+              "=================================================="
+          )
+
+          print(
+              "ROLETA PERSONALIZADA VALIDADA COM SUCESSO"
+          )
+
+          print(
+              "EDITAR BATIDA VAZIA VALIDADO"
+          )
+
+          print(
+              "NUMBERPICKER REMOVIDO"
+          )
+
+          print(
+              "MAINACTIVITY FINAL VALIDADO"
+          )
+
+          print(
+              "=================================================="
           )
 
       - name: Validar projeto antes do Gradle
@@ -544,25 +713,49 @@ jobs:
           test -s "$ICON"
           test -s "$SOUND"
 
+          echo "Verificando assinatura da roleta..."
+
+          grep -q \
+            "private fun showControleHorasWheelDialog(" \
+            "$SRC"
+
+          echo "OK: declaração da roleta encontrada"
+
           grep -q \
             "ControleHorasTimeWheelView" \
             "$SRC"
 
-          grep -q \
-            "showControleHorasWheelDialog" \
-            "$SRC"
+          echo "OK: TimeWheel encontrado"
 
           grep -q \
             "controleHorasPunchPage" \
             "$SRC"
 
+          echo "OK: página de ponto encontrada"
+
           grep -q \
             "punchNames" \
             "$SRC"
 
+          echo "OK: nomes das batidas encontrados"
+
           grep -q \
-            'controlehoras_icon' \
+            "showManualWheel" \
+            "$SRC"
+
+          echo "OK: registro manual encontrado"
+
+          grep -q \
+            "showEditWheel" \
+            "$SRC"
+
+          echo "OK: edição encontrada"
+
+          grep -q \
+            "controlehoras_icon" \
             ControleHoras/app/src/main/AndroidManifest.xml
+
+          echo "OK: ícone encontrado"
 
           if grep -q "NumberPicker(" "$SRC"; then
               echo "ERRO: NumberPicker encontrado"
@@ -577,7 +770,9 @@ jobs:
               exit 1
           fi
 
-          echo "VALIDAÇÃO DO PROJETO OK"
+          echo "=================================================="
+          echo "VALIDAÇÃO COMPLETA DO PROJETO OK"
+          echo "=================================================="
 
       - name: Instalar Gradle 8.11.1
         shell: bash
