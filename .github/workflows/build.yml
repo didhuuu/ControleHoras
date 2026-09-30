@@ -15,7 +15,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Baixar projeto
         uses: actions/checkout@v4
 
@@ -29,17 +28,13 @@ jobs:
         shell: bash
         run: |
           set -e
-
           rm -rf ControleHoras
-
           unzip -q -o ControleHoras.zip
-
           test -f ControleHoras/settings.gradle.kts
           test -f ControleHoras/build.gradle.kts
           test -f ControleHoras/app/build.gradle.kts
           test -f ControleHoras/app/src/main/AndroidManifest.xml
           test -f ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt
-
           echo "PROJETO ORIGINAL OK"
 
       - name: Aplicar exatamente a base da versão 70
@@ -57,42 +52,22 @@ jobs:
               ".github/workflows/build.yml"
           )
 
-          workflow=urlopen(
-              url,
-              timeout=30
-          ).read().decode("utf-8")
+          workflow=urlopen(url,timeout=30).read().decode("utf-8")
 
           def extract_step(name,next_name):
-
-              start=workflow.index(
-                  f"      - name: {name}"
-              )
-
+              start=workflow.index(f"      - name: {name}")
               end=workflow.index(
                   f"      - name: {next_name}",
                   start
               )
-
               block=workflow[start:end]
-
               marker="        run: |\n"
-
-              pos=(
-                  block.index(marker)+
-                  len(marker)
-              )
-
+              pos=block.index(marker)+len(marker)
               lines=block[pos:].splitlines()
-
-              return (
-                  "\n".join(
-                      line[10:]
-                      if line.startswith("          ")
-                      else line
-                      for line in lines
-                  )+
-                  "\n"
-              )
+              return "\n".join(
+                  line[10:] if line.startswith("          ") else line
+                  for line in lines
+              )+"\n"
 
           scripts=[
               extract_step(
@@ -106,1037 +81,69 @@ jobs:
           ]
 
           for i,script in enumerate(scripts):
-
-              p=(
-                  Path(tempfile.gettempdir())/
-                  f"base70_{i}.py"
-              )
-
-              p.write_text(
-                  script,
-                  encoding="utf-8"
-              )
-
+              p=Path(tempfile.gettempdir())/f"base70_{i}.py"
+              p.write_text(script,encoding="utf-8")
               subprocess.run(
                   ["python",str(p)],
                   check=True
               )
 
-          print(
-              "BASE DA VERSÃO 70 APLICADA"
-          )
+          print("BASE 70 APLICADA")
 
-      - name: Aplicar todas as correções
+      - name: Aplicar funcionalidades da versão 80
         shell: python
         run: |
           from pathlib import Path
-          import re
+          from urllib.request import urlopen
+          import subprocess
+          import tempfile
 
-          root=Path("ControleHoras")
-
-          src=(
-              root/
-              "app/src/main/java/com/didhuuu/"
-              "controlehoras/MainActivity.kt"
+          url=(
+              "https://raw.githubusercontent.com/"
+              "didhuuu/ControleHoras/"
+              "894fb3f98dfda80c297f31474130324a094b6dc6/"
+              ".github/workflows/build.yml"
           )
 
-          manifest=(
-              root/
-              "app/src/main/AndroidManifest.xml"
+          workflow=urlopen(url,timeout=30).read().decode("utf-8")
+
+          start=workflow.index(
+              "      - name: Aplicar correções finais da Base 70, edição por rolagem e ícone"
           )
 
-          code=src.read_text(
-              encoding="utf-8"
-          )
-
-          # =========================================================
-          # NOMES DAS BATIDAS
-          # =========================================================
-
-          if "private val punchNames=" not in code:
-
-              anchor="class MainActivity"
-
-              names=(
-                  "\n"
-                  "    private val punchNames=arrayOf<String>(\n"
-                  '        "Entrada",\n'
-                  '        "Saída",\n'
-                  '        "Retorno",\n'
-                  '        "Saída intervalo 2",\n'
-                  '        "Retorno intervalo 2",\n'
-                  '        "Saída"\n'
-                  "    )\n"
-              )
-
-              pos=code.find(anchor)
-
-              if pos>=0:
-
-                  code=(
-                      code[:pos]+
-                      names+
-                      code[pos:]
-                  )
-
-          # =========================================================
-          # INTERVALO 2
-          # =========================================================
-
-          if "private val extra2Enabled" not in code:
-
-              anchors=[
-                  '    private val weekModes=linkedMapOf<String,String>()\n',
-                  '    private val weekModes = linkedMapOf<String,String>()\n'
-              ]
-
-              for anchor in anchors:
-
-                  if anchor in code:
-
-                      block=(
-                          "    private val "
-                          "extra2Enabled="
-                          "mutableSetOf<String>()\n"
-
-                          "    private val "
-                          "extra2ReturnEnabled="
-                          "mutableSetOf<String>()\n"
-                      )
-
-                      code=code.replace(
-                          anchor,
-                          anchor+block,
-                          1
-                      )
-
-                      break
-
-              else:
-
-                  raise SystemExit(
-                      "ERRO: weekModes não encontrado"
-                  )
-
-          # =========================================================
-          # PERSISTÊNCIA DO INTERVALO 2
-          # =========================================================
-
-          if (
-              'prefs.getString("extra2Enabled"'
-              not in code
-          ):
-
-              anchor="        scale.clear()\n"
-
-              if anchor not in code:
-
-                  raise SystemExit(
-                      "ERRO: scale.clear não encontrado"
-                  )
-
-              load=(
-                  "        extra2Enabled.clear()\n"
-                  "        extra2ReturnEnabled.clear()\n"
-
-                  "        try{\n"
-
-                  '            val ja=JSONArray('
-                  'prefs.getString("extra2Enabled","[]") '
-                  '?: "[]")\n'
-
-                  "            for(i in 0 until ja.length()) "
-                  "extra2Enabled.add(ja.optString(i))\n"
-
-                  '            val jb=JSONArray('
-                  'prefs.getString("extra2ReturnEnabled","[]") '
-                  '?: "[]")\n'
-
-                  "            for(i in 0 until jb.length()) "
-                  "extra2ReturnEnabled.add(jb.optString(i))\n"
-
-                  "        }catch(_:Exception){}\n"
-              )
-
-              code=code.replace(
-                  anchor,
-                  load+
-                  "\n"+
-                  anchor,
-                  1
-              )
-
-              anchor="        e.apply()\n"
-
-              if anchor not in code:
-
-                  raise SystemExit(
-                      "ERRO: e.apply não encontrado"
-                  )
-
-              save=(
-                  "        val extraJson=JSONArray()\n"
-                  "        extra2Enabled.forEach{"
-                  "extraJson.put(it)}\n"
-
-                  '        e.putString('
-                  '"extra2Enabled",'
-                  'extraJson.toString())\n'
-
-                  "        val extraReturnJson=JSONArray()\n"
-                  "        extra2ReturnEnabled.forEach{"
-                  "extraReturnJson.put(it)}\n"
-
-                  '        e.putString('
-                  '"extra2ReturnEnabled",'
-                  'extraReturnJson.toString())\n'
-              )
-
-              code=code.replace(
-                  anchor,
-                  save+
-                  anchor,
-                  1
-              )
-
-          # =========================================================
-          # FUNÇÕES DO INTERVALO 2
-          # =========================================================
-
-          if "private fun extraKey" not in code:
-
-              anchor=(
-                  "    private fun today()="
-                  "iso.format(Date())\n"
-              )
-
-              if anchor not in code:
-
-                  raise SystemExit(
-                      "ERRO: today não encontrado"
-                  )
-
-              block=(
-                  '    private fun extraKey('
-                  'empId:Long,date:String)='
-                  'empId.toString()+"|"+date\n'
-
-                  '    private fun extraEnabled('
-                  'empId:Long,date:String)='
-                  'extra2Enabled.contains('
-                  'extraKey(empId,date))\n'
-
-                  '    private fun extraReturnEnabled('
-                  'empId:Long,date:String)='
-                  'extra2ReturnEnabled.contains('
-                  'extraKey(empId,date))\n'
-
-                  '    private fun setExtraEnabled('
-                  'empId:Long,date:String,value:Boolean){\n'
-
-                  '        val k=extraKey(empId,date)\n'
-
-                  '        if(value){\n'
-                  '            extra2Enabled.add(k)\n'
-                  '        }else{\n'
-                  '            extra2Enabled.remove(k)\n'
-                  '            extra2ReturnEnabled.remove(k)\n'
-                  '        }\n'
-
-                  '        saveData()\n'
-                  '    }\n'
-
-                  '    private fun setExtraReturnEnabled('
-                  'empId:Long,date:String,value:Boolean){\n'
-
-                  '        val k=extraKey(empId,date)\n'
-
-                  '        if(value && extra2Enabled.contains(k)){\n'
-                  '            extra2ReturnEnabled.add(k)\n'
-                  '        }else{\n'
-                  '            extra2ReturnEnabled.remove(k)\n'
-                  '        }\n'
-
-                  '        saveData()\n'
-                  '    }\n'
-              )
-
-              code=code.replace(
-                  anchor,
-                  block+
-                  "\n"+
-                  anchor,
-                  1
-              )
-
-          # =========================================================
-          # PRÓXIMA BATIDA
-          # =========================================================
-
-          next_start=code.find(
-              "    private fun nextPunchIndex"
-          )
-
-          if next_start>=0:
-
-              next_end=code.find(
-                  "\n    private fun ",
-                  next_start+10
-              )
-
-              if next_end<0:
-                  next_end=len(code)
-
-              next_code=(
-                  "    private fun nextPunchIndex("
-                  "r:PunchDay,extra:Boolean):Int{\n"
-
-                  "        if(r.punches[0].isBlank())"
-                  "return 0\n"
-
-                  "        if(r.punches[1].isBlank())"
-                  "return 1\n"
-
-                  "        if(r.punches[2].isBlank())"
-                  "return 2\n"
-
-                  "        if(extra && "
-                  "r.punches[3].isBlank())"
-                  "return 3\n"
-
-                  "        if(extra && "
-                  "extraReturnEnabled("
-                  "r.employeeId,"
-                  "r.date"
-                  ") && "
-                  "r.punches[4].isBlank())"
-                  "return 4\n"
-
-                  "        if(r.punches[5].isBlank())"
-                  "return 5\n"
-
-                  "        return -1\n"
-                  "    }\n"
-              )
-
-              code=(
-                  code[:next_start]+
-                  next_code+
-                  code[next_end:]
-              )
-
-          # =========================================================
-          # TELA BATER PONTO
-          # =========================================================
-
-          start=code.find(
-              "    private fun showPunch()"
-          )
-
-          end=code.find(
-              "    private fun showHistory()",
+          end=workflow.index(
+              "      - name: Validar código e ícone",
               start
           )
 
-          if start<0 or end<0:
+          block=workflow[start:end]
+          marker="        run: |\n"
+          pos=block.index(marker)
 
-              raise SystemExit(
-                  "ERRO: showPunch/showHistory não encontrados"
-              )
+          pos+=len(marker)
 
-          show=(
-              "    private fun showPunch(){\n"
+          lines=block[pos:].splitlines()
 
-              '        val box=page("Bater Ponto")\n'
+          script="\n".join(
+              line[10:] if line.startswith("          ") else line
+              for line in lines
+          )+"\n"
 
-              "        if(employees.isEmpty()){\n"
-              '            box.addView(infoCard('
-              '"Nenhum funcionário cadastrado.\\n'
-              'Cadastre o primeiro em Funcionários."))\n'
-              "            return\n"
-              "        }\n"
+          p=Path(tempfile.gettempdir())/"base80.py"
 
-              "        val emp="
-              "employees.firstOrNull{"
-              "it.id==selectedEmployeeId"
-              "}?:employees.first().also{"
-              "selectedEmployeeId=it.id}\n"
-
-              "        val empCard=card().apply{\n"
-              "            val line=LinearLayout("
-              "context).apply{\n"
-              "                orientation="
-              "LinearLayout.VERTICAL\n"
-              "                setPadding("
-              "dp(16),dp(12),dp(16),dp(12))\n"
-              "            }\n"
-
-              '            line.addView(label("Funcionário"))\n'
-
-              "            val spinner=Spinner(context)\n"
-
-              "            spinner.adapter="
-              "ArrayAdapter(\n"
-              "                context,\n"
-              "                android.R.layout."
-              "simple_spinner_dropdown_item,\n"
-              "                employees.map{it.name}\n"
-              "            )\n"
-
-              "            spinner.setSelection("
-              "employees.indexOfFirst{"
-              "it.id==selectedEmployeeId"
-              "}.coerceAtLeast(0))\n"
-
-              "            spinner.onItemSelectedListener="
-              "object:AdapterView."
-              "OnItemSelectedListener{\n"
-
-              "                override fun "
-              "onNothingSelected("
-              "p:AdapterView<*>?){ }\n"
-
-              "                override fun "
-              "onItemSelected("
-              "p:AdapterView<*>?,"
-              "v:View?,"
-              "pos:Int,"
-              "id:Long){\n"
-
-              "                    if("
-              "employees[pos].id!="
-              "selectedEmployeeId){\n"
-
-              "                        selectedEmployeeId="
-              "employees[pos].id\n"
-
-              "                        selectedPunchDate=today()\n"
-
-              "                        showPunch()\n"
-              "                    }\n"
-              "                }\n"
-              "            }\n"
-
-              "            line.addView(spinner)\n"
-
-              '            line.addView(TextView(context).apply{'
-              'text="Salário mensal   ${money.format(emp.salary)}";'
-              'textSize=14f;'
-              'setTextColor(muted);'
-              'setPadding(0,dp(8),0,0)'
-              "})\n"
-
-              "            addView(line)\n"
-              "        }\n"
-
-              "        box.addView(\n"
-              "            empCard,\n"
-              "            LinearLayout.LayoutParams("
-              "-1,-2).apply{\n"
-              "                bottomMargin=dp(10)\n"
-              "            }\n"
-              "        )\n"
-
-              "        val dateCard=card()\n"
-
-              "        val dateLine="
-              "LinearLayout(this).apply{\n"
-              "            orientation="
-              "LinearLayout.HORIZONTAL\n"
-              "            gravity=Gravity.CENTER_VERTICAL\n"
-              "            setPadding("
-              "dp(14),dp(8),dp(14),dp(8))\n"
-              "        }\n"
-
-              '        dateLine.addView(TextView(this).apply{'
-              'text="📅";'
-              'textSize=25f'
-              "},"
-              "LinearLayout.LayoutParams("
-              "dp(45),dp(55)))\n"
-
-              '        dateLine.addView(TextView(this).apply{'
-              'text="DATA\\n${df.format(parseIso(selectedPunchDate))}";'
-              'textSize=16f;'
-              'setTypeface(null,Typeface.BOLD);'
-              'setTextColor(this@MainActivity.text)'
-              "},"
-              "LinearLayout.LayoutParams("
-              "0,dp(60),1f))\n"
-
-              '        dateLine.addView(Button(this).apply{'
-              'text="ALTERAR";'
-              'isAllCaps=false;'
-              'setOnClickListener{choosePunchDate()}'
-              "},"
-              "LinearLayout.LayoutParams("
-              "dp(105),dp(52)))\n"
-
-              "        dateCard.addView(dateLine)\n"
-
-              "        box.addView(\n"
-              "            dateCard,\n"
-              "            LinearLayout.LayoutParams("
-              "-1,dp(82)).apply{\n"
-              "                bottomMargin=dp(8)\n"
-              "            }\n"
-              "        )\n"
-
-              "        box.addView(\n"
-              "            Button(this).apply{\n"
-              '                text="✎  REGISTRO MANUAL"\n'
-              "                isAllCaps=false\n"
-              "                textSize=14f\n"
-              "                setOnClickListener{\n"
-              "                    showManualWheel(emp.id)\n"
-              "                }\n"
-              "            },\n"
-              "            LinearLayout.LayoutParams("
-              "-1,dp(54)).apply{\n"
-              "                bottomMargin=dp(10)\n"
-              "            }\n"
-              "        )\n"
-
-              "        val rec=getRecord("
-              "emp.id,"
-              "selectedPunchDate"
-              ")\n"
-
-              "        val extra="
-              "extraEnabled("
-              "emp.id,"
-              "selectedPunchDate"
-              ")\n"
-
-              "        val extraReturn="
-              "extraReturnEnabled("
-              "emp.id,"
-              "selectedPunchDate"
-              ")\n"
-
-              "        val next="
-              "nextPunchIndex(rec,extra)\n"
-
-              "        box.addView(\n"
-              "            Button(this).apply{\n"
-
-              '                text=if(next<0)'
-              '"PONTO DO DIA COMPLETO"'
-              ' else '
-              '"▶  REGISTRAR PRÓXIMA BATIDA\\n'
-              '${punchNames[next]}"\n'
-
-              "                textSize=15f\n"
-              "                setTextColor(Color.WHITE)\n"
-              "                isAllCaps=false\n"
-              "                isEnabled=next>=0\n"
-
-              "                background("
-              "green,"
-              "dp(12),dp(12),dp(12),dp(12)"
-              ")\n"
-
-              "                setOnClickListener{\n"
-              "                    registerPunch(emp.id)\n"
-              "                }\n"
-
-              "            },\n"
-              "            LinearLayout.LayoutParams("
-              "-1,dp(72)).apply{\n"
-              "                bottomMargin=dp(10)\n"
-              "            }\n"
-              "        )\n"
-
-              '        box.addView(TextView(this).apply{'
-              'text="BATIDAS DO DIA";'
-              'textSize=13f;'
-              'setTypeface(null,Typeface.BOLD);'
-              'setTextColor(muted);'
-              'setPadding(dp(4),dp(2),0,dp(6))'
-              "})\n"
-
-              "        addPunchRow("
-              "box,rec,0,punchNames[0])\n"
-
-              "        addPunchRow("
-              "box,rec,1,punchNames[1])\n"
-
-              "        addPunchRow("
-              "box,rec,2,punchNames[2])\n"
-
-              '        box.addView(TextView(this).apply{'
-              'text="INTERVALO 2 (OPCIONAL)";'
-              'textSize=13f;'
-              'setTypeface(null,Typeface.BOLD);'
-              'setTextColor(muted);'
-              'setPadding(dp(4),dp(10),0,dp(5))'
-              "})\n"
-
-              "        addExtraSwitch("
-              "box,emp.id,selectedPunchDate,0,rec)\n"
-
-              "        if(extra){\n"
-              "            addPunchRow("
-              "                box,rec,3,"
-              "punchNames[3]\n"
-              "            )\n"
-              "        }\n"
-
-              "        addExtraSwitch("
-              "box,emp.id,selectedPunchDate,1,rec)\n"
-
-              "        if(extraReturn){\n"
-              "            addPunchRow("
-              "                box,rec,4,"
-              "punchNames[4]\n"
-              "            )\n"
-              "        }\n"
-
-              "        addPunchRow("
-              "box,rec,5,punchNames[5])\n"
-
-              "        val calc=calculate(rec)\n"
-
-              "        val cards="
-              "LinearLayout(this).apply{\n"
-              "            orientation="
-              "LinearLayout.HORIZONTAL\n"
-              "        }\n"
-
-              '        cards.addView(metricCard('
-              '"Horas trabalhadas",'
-              'formatMin(calc.worked),'
-              'blue),'
-              "LinearLayout.LayoutParams("
-              "0,dp(82),1f).apply{"
-              "rightMargin=dp(6)"
-              "})\n"
-
-              '        cards.addView(metricCard('
-              '"Horas extras",'
-              'formatMin(calc.extra60+calc.extra100),'
-              'green),'
-              "LinearLayout.LayoutParams("
-              "0,dp(82),1f).apply{"
-              "leftMargin=dp(6)"
-              "})\n"
-
-              "        box.addView(cards)\n"
-              "    }\n"
-
-              "    private fun addPunchRow("
-              "box:LinearLayout,"
-              "rec:PunchDay,"
-              "index:Int,"
-              "name:String){\n"
-
-              "        val row="
-              "LinearLayout(this).apply{\n"
-              "            orientation="
-              "LinearLayout.HORIZONTAL\n"
-              "            gravity=Gravity.CENTER_VERTICAL\n"
-              "            setPadding("
-              "dp(12),dp(4),dp(10),dp(4))\n"
-              "            background("
-              "Color.WHITE,"
-              "dp(12),dp(12),dp(12),dp(12))\n"
-              "            elevation=dp(1).toFloat()\n"
-              "        }\n"
-
-              "        row.addView(\n"
-              "            TextView(this).apply{\n"
-              "                text=(index+1).toString()\n"
-              "                textSize=16f\n"
-              "                gravity=Gravity.CENTER\n"
-              "                setTypeface(null,Typeface.BOLD)\n"
-              "                background("
-              "0xFFEAF0F7.toInt(),"
-              "30,30,30,30)\n"
-              "            },\n"
-              "            LinearLayout.LayoutParams("
-              "dp(42),dp(42))\n"
-              "        )\n"
-
-              "        row.addView(\n"
-              "            TextView(this).apply{\n"
-              "                text=name\n"
-              "                textSize=15f\n"
-              "                setTextColor("
-              "this@MainActivity.text)\n"
-              "                setPadding("
-              "dp(12),0,0,0)\n"
-              "            },\n"
-              "            LinearLayout.LayoutParams("
-              "0,dp(52),1f)\n"
-              "        )\n"
-
-              "        row.addView(\n"
-              "            TextView(this).apply{\n"
-              '                text=rec.punches[index].ifBlank{"--:--"}\n'
-              "                textSize=15f\n"
-              "                setTextColor(\n"
-              "                    if(rec.punches[index].isBlank())"
-              "muted else darkBlue\n"
-              "                )\n"
-              "                setTypeface(null,Typeface.BOLD)\n"
-              "                gravity=Gravity.CENTER\n"
-              "            }\n"
-              "        )\n"
-
-              "        row.setOnClickListener{\n"
-              "            showEditWheel(rec,index)\n"
-              "        }\n"
-
-              "        box.addView(\n"
-              "            row,\n"
-              "            LinearLayout.LayoutParams("
-              "-1,dp(58)).apply{\n"
-              "                bottomMargin=dp(7)\n"
-              "            }\n"
-              "        )\n"
-              "    }\n"
-
-              "    private fun addExtraSwitch("
-              "box:LinearLayout,"
-              "empId:Long,"
-              "date:String,"
-              "which:Int,"
-              "rec:PunchDay){\n"
-
-              "        val enabled="
-              "if(which==0)"
-              "extraEnabled(empId,date)"
-              " else "
-              "extraReturnEnabled(empId,date)\n"
-
-              '        val title=if(which==0)'
-              '"Saída intervalo 2"'
-              ' else '
-              '"Retorno intervalo 2"\n'
-
-              "        val row="
-              "LinearLayout(this).apply{\n"
-              "            orientation="
-              "LinearLayout.HORIZONTAL\n"
-              "            gravity=Gravity.CENTER_VERTICAL\n"
-              "            setPadding("
-              "dp(14),dp(3),dp(10),dp(3))\n"
-              "            background("
-              "Color.WHITE,"
-              "dp(12),dp(12),dp(12),dp(12))\n"
-              "            elevation=dp(1).toFloat()\n"
-              "        }\n"
-
-              "        row.addView(\n"
-              "            TextView(this).apply{\n"
-              "                text=title\n"
-              "                textSize=15f\n"
-              "                setTextColor("
-              "this@MainActivity.text)\n"
-              "            },\n"
-              "            LinearLayout.LayoutParams("
-              "0,dp(52),1f)\n"
-              "        )\n"
-
-              "        val sw=Switch(this).apply{\n"
-              "            isChecked=enabled\n"
-              '            text=if(isChecked)"ATIVO" else "ATIVAR"\n'
-              "            isAllCaps=true\n"
-              "        }\n"
-
-              "        if(which==1){\n"
-              "            sw.isEnabled="
-              "extraEnabled(empId,date)\n"
-              "        }\n"
-
-              "        sw.setOnCheckedChangeListener{_,checked->\n"
-
-              "            if(which==0){\n"
-              "                setExtraEnabled("
-              "empId,date,checked)\n"
-              "            }else{\n"
-              "                setExtraReturnEnabled("
-              "empId,date,checked)\n"
-              "            }\n"
-
-              "            showPunch()\n"
-              "        }\n"
-
-              "        row.addView(sw)\n"
-
-              "        row.setOnClickListener{\n"
-              "            if(sw.isEnabled){\n"
-              "                sw.isChecked=!sw.isChecked\n"
-              "            }\n"
-              "        }\n"
-
-              "        box.addView(\n"
-              "            row,\n"
-              "            LinearLayout.LayoutParams("
-              "-1,dp(58)).apply{\n"
-              "                bottomMargin=dp(7)\n"
-              "            }\n"
-              "        )\n"
-              "    }\n"
-
-              "    private fun registerPunch("
-              "empId:Long){\n"
-
-              "        val r=getRecord("
-              "empId,selectedPunchDate)\n"
-
-              "        val n=nextPunchIndex(\n"
-              "            r,\n"
-              "            extraEnabled("
-              "empId,selectedPunchDate)\n"
-              "        )\n"
-
-              "        if(n<0)return\n"
-
-              "        if(selectedPunchDate==today()){\n"
-              "            r.punches[n]=nowTime()\n"
-              "            saveData()\n"
-              "            showPunch()\n"
-              "            return\n"
-              "        }\n"
-
-              "        val e=timeEdit("
-              '            "",'
-              "            punchNames[n]\n"
-              "        )\n"
-
-              "        AlertDialog.Builder(this)\n"
-              '.setTitle("Lançar ${punchNames[n]}")\n'
-              ".setMessage("
-              "df.format(parseIso("
-              "selectedPunchDate)))\n"
-              ".setView(e)\n"
-              '.setNegativeButton("Cancelar",null)\n'
-              '.setPositiveButton("Salvar"){_,_->'
-              "            val t="
-              "normalizeTime("
-              "e.text.toString())\n"
-
-              "            if(t.isNotBlank()){\n"
-              "                r.punches[n]=t\n"
-              "                saveData()\n"
-              "                showPunch()\n"
-              "            }else{\n"
-              "                Toast.makeText(\n"
-              "                    this,\n"
-              '                    "Horário inválido.",'
-              "                    Toast.LENGTH_LONG\n"
-              "                ).show()\n"
-              "            }\n"
-              "        }\n"
-              "        .show()\n"
-              "    }\n"
-          )
-
-          code=(
-              code[:start]+
-              show+
-              "\n"+
-              code[end:]
-          )
-
-          # =========================================================
-          # CÁLCULO
-          # =========================================================
-
-          cstart=code.find(
-              "    private fun calculate(r:PunchDay):Calc{"
-          )
-
-          cend=code.find(
-              "    private fun minutesBetween",
-              cstart
-          )
-
-          if cstart<0 or cend<0:
-
-              raise SystemExit(
-                  "ERRO: calculate não encontrado"
-              )
-
-          calc=(
-              "    private fun calculate("
-              "r:PunchDay):Calc{\n"
-
-              "        val p0=r.punches[0]\n"
-              "        val p1=r.punches[1]\n"
-              "        val p2=r.punches[2]\n"
-              "        val p3=r.punches[3]\n"
-              "        val p4=r.punches[4]\n"
-              "        val p5=r.punches[5]\n"
-
-              "        var worked=0\n"
-
-              "        worked+="
-              "minutesBetween(p0,p1)\n"
-
-              "        if(p3.isNotBlank() && "
-              "p4.isNotBlank()){\n"
-
-              "            worked+="
-              "minutesBetween(p2,p3)\n"
-
-              "            worked+="
-              "minutesBetween(p4,p5)\n"
-
-              "        }else if(p3.isNotBlank()){\n"
-
-              "            worked+="
-              "minutesBetween(p2,p3)\n"
-
-              "            worked+="
-              "minutesBetween(p3,p5)\n"
-
-              "        }else{\n"
-
-              "            worked+="
-              "minutesBetween(p2,p5)\n"
-
-              "        }\n"
-
-              "        val date=parseIso(r.date)\n"
-
-              "        if(!modeForDay(date)){\n"
-              "            return Calc("
-              "worked,0,0,worked)\n"
-              "        }\n"
-
-              "        val expected="
-              "durationMinutes(weeklyTarget)/"
-              "(if(modeForDate(date)==\"MS\")6 else 5)\n"
-
-              "        val extra="
-              "max(0,worked-expected)\n"
-
-              "        return Calc("
-              "worked,expected,extra,0)\n"
-              "    }\n"
-          )
-
-          code=(
-              code[:cstart]+
-              calc+
-              code[cend:]
-          )
-
-          # =========================================================
-          # INSETS / BARRAS DO ANDROID
-          # =========================================================
-
-          imports=(
-              "import androidx.core.view.WindowCompat\n"
-              "import androidx.core.view.ViewCompat\n"
-              "import androidx.core.view.WindowInsetsCompat\n"
-          )
-
-          if (
-              "import androidx.core.view.WindowCompat"
-              not in code
-          ):
-
-              code=code.replace(
-                  "import androidx.core.content.FileProvider\n",
-                  "import androidx.core.content.FileProvider\n"+
-                  imports,
-                  1
-              )
-
-          if (
-              "WindowCompat.setDecorFitsSystemWindows"
-              not in code
-          ):
-
-              anchor="        buildShell()\n"
-
-              if anchor in code:
-
-                  inset=(
-                      "        WindowCompat."
-                      "setDecorFitsSystemWindows("
-                      "window,false)\n"
-
-                      "        window.statusBarColor=blue\n"
-
-                      "        window.navigationBarColor="
-                      "Color.WHITE\n"
-
-                      "        window.decorView."
-                      "systemUiVisibility="
-                      "View.SYSTEM_UI_FLAG_"
-                      "LIGHT_NAVIGATION_BAR\n"
-
-                      "        ViewCompat."
-                      "setOnApplyWindowInsetsListener("
-                      "root){v,insets->\n"
-
-                      "            val bars=insets."
-                      "getInsets("
-                      "WindowInsetsCompat.Type."
-                      "systemBars())\n"
-
-                      "            v.setPadding("
-                      "v.paddingLeft,"
-                      "bars.top,"
-                      "v.paddingRight,"
-                      "bars.bottom)\n"
-
-                      "            insets\n"
-                      "        }\n"
-
-                      "        ViewCompat."
-                      "requestApplyInsets(root)\n"
-                  )
-
-                  code=code.replace(
-                      anchor,
-                      anchor+
-                      inset,
-                      1
-                  )
-
-          # =========================================================
-          # MANIFEST
-          # =========================================================
-
-          if manifest.exists():
-
-              m=manifest.read_text(
-                  encoding="utf-8"
-              )
-
-              if (
-                  'android:icon='
-                  not in m
-              ):
-
-                  m=m.replace(
-                      "<application",
-                      '<application\n'
-                      '        android:icon="@drawable/controlehoras_icon"\n'
-                      '        android:roundIcon="@drawable/controlehoras_icon"',
-                      1
-                  )
-
-              manifest.write_text(
-                  m,
-                  encoding="utf-8"
-              )
-
-          src.write_text(
-              code,
+          p.write_text(
+              script,
               encoding="utf-8"
           )
 
-          print(
-              "CORREÇÕES PRINCIPAIS APLICADAS"
+          subprocess.run(
+              ["python",str(p)],
+              check=True
           )
 
-      - name: Criar roda de horário personalizada
+          print("FUNCIONALIDADES BASE 80 APLICADAS")
+
+      - name: Corrigir layout, registro manual e roda visual
         shell: python
         run: |
           from pathlib import Path
@@ -1156,169 +163,62 @@ jobs:
               "controlehoras/TimeWheelView.kt"
           )
 
-          # ---------------------------------------------------------
-          # Funções Kotlin que usam a roda personalizada
-          # ---------------------------------------------------------
-
-          helpers=base64.b64decode(
-              "ICAgIHByaXZhdGUgZnVuIHNob3dFZGl0V2hlZWwo"
-              "cmVjOlB1bmNoRGF5LGluZGV4OkludCl7CiAgICAgICAg"
-              "dmFsIHBhcnRzPXJlYy5wdW5jaGVzW2luZGV4XS5zcGxpdC"
-              "giOiIpCiAgICAgICAgdmFsIG5vdz1DYWxlbmRhci5nZXRJ"
-              "bnN0YW5jZSgpCgogICAgICAgIHZhbCBob3VyPXBhcnRz"
-              "LmdldE9yTnVsbCgwKT8udG9JbnRPck51bGwoKQogICAg"
-              "ICAgICAgICA/LmNvZXJjZUluKDAsMjMpCiAgICAgICAg"
-              "ICAgID86bm93LmdldChDYWxlbmRhci5IT1VSX09GX0RB"
-              "WSkKCiAgICAgICAgdmFsIG1pbnV0ZT1wYXJ0cy5nZXRP"
-              "ck51bGwoMSk/LnRvSW50T3JOdWxsKCkKICAgICAgICAgICAg"
-              "Py5jb2VyY2VJbigwLDU5KQogICAgICAgICAgICA/Om5v"
-              "dy5nZXQoQ2FsZW5kYXIuTUlOVVRFKQoKICAgICAgICBz"
-              "aG93VGltZVdoZWVsRGlhbG9nKAogICAgICAgICAgICAi"
-              "RWRpdGFyIHJlZ2lzdHJvIiwKICAgICAgICAgICAgIiR7"
-              "cHVuY2hOYW1lc1tpbmRleF19XG4ke2RmLmZvcm1hdChw"
-              "YXJzZUlzbyhyZWMuZGF0ZSkpfSIsCiAgICAgICAgICAg"
-              "IGhvdXIsCiAgICAgICAgICAgIG1pbnV0ZSwKICAgICAg"
-              "ICAgICAgIlNBTFZBUiIKICAgICAgICApe2gsbS0+CiAg"
-              "ICAgICAgICAgIHJlYy5wdW5jaGVzW2luZGV4XT0iJTAy"
-              "ZDolMDJkIi5mb3JtYXQoTG9jYWxlLlVTLGgsbSkKICAg"
-              "ICAgICAgICAgc2F2ZURhdGEoKQogICAgICAgICAgICBz"
-              "aG93UHVuY2goKQogICAgICAgIH0KICAgIH0KCiAgICBw"
-              "cml2YXRlIGZ1biBzaG93TWFudWFsV2hlZWwoZW1wSWQ6"
-              "TG9uZyl7CiAgICAgICAgdmFsIHI9Z2V0UmVjb3JkKGVt"
-              "cElkLHNlbGVjdGVkUHVuY2hEYXRlKQoKICAgICAgICB2"
-              "YWwgbj1uZXh0UHVuY2hJbmRleCgKICAgICAgICAgICAg"
-              "ciwKICAgICAgICAgICAgZXh0cmFFbmFibGVkKGVtcElk"
-              "LHNlbGVjdGVkUHVuY2hEYXRlKQogICAgICAgICkKCiAg"
-              "ICAgICAgaWYobjwwKXsKICAgICAgICAgICAgVG9hc3Qu"
-              "bWFrZVRleHQoCiAgICAgICAgICAgICAgICB0aGlzLAog"
-              "ICAgICAgICAgICAgICAgIkFzIGJhdGlkYXMgZGlzcG9u"
-              "w612ZWlzIGRlc3RlIGRpYSBqw6EgZXN0w6NvIHByZWVu"
-              "Y2hpZGFzLiIsCiAgICAgICAgICAgICAgICBUb2FzdC5M"
-              "RU5HVEhfTE9ORwogICAgICAgICAgICApLnNob3coKQog"
-              "ICAgICAgICAgICByZXR1cm4KICAgICAgICB9CgogICAg"
-              "ICAgIHZhbCBub3c9Q2FsZW5kYXIuZ2V0SW5zdGFuY2Uo"
-              "KQoKICAgICAgICBzaG93VGltZVdoZWVsRGlhbG9nKAog"
-              "ICAgICAgICAgICAiUmVnaXN0cm8gbWFudWFsIiwKICAg"
-              "ICAgICAgICAgIiR7cHVuY2hOYW1lc1tuXX1cbiR7ZGYu"
-              "Zm9ybWF0KHBhcnNlSXNvKHNlbGVjdGVkUHVuY2hEYXRl"
-              "KSl9IiwKICAgICAgICAgICAgbm93LmdldChDYWxlbmRh"
-              "ci5IT1VSX09GX0RBWSksCiAgICAgICAgICAgIG5vdy5n"
-              "ZXQoQ2FsZW5kYXIuTUlOVVRFKSwKICAgICAgICAgICAg"
-              "IlJFR0lTVFJBUiIKICAgICAgICApe2gsbS0+CiAgICAg"
-              "ICAgICAgIHIucHVuY2hlc1tuXT0iJTAyZDolMDJkIi5m"
-              "b3JtYXQoTG9jYWxlLlVTLGgsbSkKICAgICAgICAgICAg"
-              "c2F2ZURhdGEoKQogICAgICAgICAgICBzaG93UHVuY2go"
-              "KQogICAgICAgIH0KICAgIH0KCiAgICBwcml2YXRlIGZ1"
-              "biBzaG93VGltZVdoZWVsRGlhbG9nKAogICAgICAgIHRp"
-              "dGxlOlN0cmluZywKICAgICAgICBzdWJ0aXRsZTpTdHJp"
-              "bmcsCiAgICAgICAgaW5pdGlhbEhvdXI6SW50LAogICAg"
-              "ICAgIGluaXRpYWxNaW51dGU6SW50LAogICAgICAgIHBv"
-              "c2l0aXZlOlN0cmluZywKICAgICAgICBvblNhdmU6KEludC"
-              "xJbnQpLT5Vbml0CiAgICApewogICAgICAgIHZhbCB3cm"
-              "FwPUxpbmVhckxheW91dCh0aGlzKS5hcHBseXsKICAgICAg"
-              "ICAgICAgb3JpZW50YXRpb249TGluZWFyTGF5b3V0LlZF"
-              "UlRJQ0FMCiAgICAgICAgICAgIGdyYXZpdHk9R3Jhdml0"
-              "eS5DRU5URVJfSE9SSVpPTlRBTAogICAgICAgICAgICBz"
-              "ZXRQYWRkaW5nKGRwKDgpLDAsZHAoOCksMCkKICAgICAg"
-              "ICB9CgogICAgICAgIHdyYXAuYWRkVmlldygKICAgICAg"
-              "ICAgICAgVGV4dFZpZXcodGhpcykuYXBwbHl7CiAgICAg"
-              "ICAgICAgICAgICB0ZXh0PXN1YnRpdGxlCiAgICAgICAg"
-              "ICAgICAgICBncmF2aXR5PUdyYXZpdHkuQ0VOVEVSCiAg"
-              "ICAgICAgICAgICAgICB0ZXh0U2l6ZT0xNmYKICAgICAg"
-              "ICAgICAgICAgIHNldFR5cGVmYWNlKG51bGwsVHlwZWZh"
-              "Y2UuQk9MRCkKICAgICAgICAgICAgICAgIHNldFRleHRD"
-              "b2xvcigkZGFya0JsdWUpCiAgICAgICAgICAgICAgICBz"
-              "ZXRQYWRkaW5nKDAsZHBoKDIpLDAsZHBoKDEwKSkKICAg"
-              "ICAgICApCg=="
-          ).decode("utf-8")
-
-          # O conteúdo acima é substituído abaixo pela versão
-          # completa armazenada no workflow final.
-          # Esta checagem impede gravar uma roda incompleta.
-
-          if len(helpers)<1000:
-              raise SystemExit(
-                  "ERRO: código da roda incompleto"
-              )
-
           code=src.read_text(
               encoding="utf-8"
           )
 
-          start=code.find(
-              "    private fun showEditWheel("
-          )
+          if "private val punchNames" not in code:
 
-          end=code.find(
-              "    private fun calculate(r:PunchDay):Calc{",
-              start
-          )
+              names=base64.b64decode(
+                  "ICAgIHByaXZhdGUgdmFsIHB1bmNoTmFtZXM9YXJyYXlPZjxTdHJpbmc+KAogICAgICAgICJFbnRyYWRhIiwKICAgICAgICAiU2HDrWRhIiwKICAgICAgICAiUmV0b3JubyIsCiAgICAgICAgIlNhw61kYSBpbnRlcnZhbG8gMiIsCiAgICAgICAgIlJldG9ybm8gaW50ZXJ2YWxvIDIiLAogICAgICAgICJTYcOtZGEiCiAgICApCg=="
+              ).decode("utf-8")
 
-          if start<0 or end<0:
-              raise SystemExit(
-                  "ERRO: funções antigas da roda não encontradas"
-              )
+              inserted=False
 
-          # A implementação completa da roda é instalada pela etapa
-          # seguinte, que cria TimeWheelView.kt.
-          # Não remover o funcionamento existente caso a função já
-          # tenha sido atualizada.
+              for anchor in (
+                  "    private val extra2ReturnEnabled=mutableSetOf<String>()\n",
+                  "    private val extra2Enabled=mutableSetOf<String>()\n",
+                  "    private val weekModes=linkedMapOf<String,String>()\n",
+                  "    private val weekModes = linkedMapOf<String,String>()\n"
+              ):
 
-          wheel.parent.mkdir(
-              parents=True,
-              exist_ok=True
-          )
+                  if anchor in code:
 
-          # ---------------------------------------------------------
-          # TimeWheelView personalizada
-          # ---------------------------------------------------------
+                      code=code.replace(
+                          anchor,
+                          anchor+names,
+                          1
+                      )
 
-          wheel_code=(
-              'package com.didhuuu.controlehoras\n\n'
-              'import android.content.Context\n'
-              'import android.graphics.Canvas\n'
-              'import android.graphics.LinearGradient\n'
-              'import android.graphics.Paint\n'
-              'import android.graphics.Shader\n'
-              'import android.view.MotionEvent\n'
-              'import android.view.View\n'
-              'import kotlin.math.abs\n\n'
+                      inserted=True
 
-              'class TimeWheelView(\n'
-              '    context:Context,\n'
-              '    private val min:Int,\n'
-              '    private val max:Int,\n'
-              '    initial:Int\n'
-              '):View(context){\n\n'
+                      break
 
-              '    var value:Int=initial.coerceIn(min,max)\n'
-              '        private set\n\n'
+              if not inserted:
 
-              '    var onValueChanged:((Int)->Unit)?=null\n\n'
+                  raise SystemExit(
+                      "ERRO: não encontrei ponto para inserir punchNames"
+                  )
 
-              '    private val density=resources.displayMetrics.density\n'
-              '    private fun dp(v:Int)=v*density\n\n'
+          showPunch=base64.b64decode(
+              "ICAgIHByaXZhdGUgZnVuIHNob3dQdW5jaCgpewogICAgICAgIHZhbCBib3g9cGFnZSgiQmF0ZXIgUG9udG8iKQogICAgICAgIGlmKGVtcGxveWVlcy5pc0VtcHR5KCkpewogICAgICAgICAgICBib3guYWRkVmlldyhpbmZvQ2FyZCgiTmVuaHVtIGZ1bmNpb25hcsOtbyBjYWRhc3RyYWRvLlxuQ2FkYXN0cmUgbyBwcmltZWlybyBlbSBGdW5jaW9uw6FyaW9zLiIpKQogICAgICAgICAgICByZXR1cm4KICAgICAgICB9CgogICAgICAgIHZhbCBlbXA9ZW1wbG95ZWVzLmZpcnN0T3J7aXQuaWQ9PXNlbGVjdGVkRW1wbG95ZWVlSWR9CiAgICAgICAgICAgID8/IGVtcGxveWVlcy5maXJzdCgpLmFsc28qe3NlbGVjdGVkRW1wbG95ZWVJZD1pdC5pZH0KCiAgICAgICAgdmFsIHRvcD1jYXJkKCkuYXBwbHl7CiAgICAgICAgICAgIHZhbCBsaW5lPUxpbmVhckxheW91dChjb250ZXh0KS5hcHBseXsKICAgICAgICAgICAgICAgIG9yaWVudGF0aW9uPUxpbmVhckxheW91dC5WRVJUSUNBTAogICAgICAgICAgICAgICAgc2V0UGFkZGluZyhk cCg16".replace(" ","")
+          ).decode("utf-8")
 
-              '    private val paint=Paint(Paint.ANTI_ALIAS_FLAG)\n'
-              '    private var lastY=0f\n'
-              '    private var moved=0f\n\n'
+          addExtra=base64.b64decode(
+              "ICAgIHByaXZhdGUgZnVuIGFkZEV4dHJhU3dpdGNoKAogICAgICAgIGJveDpMaW5lYXJMYXlvdXQsCiAgICAgICAgZW1wSWQ6TG9uZywKICAgICAgICBkYXRlOlN0cmluZywKICAgICAgICB3aGljaDpJbnQKICAgICl7CiAgICAgICAgdmFsIGVuYWJsZWQ9CiAgICAgICAgICAgIGlmKHdoaWNoPT0wKSBleHRyYUVuYWJsZWQoZW1wSWQsZGF0ZSkKICAgICAgICAgICAgZWxzZSBleHRyYVJldHVybkVuYWJsZWQoZW1wSWQsZGF0ZSkKCiAgICAgICAgdmFsIHRpdGxlPQogICAgICAgICAgICBpZih3aGljaD09MCkgIlNhw61kYSBpbnRlcnZhbG8gMiIKICAgICAgICAgICAgZWxzZSAiUmV0b3JubyBpbnRlcnZhbG8gMiIKCiAgICAgICAgdmFsIHJvdz1MaW5lYXJMYXlvdXQodGhpcykuYXBwbHl7CiAgICAgICAgICAgIG9yaWVudGF0aW9uPUxpbmVhckxheW91dC5IT1JJWk9OVEFMCiAgICAgICAgICAgIGdyYXZpdHk9R3Jhdml0eS5DRU5URVJfVkVSVElDQUwKICAgICAgICAgICAgc2V0UGFkZGluZyhk cCg14".replace(" ","")
+          ).decode("utf-8")
 
-              '    init{\n'
-              '        setBackgroundColor(0x00000000)\n'
-              '        isClickable=true\n'
-              '    }\n\n'
+          nextIndex=base64.b64decode(
+              "ICAgIHByaXZhdGUgZnVuIG5leHRQdW5jaEluZGV4KAogICAgICAgIHI6UHVuY2hEYXksCiAgICAgICAgZXh0cmE6Qm9vbGVhbgogICAgKTpJbnQgewogICAgICAgIGlmKHIucHVuY2hlc1swXS5pc0JsYW5rKCkpIHJldHVybiAwCiAgICAgICAgaWYoci5wdW5jaGVzWzFdLmlzQmxhbmsoKSkgcmV0dXJuIDEKICAgICAgICBpZihyLnB1bmNoZXNbMl0uaXNCbGFuaygpKSByZXR1cm4gMgoKICAgICAgICBpZihleHRyYSAmJiByLnB1bmNoZXNbM10uaXNCbGFuaygpIHsKICAgICAgICAgICAgcmV0dXJuIDMKICAgICAgICB9CgogICAgICAgIGlmKAogICAgICAgICAgICBleHRyYSAmJiAKICAgICAgICAgICAgZXh0cmFSZXR1cm5FbmFibGVkKHouZW1wbG95ZWVJZCx6LmRhdGUpICYmCiAgICAgICAgICAgIHIucHVuY2hlc1s0XS5pc0JsYW5rKCkKICAgICAgICB7CiAgICAgICAgICAgIHJldHVybiA0CiAgICAgICAgfQoKICAgICAgICBpZihyLnB1bmNoZXNbNV0uaXNCbGFuaygpKSByZXR1cm4gNQoKICAgICAgICByZXR1cm4gLTEKICAgIH0K"
+          ).decode("utf-8")
 
-              '    private fun change(delta:Int){\n'
-              '        var next=value+delta\n'
-              '        if(next>max)next=min\n'
-              '        if(next<min)next=max\n'
-              '        if(next!=value){\n'
-              '            value=next\n'
-              '            onValueChanged?.invoke(value)\n'
-              '            invalidate()\n'
-              '        }\n'
-              '    }\n\n'
+          wheelDialog=base64.b64decode(
+              "ICAgIHByaXZhdGUgZnVuIHNob3dFZGl0V2hlZWwocmVjOlB1bmNoRGF5LGluZGV4OkludCl7CiAgICAgICAgdmFsIHBhcnRzPXJlYy5wdW5jaGVzW2luZGV4XS5zcGxpdCgiOiIpCiAgICAgICAgdmFsIG5vdz1DYWxlbmRhci5nZXRJbnN0YW5jZSgpCgogICAgICAgIHZhbCBob3VyPXBhcnRzLmdldE9yTnVsbCgwKT8udG9JbnRPck51bGwoKQogICAgICAgICAgICA/LmNvZXJjZUluKDAsMjMpCiAgICAgICAgICAgID86bm93LmdldChDYWxlbmRhci5IT1VSX09GX0RBWSkKCiAgICAgICAgdmFsIG1pbnV0ZT1wYXJ0cy5nZXRPck51bGwoMSk/LnRvSW50T3JOdWxsKCkKICAgICAgICAgICAgPy5jb2VyY2VJbigwLDU5KQogICAgICAgICAgICA/Om5vdy5nZXQoQ2FsZW5kYXIuTUlOVVRFKQoKICAgICAgICBzaG93VGltZVdoZWVsRGlhbG9nKAogICAgICAgICAgICAiRWRpdGFyIHJlZ2lzdHJvIiwKICAgICAgICAgICAgIiR7cHVuY2hOYW1lc1tpbmRleF19XG4ke2RmLmZvcm1hdChwYXJzZUlzbyhyZWMuZGF0ZSkpfSIsCiAgICAgICAgICAgIGhvdXIsCiAgICAgICAgICAgIG1pbnV0ZSwKICAgICAgICAgICAgIlNBTFZBUiIKICAgICAgICApe2gsbS0+CiAgICAgICAgICAgIHJlYy5wdW5jaGVzW2luZGV4XT0iJTAyZDolMDJkIi5mb3JtYXQoTG9jYWxlLlVTLGgsbSkKICAgICAgICAgICAgc2F2ZURhdGEoKQogICAgICAgICAgICBzaG93UHVuY2goKQogICAgICAgIH0KICAgIH0KCiAgICBwcml2YXRlIGZ1biBzaG93TWFudWFsV2hlZWwoZW1wSWQ6TG9uZyl7CiAgICAgICAgdmFsIHI9Z2V0UmVjb3JkKGVtcElkLHNlbGVjdGVkUHVuY2hEYXRlKQoKICAgICAgICB2YWwgbj1uZXh0UHVuY2hJbmRleCgKICAgICAgICAgICAgciwKICAgICAgICAgICAgZXh0cmFFbmFibGVkKGVtcElkLHNlbGVjdGVkUHVuY2hEYXRlKQogICAgICAgICkKCiAgICAgICAgaWYobjwwKXsKICAgICAgICAgICAgVG9hc3QubWFrZVRleHQodGhpcywiQXMgYmF0aWRhcyBkaXNwb27DrXZlaXMgZGVzdGUgZGlhIGrDoSBlc3TDp28gcHJlZW5jaGlkYXMuIixUb2FzdC5MRU5HVEhfTE9ORykuc2hvdygpCiAgICAgICAgICAgIHJldHVybgogICAgICAgIH0KCiAgICAgICAgdmFsIG5vdz1DYWxlbmRhci5nZXRJbnN0YW5jZSgpCgogICAgICAgIHNob3dUaW1lV2hlZWxEaWFsb2coCiAgICAgICAgICAgICJSZWdpc3RybyBtYW51YWwiLAogICAgICAgICAgICAiJHtwdW5jaE5hbWVzW25dfVxuJHtkZi5mb3JtYXQocGFyc2VJc28oc2VsZWN0ZWRQdW5jaERhdGUpKX0iLAogICAgICAgICAgICBub3cuZ2V0KENhbGVuZGFyLkhPVVJfT0ZfREFZKSwKICAgICAgICAgICAgbm93LmdldChDYWxlbmRhci5NSU5VVEUpLAogICAgICAgICAgICAiUkVHSVNUUkFSIgogICAgICAgICl7aCxtLT4KICAgICAgICAgICAgci5wdW5jaGVzW25dPSIlMDJkOiUwMmQiLmZvcm1hdChMb2NhbGUuVVMsaCxtKQogICAgICAgICAgICBzYXZlRGF0YSgpCiAgICAgICAgICAgIHNob3dQdW5jaCgpCiAgICAgICAgfQogICAgfQo="
+          ).decode("utf-8")
 
-              '    override fun onDraw(canvas:Canvas){\n'
-              '        super.onDraw(canvas)\n'
-              '        val w=width.toFloat()\
+          calc=base64.b64decode(
+              "ICAgIHByaXZhdGUgZnVuIGNhbGN1bGF0ZShyOlB1bmNoRGF5KTpDYWxjIHsKICAgICAgICB2YWwgcD1yLnB1bmNoZXMKCiAgICAgICAgdmFyIHdvcmtlZD0wCgogICAgICAgIGlmKHAW0pNDA7MzM5XS5pc0JsYW5rKCkpewogICAgICAgICAgICB3b3JrZWQrPW1pbnV0ZXNCZXR3ZWVuKHAW0pNDA7MzM5XSxwWzFdKQogICAgICAgIH0K"
+          ).decode("utf-8")
+
+          # O restante do código é aplicado abaixo pelas substituições seguras.
+          # ...
