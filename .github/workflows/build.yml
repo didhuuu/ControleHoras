@@ -295,25 +295,21 @@ jobs:
 
           print("SOM DA ROLETA CRIADO")
 
-      - name: Corrigir tela e instalar roleta personalizada
+      - name: Instalar roleta personalizada — sem executar script legado
         shell: python
         run: |
           from pathlib import Path
           from urllib.request import urlopen
-          import subprocess
-          import tempfile
           import re
+          import textwrap
 
           print("========================================")
-          print("PREPARANDO ROLETA")
+          print("INSTALANDO ROLETA DE FORMA DETERMINÍSTICA")
           print("========================================")
 
           src = Path(
-              "ControleHoras/"
-              "app/src/main/java/"
-              "com/didhuuu/"
-              "controlehoras/"
-              "MainActivity.kt"
+              "ControleHoras/app/src/main/java/"
+              "com/didhuuu/controlehoras/MainActivity.kt"
           )
 
           if not src.exists():
@@ -327,363 +323,169 @@ jobs:
 
           # ==================================================
           # IMPORTANTE:
-          # SHA CORRETO DA IMPLEMENTAÇÃO DA ROLETA.
-          # O COMMIT TEM 40 CARACTERES E TERMINA EM f2b.
+          # O workflow antigo NÃO será executado.
+          #
+          # Apenas extraímos dele as partes estáveis da roleta.
           # ==================================================
 
-          url = (
+          old_url = (
               "https://raw.githubusercontent.com/"
               "didhuuu/ControleHoras/"
               "39fc6bfb41ebc7b01d6c435a85b5228e735f3f2b/"
               ".github/workflows/build.yml"
           )
 
-          workflow = urlopen(
-              url,
+          legacy = urlopen(
+              old_url,
               timeout=60
           ).read().decode("utf-8")
 
-          step_name = (
-              "      - name: "
-              "Corrigir tela e instalar "
-              "roleta personalizada"
+          def extract_raw(name):
+
+              pattern = (
+                  re.escape(name)
+                  + r"\s*=\s*r'''([\s\S]*?)\n\s*'''"
+              )
+
+              m = re.search(
+                  pattern,
+                  legacy
+              )
+
+              if not m:
+                  raise SystemExit(
+                      "ERRO: bloco legado não encontrado: "
+                      + name
+                  )
+
+              return textwrap.dedent(
+                  m.group(1)
+              ).strip("\n")
+
+          wheel_class = extract_raw(
+              "wheel_class"
           )
 
-          if step_name not in workflow:
+          wheel_dialog = extract_raw(
+              "wheel_dialog"
+          )
+
+          edit_method = extract_raw(
+              "edit_method"
+          )
+
+          manual_method = extract_raw(
+              "manual_method"
+          )
+
+          register_method = extract_raw(
+              "register_method"
+          )
+
+          # ==================================================
+          # IMPORTS DA ROLETA
+          # ==================================================
+
+          imports = [
+
+              "import android.content.Context",
+
+              "import android.graphics.Canvas",
+
+              "import android.graphics.Paint",
+
+              "import android.graphics.Path",
+
+              "import android.graphics.LinearGradient",
+
+              "import android.graphics.Shader",
+
+              "import android.graphics.RectF",
+
+              "import android.media.AudioAttributes",
+
+              "import android.media.SoundPool",
+
+              "import android.view.MotionEvent",
+
+              "import android.view.View"
+          ]
+
+          package_end = code.find("\n")
+
+          if package_end < 0:
+
               raise SystemExit(
-                  "ERRO: etapa da roleta não encontrada."
+                  "ERRO: package não encontrado."
               )
 
-          start = workflow.index(
-              step_name
-          )
+          for imp in imports:
 
-          end_marker = (
-              "      - name: "
-              "Validar projeto antes do Gradle"
-          )
+              if re.search(
+                  r"(?m)^"
+                  + re.escape(imp)
+                  + r"\s*$",
+                  code
+              ) is None:
 
-          end = workflow.index(
-              end_marker,
-              start
-          )
-
-          block = workflow[start:end]
-
-          marker = "        run: |\n"
-
-          pos = block.index(marker) + len(marker)
-
-          lines = block[pos:].splitlines()
-
-          script = "\n".join(
-              line[10:]
-              if line.startswith("          ")
-              else line
-              for line in lines
-          ).rstrip() + "\n"
-
-          # ==================================================
-          # CORRIGIR O ERRO ORIGINAL DO main_index
-          # ==================================================
-
-          script = re.sub(
-              r"(?m)^(\s*)main_index\s*=\s*\n"
-              r"\s*code\.find\(",
-              r"\1main_index = code.find(",
-              script
-          )
-
-          # ==================================================
-          # OUTRA VARIAÇÃO POSSÍVEL DO MESMO ERRO
-          # ==================================================
-
-          script = re.sub(
-              r"(?m)^(\s*)main_index\s*=\s*"
-              r"\n\s*code\.find\(",
-              r"\1main_index = code.find(",
-              script
-          )
-
-          # ==================================================
-          # IMPEDIR O BLOQUEIO DE BATIDA VAZIA
-          # ==================================================
-
-          empty_start = script.find(
-              "# PERMITIR EDITAR BATIDA VAZIA"
-          )
-
-          if empty_start >= 0:
-
-              empty_end = script.find(
-                  "# GARANTIR MANIFESTO",
-                  empty_start
-              )
-
-              if empty_end >= 0:
-
-                  script = (
-                      script[:empty_start]
-                      + script[empty_end:]
+                  code = (
+                      code[:package_end + 1]
+                      + imp
+                      + "\n"
+                      + code[package_end + 1:]
                   )
 
-                  print(
-                      "BLOCO DE BATIDA VAZIA REMOVIDO"
-                  )
+                  package_end += len(imp) + 1
 
           # ==================================================
-          # IMPORTANTE:
-          # corrigir a condição do script antigo.
-          #
-          # Antes ele verificava apenas:
-          #
-          # showControleHorasWheelDialog(
-          #
-          # Mas uma CHAMADA da função já fazia o teste passar.
-          #
-          # Agora exigimos a DEFINIÇÃO REAL:
-          #
-          # private fun showControleHorasWheelDialog(
+          # FUNÇÕES AUXILIARES
           # ==================================================
 
-          script = script.replace(
-              'if "showControleHorasWheelDialog(" not in code:',
-              'if "private fun showControleHorasWheelDialog(" not in code:'
-          )
+          def indent_block(
+              block,
+              spaces
+          ):
 
-          script = re.sub(
-              r'if\s+"showControleHorasWheelDialog\("\s+'
-              r'not\s+in\s+code:',
-              'if "private fun showControleHorasWheelDialog(" not in code:',
-              script
-          )
+              prefix = " " * spaces
 
-          # ==================================================
-          # GARANTIR showEditWheel ANTES DO SCRIPT ANTIGO
-          # ==================================================
-
-          if "private fun showEditWheel(" not in code:
-
-              anchor = code.find(
-                  "    private fun showManualWheel("
+              return "\n".join(
+                  prefix + line
+                  if line.strip()
+                  else ""
+                  for line in block.splitlines()
               )
 
-              if anchor < 0:
-                  raise SystemExit(
-                      "ERRO: showManualWheel não encontrada."
-                  )
+          def insert_before(
+              code,
+              anchor,
+              block
+          ):
 
-              edit_method = r'''
-              private fun showEditWheel(
-                  rec:PunchDay,
-                  index:Int
-              ){
+              pos = code.find(anchor)
 
-                  val old=
-                      rec.punches[index]
-
-                  val parts=
-                      old.split(":")
-
-                  val now=
-                      Calendar.getInstance()
-
-                  val hour=
-                      if(parts.size==2)
-                          parts[0].toIntOrNull()
-                              ?:now.get(
-                                  Calendar.HOUR_OF_DAY
-                              )
-                      else
-                          now.get(
-                              Calendar.HOUR_OF_DAY
-                          )
-
-                  val minute=
-                      if(parts.size==2)
-                          parts[1].toIntOrNull()
-                              ?:now.get(
-                                  Calendar.MINUTE
-                              )
-                      else
-                          now.get(
-                              Calendar.MINUTE
-                          )
-
-                  showControleHorasWheelDialog(
-                      "Editar registro",
-                      df.format(
-                          parseIso(rec.date)
-                      ),
-                      hour,
-                      minute
-                  ){value->
-
-                      rec.punches[index]=value
-
-                      saveData()
-
-                      showPunch()
-                  }
-              }
-
-              '''
-
-              code = (
-                  code[:anchor]
-                  + edit_method
-                  + code[anchor:]
-              )
-
-              src.write_text(
-                  code,
-                  encoding="utf-8"
-              )
-
-              code = src.read_text(
-                  encoding="utf-8"
-              )
-
-          # ==================================================
-          # COMPILAR O SCRIPT PYTHON ANTES DE EXECUTAR
-          # ==================================================
-
-          compile(
-              script,
-              "corrigir_roleta.py",
-              "exec"
-          )
-
-          temp_script = (
-              Path(tempfile.gettempdir())
-              / "corrigir_roleta.py"
-          )
-
-          temp_script.write_text(
-              script,
-              encoding="utf-8"
-          )
-
-          print(
-              "SINTAXE PYTHON DA ROLETA OK"
-          )
-
-          # ==================================================
-          # EXECUTAR TRANSFORMAÇÃO ORIGINAL
-          # ==================================================
-
-          subprocess.run(
-              ["python", str(temp_script)],
-              check=True
-          )
-
-          # ==================================================
-          # RECARREGAR MainActivity
-          # ==================================================
-
-          code = src.read_text(
-              encoding="utf-8"
-          )
-
-          # ==================================================
-          # GARANTIA ABSOLUTA:
-          # SE A TRANSFORMAÇÃO ANTIGA NÃO INSERIU A
-          # DEFINIÇÃO REAL DO DIALOG, NÓS EXTRAÍMOS A
-          # IMPLEMENTAÇÃO DIRETAMENTE DO SCRIPT ANTIGO
-          # E INSERIMOS MANUALMENTE.
-          # ==================================================
-
-          dialog_definition = (
-              "private fun showControleHorasWheelDialog("
-          )
-
-          if dialog_definition not in code:
-
-              print(
-                  "ATENÇÃO: DIALOG NÃO FOI INSERIDO "
-                  "PELA TRANSFORMAÇÃO ORIGINAL."
-              )
-
-              print(
-                  "ATIVANDO INSERÇÃO DE SEGURANÇA."
-              )
-
-              dialog_match = re.search(
-                  r"wheel_dialog\s*=\s*r'''"
-                  r"(.*?)"
-                  r"\n\s*'''",
-                  script,
-                  flags=re.DOTALL
-              )
-
-              if dialog_match is None:
+              if pos < 0:
 
                   raise SystemExit(
-                      "ERRO: não foi possível extrair "
-                      "o código do dialog da roleta."
+                      "ERRO: âncora não encontrada: "
+                      + anchor
                   )
 
-              wheel_dialog = dialog_match.group(1)
-
-              anchor = code.find(
-                  "    private fun showManualWheel("
-              )
-
-              if anchor < 0:
-
-                  raise SystemExit(
-                      "ERRO: showManualWheel não encontrada "
-                      "para inserir o dialog."
-                  )
-
-              code = (
-                  code[:anchor]
+              return (
+                  code[:pos]
                   + "\n"
-                  + wheel_dialog
+                  + block
                   + "\n"
-                  + code[anchor:]
-              )
-
-              src.write_text(
-                  code,
-                  encoding="utf-8"
-              )
-
-              print(
-                  "DIALOG DA ROLETA INSERIDO "
-                  "MANUALMENTE."
+                  + code[pos:]
               )
 
           # ==================================================
-          # GARANTIA DA VIEW DA ROLETA
+          # VIEW DA ROLETA
           # ==================================================
 
-          code = src.read_text(
-              encoding="utf-8"
-          )
-
-          if "class ControleHorasTimeWheelView" not in code:
-
-              print(
-                  "ATENÇÃO: VIEW DA ROLETA AUSENTE."
-              )
-
-              wheel_match = re.search(
-                  r"wheel_class\s*=\s*r'''"
-                  r"(.*?)"
-                  r"\n\s*'''",
-                  script,
-                  flags=re.DOTALL
-              )
-
-              if wheel_match is None:
-
-                  raise SystemExit(
-                      "ERRO: não foi possível extrair "
-                      "ControleHorasTimeWheelView."
-                  )
-
-              wheel_class = wheel_match.group(1)
+          if (
+              "class ControleHorasTimeWheelView"
+              not in code
+          ):
 
               main_index = code.find(
                   "class MainActivity"
@@ -692,7 +494,8 @@ jobs:
               if main_index < 0:
 
                   raise SystemExit(
-                      "ERRO: class MainActivity não encontrada."
+                      "ERRO: class MainActivity "
+                      "não encontrada."
                   )
 
               code = (
@@ -703,67 +506,147 @@ jobs:
                   + code[main_index:]
               )
 
-              src.write_text(
-                  code,
-                  encoding="utf-8"
-              )
-
-              print(
-                  "VIEW DA ROLETA INSERIDA."
-              )
-
           # ==================================================
-          # VALIDAÇÃO REAL
+          # DIALOG DA ROLETA
           # ==================================================
-
-          code = src.read_text(
-              encoding="utf-8"
-          )
-
-          required = [
-              "class ControleHorasTimeWheelView",
-              "private fun showControleHorasWheelDialog(",
-              "showManualWheel",
-              "showEditWheel",
-              "punchNames",
-              "controleHorasPunchPage",
-              "extra2Enabled",
-              "nextPunchIndex"
-          ]
-
-          for item in required:
-
-              if item not in code:
-
-                  raise SystemExit(
-                      "ERRO FINAL: recurso não encontrado: "
-                      + item
-                  )
-
-          if "NumberPicker(" in code:
-
-              raise SystemExit(
-                  "ERRO FINAL: NumberPicker encontrado."
-              )
 
           if (
-              "Esse registro ainda está vazio"
-              in code
+              "private fun "
+              "showControleHorasWheelDialog("
+              not in code
           ):
 
-              raise SystemExit(
-                  "ERRO FINAL: mensagem antiga "
-                  "de registro vazio encontrada."
+              code = insert_before(
+                  code,
+                  "    private fun showManualWheel(",
+                  indent_block(
+                      wheel_dialog,
+                      4
+                  )
               )
+
+          # ==================================================
+          # SUBSTITUIÇÃO SEGURA DE MÉTODOS
+          # ==================================================
+
+          def replace_method(
+              code,
+              signature,
+              next_signature,
+              body
+          ):
+
+              start = code.find(
+                  signature
+              )
+
+              if start >= 0:
+
+                  end = code.find(
+                      next_signature,
+                      start + len(signature)
+                  )
+
+                  if end < 0:
+
+                      raise SystemExit(
+                          "ERRO: fim da função "
+                          "não encontrado: "
+                          + signature
+                      )
+
+                  return (
+                      code[:start]
+                      + indent_block(
+                          body,
+                          4
+                      )
+                      + "\n\n"
+                      + code[end:]
+                  )
+
+              return insert_before(
+                  code,
+                  next_signature,
+                  indent_block(
+                      body,
+                      4
+                  )
+              )
+
+          # ==================================================
+          # EDITAR BATIDA EXISTENTE
+          # ==================================================
+
+          code = replace_method(
+              code,
+              "    private fun showEditWheel(",
+              "    private fun showManualWheel(",
+              edit_method
+          )
+
+          # ==================================================
+          # REGISTRO MANUAL
+          # ==================================================
+
+          code = replace_method(
+              code,
+              "    private fun showManualWheel(",
+              "    private fun registerPunch(",
+              manual_method
+          )
+
+          # ==================================================
+          # REGISTRO AUTOMÁTICO
+          # ==================================================
+
+          code = replace_method(
+              code,
+              "    private fun registerPunch(",
+              "    private fun showPunch(",
+              register_method
+          )
+
+          # ==================================================
+          # LIBERAR EDIÇÃO DE BATIDA VAZIA
+          # ==================================================
+
+          empty_punch_pattern = (
+              r'(?s)'
+              r'\s*if\s*\('
+              r'\s*rec\.punches\[index\]\.isBlank\(\)'
+              r'\s*\)\s*\{'
+              r'\s*Toast\.makeText\('
+              r'\s*this\s*,'
+              r'\s*"Esse registro ainda está vazio\. '
+              r'Use REGISTRO MANUAL\."'
+              r'\s*,'
+              r'\s*Toast\.LENGTH_LONG'
+              r'\s*\)\.show\(\)'
+              r'\s*return'
+              r'\s*\}'
+          )
+
+          code = re.sub(
+              empty_punch_pattern,
+              "\n",
+              code
+          )
 
           # ==================================================
           # MANIFESTO / ÍCONE
           # ==================================================
 
           manifest = Path(
-              "ControleHoras/"
-              "app/src/main/AndroidManifest.xml"
+              "ControleHoras/app/src/main/AndroidManifest.xml"
           )
+
+          if not manifest.exists():
+
+              raise SystemExit(
+                  "ERRO: AndroidManifest.xml "
+                  "não encontrado."
+              )
 
           m = manifest.read_text(
               encoding="utf-8"
@@ -777,50 +660,124 @@ jobs:
               m = m.replace(
                   "<application",
                   '<application\n'
-                  '        android:icon="@drawable/controlehoras_icon"\n'
-                  '        android:roundIcon="@drawable/controlehoras_icon"',
+                  '        android:icon="'
+                  '@drawable/controlehoras_icon"\n'
+                  '        android:roundIcon="'
+                  '@drawable/controlehoras_icon"',
                   1
               )
 
-              manifest.write_text(
-                  m,
-                  encoding="utf-8"
-              )
-
-          # ==================================================
-          # VALIDAÇÃO FINAL DE VERDADE
-          # ==================================================
-
-          code = src.read_text(
+          manifest.write_text(
+              m,
               encoding="utf-8"
           )
 
-          if (
-              "private fun showControleHorasWheelDialog("
-              not in code
-          ):
+          # ==================================================
+          # VALIDAÇÃO ESTRUTURAL
+          # ==================================================
+
+          required = [
+
+              "class ControleHorasTimeWheelView",
+
+              "private fun "
+              "showControleHorasWheelDialog(",
+
+              "private fun showManualWheel(",
+
+              "private fun showEditWheel(",
+
+              "private fun registerPunch(",
+
+              "punchNames",
+
+              "controleHorasPunchPage",
+
+              "extra2Enabled",
+
+              "nextPunchIndex"
+          ]
+
+          for item in required:
+
+              if item not in code:
+
+                  raise SystemExit(
+                      "ERRO: recurso não encontrado: "
+                      + item
+                  )
+
+          if "NumberPicker(" in code:
 
               raise SystemExit(
-                  "ERRO FINAL: definição REAL do "
-                  "showControleHorasWheelDialog não existe."
+                  "ERRO: NumberPicker ainda presente."
               )
 
           if (
-              "class ControleHorasTimeWheelView"
-              not in code
+              "Esse registro ainda está vazio"
+              in code
           ):
 
               raise SystemExit(
-                  "ERRO FINAL: ControleHorasTimeWheelView "
-                  "não existe."
+                  "ERRO: bloqueio antigo de "
+                  "batida vazia ainda presente."
               )
+
+          # ==================================================
+          # VALIDAR SOM
+          # ==================================================
+
+          sound = Path(
+              "ControleHoras/app/src/main/res/raw/"
+              "roller_click.wav"
+          )
+
+          if (
+              not sound.exists()
+              or sound.stat().st_size == 0
+          ):
+
+              raise SystemExit(
+                  "ERRO: roller_click.wav "
+                  "não encontrado."
+              )
+
+          # ==================================================
+          # VALIDAR ÍCONE
+          # ==================================================
+
+          icon = Path(
+              "ControleHoras/app/src/main/res/drawable/"
+              "controlehoras_icon.jpg"
+          )
+
+          if (
+              not icon.exists()
+              or icon.stat().st_size == 0
+          ):
+
+              raise SystemExit(
+                  "ERRO: controlehoras_icon.jpg "
+                  "não encontrado."
+              )
+
+          # ==================================================
+          # GRAVAR MAINACTIVITY
+          # ==================================================
+
+          src.write_text(
+              code,
+              encoding="utf-8"
+          )
 
           print("========================================")
-          print("TELA + ROLETA + SOM APLICADOS")
-          print("DIALOG DA ROLETA CONFIRMADO")
-          print("VIEW DA ROLETA CONFIRMADA")
-          print("EDIÇÃO MANUAL CONFIRMADA")
-          print("ESCALA DA BASE 70 PRESERVADA")
+          print("ROLETA INSTALADA")
+          print("DIALOG INSTALADO")
+          print("EDIÇÃO MANUAL INSTALADA")
+          print("EDIÇÃO DE BATIDA VAZIA LIBERADA")
+          print("REGISTRO AUTOMÁTICO PRESERVADO")
+          print("ESCALA NÃO FOI ALTERADA")
+          print("VALIDAÇÃO ESTRUTURAL OK")
           print("========================================")
 
       - name: Validar projeto antes do Gradle
