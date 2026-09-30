@@ -372,8 +372,8 @@ jobs:
           # ----------------------------------------------------------
 
           pattern = re.compile(
-              r"box\.addView\s*"
-              r"card\(\.apply\{"
+              r"box\.addView\(\s*"
+              r"card\(\)\.apply\{"
           )
 
           match = pattern.search(code)
@@ -967,4 +967,97 @@ jobs:
 
           print("========================================")
           print("VALIDAÇÃO ESTRUTURAL OK")
-          print("========================================
+          print("========================================")
+
+      # ============================================================
+      # GRADLE
+      # ============================================================
+
+      - name: Instalar Gradle 8.11.1
+        shell: bash
+        run: |
+          set -e
+
+          wget -q \
+            https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
+
+          unzip -q \
+            gradle-8.11.1-bin.zip
+
+          echo \
+            "$PWD/gradle-8.11.1/bin" \
+            >> "$GITHUB_PATH"
+
+          "$PWD/gradle-8.11.1/bin/gradle" \
+            --version
+
+      - name: Limpar projeto
+        working-directory: ControleHoras
+        shell: bash
+        run: |
+          set -e
+
+          gradle clean \
+            --no-daemon \
+            --stacktrace
+
+      # ============================================================
+      # COMPILAR APK
+      # ============================================================
+
+      - name: Gerar APK
+        working-directory: ControleHoras
+        shell: bash
+        run: |
+          set -e
+
+          echo "========================================"
+          echo "GERANDO APK"
+          echo "========================================"
+
+          gradle assembleDebug \
+            --no-daemon \
+            --stacktrace
+
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+
+          test -s "$APK"
+
+          ls -lh "$APK"
+
+          echo "========================================"
+          echo "APK GERADO COM SUCESSO"
+          echo "========================================"
+
+      # ============================================================
+      # VALIDAR APK
+      # ============================================================
+
+      - name: Verificar APK
+        working-directory: ControleHoras
+        shell: bash
+        run: |
+          set -e
+
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+
+          test -s "$APK"
+
+          unzip -t \
+            "$APK" \
+            >/dev/null
+
+          echo "========================================"
+          echo "APK VALIDADO"
+          echo "========================================"
+
+      # ============================================================
+      # PUBLICAR
+      # ============================================================
+
+      - name: Publicar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ControleHoras-APK
+          path: ControleHoras/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
