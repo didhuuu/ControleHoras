@@ -121,26 +121,27 @@ jobs:
 
           print("BASE DA VERSÃO 70 APLICADA")
 
-      - name: Preparar correção Base 70 - parte 1
-        shell: bash
+      - name: Aplicar correções finais da Base 70
+        shell: python
         run: |
-          cat > /tmp/patch0.py <<'PY'
+          import subprocess
+          import sys
           from pathlib import Path
+
+          PATCHES = [
+
+              r'''from pathlib import Path
 
           root = Path("ControleHoras")
 
           src = (
-              root
-              / "app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
+              root /
+              "app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
           )
 
           code = src.read_text(
               encoding="utf-8"
           )
-
-          # ------------------------------------------------------------
-          # IMPORTS
-          # ------------------------------------------------------------
 
           if "import android.view.ViewGroup" not in code:
 
@@ -159,14 +160,10 @@ jobs:
 
                   code = code.replace(
                       anchor,
-                      anchor
-                      + "import org.json.JSONArray\n",
+                      anchor +
+                      "import org.json.JSONArray\n",
                       1
                   )
-
-          # ------------------------------------------------------------
-          # ESTADO DO INTERVALO 2
-          # ------------------------------------------------------------
 
           if "private val extra2Enabled" not in code:
 
@@ -183,10 +180,10 @@ jobs:
 
                       code = code.replace(
                           anchor,
-                          anchor
-                          + "    private val extra2Enabled="
-                          "mutableSetOf<String>()\n"
-                          + "    private val extra2ReturnEnabled="
+                          anchor +
+                          "    private val extra2Enabled="
+                          "mutableSetOf<String>()\n" +
+                          "    private val extra2ReturnEnabled="
                           "mutableSetOf<String>()\n",
                           1
                       )
@@ -199,10 +196,6 @@ jobs:
                   raise SystemExit(
                       "ERRO: weekModes não encontrado"
                   )
-
-          # ------------------------------------------------------------
-          # LEITURA DO INTERVALO 2
-          # ------------------------------------------------------------
 
           if 'prefs.getString("extra2Enabled"' not in code:
 
@@ -237,12 +230,6 @@ jobs:
                   1
               )
 
-          # ------------------------------------------------------------
-          # SALVAR INTERVALO 2
-          # ------------------------------------------------------------
-
-          if 'putString("extra2Enabled"' not in code:
-
               anchor = "        e.apply()\n"
 
               if anchor not in code:
@@ -269,10 +256,6 @@ jobs:
                   block + anchor,
                   1
               )
-
-          # ------------------------------------------------------------
-          # FUNÇÕES DO INTERVALO 2
-          # ------------------------------------------------------------
 
           if "private fun extraKey" not in code:
 
@@ -328,10 +311,6 @@ jobs:
                   1
               )
 
-          # ------------------------------------------------------------
-          # SHOW PUNCH
-          # ------------------------------------------------------------
-
           start = code.find(
               "    private fun showPunch()"
           )
@@ -347,546 +326,880 @@ jobs:
                   "ERRO: showPunch/showHistory não encontrados"
               )
 
-          show = (
-              "    private fun showPunch(){\n"
-              "        val box=page(\"Bater Ponto\")\n"
-
-              "        if(employees.isEmpty()){\n"
-              "            box.addView(\n"
-              "                infoCard(\n"
-              "                    \"Nenhum funcionário cadastrado.\\n"
-              "Cadastre o primeiro em Funcionários.\"\n"
-              "                )\n"
-              "            )\n"
-              "            return\n"
-              "        }\n"
-
-              "        val emp="
-              "employees.firstOrNull{it.id==selectedEmployeeId}"
-              " ?: employees.first().also{"
-              "selectedEmployeeId=it.id}\n"
-
-              "        val employeeCard="
-              "(card() as ViewGroup).apply{\n"
-
-              "            val line=LinearLayout(context).apply{\n"
-              "                orientation=LinearLayout.VERTICAL\n"
-              "                setPadding("
-              "dp(16),dp(12),dp(16),dp(12)"
-              ")\n"
-              "            }\n"
-
-              "            line.addView(\n"
-              "                label(\"Funcionário\")\n"
-              "            )\n"
-
-              "            val spinner=Spinner(context)\n"
-
-              "            spinner.adapter=ArrayAdapter(\n"
-              "                context,\n"
-              "                android.R.layout.simple_spinner_dropdown_item,\n"
-              "                employees.map{it.name}\n"
-              "            )\n"
-
-              "            spinner.setSelection(\n"
-              "                employees.indexOfFirst{\n"
-              "                    it.id==selectedEmployeeId\n"
-              "                }.coerceAtLeast(0)\n"
-              "            )\n"
-
-              "            spinner.onItemSelectedListener="
-              "object:AdapterView.OnItemSelectedListener{\n"
-
-              "                override fun onNothingSelected("
-              "p:AdapterView<*>?){ }\n"
-
-              "                override fun onItemSelected("
-              "p:AdapterView<*>?,"
-              "v:View?,"
-              "pos:Int,"
-              "id:Long){\n"
-
-              "                    if(employees[pos].id!="
-              "selectedEmployeeId){\n"
-              "                        selectedEmployeeId="
-              "employees[pos].id\n"
-              "                        selectedPunchDate=today()\n"
-              "                        showPunch()\n"
-              "                    }\n"
-              "                }\n"
-              "            }\n"
-
-              "            line.addView(spinner)\n"
-
-              "            line.addView(\n"
-              "                TextView(context).apply{\n"
-              '                    text="Salário mensal   '
-              '${money.format(emp.salary)}"\n'
-              "                    textSize=14f\n"
-              "                    setTextColor(muted)\n"
-              "                    setPadding(0,dp(8),0,0)\n"
-              "                }\n"
-              "            )\n"
-
-              "            addView(line)\n"
-              "        }\n"
-
-              "        box.addView(\n"
-              "            employeeCard,\n"
-              "            LinearLayout.LayoutParams(-1,-2).apply{\n"
-              "                bottomMargin=dp(10)\n"
-              "            }\n"
-              "        )\n"
-
-              "        val dateCard=card()\n"
-
-              "        val dateLine=LinearLayout(this).apply{\n"
-              "            orientation=LinearLayout.HORIZONTAL\n"
-              "            gravity=Gravity.CENTER_VERTICAL\n"
-              "            setPadding(dp(14),dp(8),dp(14),dp(8))\n"
-              "        }\n"
-
-              "        dateLine.addView(\n"
-              "            TextView(this).apply{\n"
-              "                text=\"📅\"\n"
-              "                textSize=25f\n"
-              "            },\n"
-              "            LinearLayout.LayoutParams(dp(45),dp(55))\n"
-              "        )\n"
-
-              "        dateLine.addView(\n"
-              "            TextView(this).apply{\n"
-              '                text="DATA\\n'
-              '${df.format(parseIso(selectedPunchDate))}"\n'
-              "                textSize=16f\n"
-              "                setTypeface(null,Typeface.BOLD)\n"
-              "                setTextColor(this@MainActivity.text)\n"
-              "            },\n"
-              "            LinearLayout.LayoutParams(0,dp(60),1f)\n"
-              "        )\n"
-
-              "        dateLine.addView(\n"
-              "            Button(this).apply{\n"
-              '                text="ALTERAR"\n'
-              "                isAllCaps=false\n"
-              "                setOnClickListener{\n"
-              "                    choosePunchDate()\n"
-              "                }\n"
-              "            },\n"
-              "            LinearLayout.LayoutParams(dp(105),dp(52))\n"
-              "        )\n"
-
-              "        dateCard.addView(dateLine)\n"
-
-              "        box.addView(\n"
-              "            dateCard,\n"
-              "            LinearLayout.LayoutParams(-1,dp(82)).apply{\n"
-              "                bottomMargin=dp(8)\n"
-              "            }\n"
-              "        )\n"
-
-              "        box.addView(\n"
-              "            Button(this).apply{\n"
-              '                text="✎  REGISTRO MANUAL"\n'
-              "                isAllCaps=false\n"
-              "                textSize=14f\n"
-              "                setOnClickListener{\n"
-              "                    showManualWheel(emp.id)\n"
-              "                }\n"
-              "            },\n"
-              "            LinearLayout.LayoutParams(-1,dp(54)).apply{\n"
-              "                bottomMargin=dp(10)\n"
-              "            }\n"
-              "        )\n"
-
-              "        val rec=getRecord(\n"
-              "            emp.id,\n"
-              "            selectedPunchDate\n"
-              "        )\n"
-
-              "        val extra=extraEnabled(\n"
-              "            emp.id,\n"
-              "            selectedPunchDate\n"
-              "        )\n"
-
-              "        val extraReturn=extraReturnEnabled(\n"
-              "            emp.id,\n"
-              "            selectedPunchDate\n"
-              "        )\n"
-
-              "        val next=nextPunchIndex(\n"
-              "            rec,\n"
-              "            extra\n"
-              "        )\n"
-
-              "        box.addView(\n"
-              "            Button(this).apply{\n"
-              "                text=if(next<0){\n"
-              '                    "PONTO DO DIA COMPLETO"\n'
-              "                }else{\n"
-              '                    "▶  REGISTRAR PRÓXIMA BATIDA\\n'
-              '${punchNames[next]}"\n'
-              "                }\n"
-              "                textSize=15f\n"
-              "                setTextColor(Color.WHITE)\n"
-              "                isAllCaps=false\n"
-              "                isEnabled=next>=0\n"
-              "                background(\n"
-              "                    green,\n"
-              "                    dp(12),dp(12),dp(12),dp(12)\n"
-              "                )\n"
-              "                setOnClickListener{\n"
-              "                    registerPunch(emp.id)\n"
-              "                }\n"
-              "            },\n"
-              "            LinearLayout.LayoutParams(-1,dp(72)).apply{\n"
-              "                bottomMargin=dp(10)\n"
-              "            }\n"
-              "        )\n"
-
-              "        box.addView(\n"
-              "            TextView(this).apply{\n"
-              '                text="BATIDAS DO DIA"\n'
-              "                textSize=13f\n"
-              "                setTypeface(null,Typeface.BOLD)\n"
-              "                setTextColor(muted)\n"
-              "                setPadding(dp(4),dp(2),0,dp(6))\n"
-              "            }\n"
-              "        )\n"
-
-              "        addPunchRow(box,rec,0,punchNames[0])\n"
-              "        addPunchRow(box,rec,1,punchNames[1])\n"
-              "        addPunchRow(box,rec,2,punchNames[2])\n"
-
-              "        box.addView(\n"
-              "            TextView(this).apply{\n"
-              '                text="INTERVALO 2 (OPCIONAL)"\n'
-              "                textSize=13f\n"
-              "                setTypeface(null,Typeface.BOLD)\n"
-              "                setTextColor(muted)\n"
-              "                setPadding(dp(4),dp(10),0,dp(5))\n"
-              "            }\n"
-              "        )\n"
-
-              "        addExtraSwitch(\n"
-              "            box,\n"
-              "            emp.id,\n"
-              "            selectedPunchDate,\n"
-              "            0,\n"
-              "            rec\n"
-              "        )\n"
-
-              "        if(extra){\n"
-              "            addPunchRow(\n"
-              "                box,\n"
-              "                rec,\n"
-              "                3,\n"
-              "                punchNames[3]\n"
-              "            )\n"
-              "        }\n"
-
-              "        addExtraSwitch(\n"
-              "            box,\n"
-              "            emp.id,\n"
-              "            selectedPunchDate,\n"
-              "            1,\n"
-              "            rec\n"
-              "        )\n"
-
-              "        if(extraReturn){\n"
-              "            addPunchRow(\n"
-              "                box,\n"
-              "                rec,\n"
-              "                4,\n"
-              "                punchNames[4]\n"
-              "            )\n"
-              "        }\n"
-
-              "        addPunchRow(\n"
-              "            box,\n"
-              "            rec,\n"
-              "            5,\n"
-              "            punchNames[5]\n"
-              "        )\n"
-
-              "        val calc=calculate(rec)\n"
-
-              "        val cards=LinearLayout(this).apply{\n"
-              "            orientation=LinearLayout.HORIZONTAL\n"
-              "        }\n"
-
-              "        cards.addView(\n"
-              "            metricCard(\n"
-              '                "Horas trabalhadas",\n'
-              "                formatMin(calc.worked),\n"
-              "                blue\n"
-              "            ),\n"
-              "            LinearLayout.LayoutParams(0,dp(82),1f).apply{\n"
-              "                rightMargin=dp(6)\n"
-              "            }\n"
-              "        )\n"
-
-              "        cards.addView(\n"
-              "            metricCard(\n"
-              '                "Horas extras",\n'
-              "                formatMin("
-              "calc.extra60+calc.extra100"
-              "),\n"
-              "                green\n"
-              "            ),\n"
-              "            LinearLayout.LayoutParams(0,dp(82),1f).apply{\n"
-              "                leftMargin=dp(6)\n"
-              "            }\n"
-              "        )\n"
-
-              "        box.addView(cards)\n"
-              "    }\n"
-
-              "    private fun addPunchRow("
-              "box:LinearLayout,"
-              "rec:PunchDay,"
-              "index:Int,"
-              "name:String"
-              "){\n"
-
-              "        val row=LinearLayout(this).apply{\n"
-              "            orientation=LinearLayout.HORIZONTAL\n"
-              "            gravity=Gravity.CENTER_VERTICAL\n"
-              "            setPadding("
-              "dp(12),dp(4),dp(10),dp(4)"
-              ")\n"
-              "            background("
-              "Color.WHITE,"
-              "dp(12),dp(12),dp(12),dp(12)"
-              ")\n"
-              "            elevation=dp(1).toFloat()\n"
-              "        }\n"
-
-              "        row.addView(\n"
-              "            TextView(this).apply{\n"
-              "                text=(index+1).toString()\n"
-              "                textSize=16f\n"
-              "                gravity=Gravity.CENTER\n"
-              "                setTypeface(null,Typeface.BOLD)\n"
-              "                background("
-              "0xFFEAF0F7.toInt(),"
-              "30,30,30,30"
-              ")\n"
-              "            },\n"
-              "            LinearLayout.LayoutParams(dp(42),dp(42))\n"
-              "        )\n"
-
-              "        row.addView(\n"
-              "            TextView(this).apply{\n"
-              "                text=name\n"
-              "                textSize=15f\n"
-              "                setTextColor(this@MainActivity.text)\n"
-              "                setPadding(dp(12),0,0,0)\n"
-              "            },\n"
-              "            LinearLayout.LayoutParams(0,dp(52),1f)\n"
-              "        )\n"
-
-              "        row.addView(\n"
-              "            TextView(this).apply{\n"
-              '                text=rec.punches[index].ifBlank{"--:--"}\n'
-              "                textSize=15f\n"
-              "                setTextColor(\n"
-              "                    if(rec.punches[index].isBlank())"
-              "muted else darkBlue\n"
-              "                )\n"
-              "                setTypeface(null,Typeface.BOLD)\n"
-              "                gravity=Gravity.CENTER\n"
-              "            }\n"
-              "        )\n"
-
-              "        row.setOnClickListener{\n"
-              "            showEditWheel(rec,index)\n"
-              "        }\n"
-
-              "        box.addView(\n"
-              "            row,\n"
-              "            LinearLayout.LayoutParams(-1,dp(58)).apply{\n"
-              "                bottomMargin=dp(7)\n"
-              "            }\n"
-              "        )\n"
-              "    }\n"
-
-              "    private fun addExtraSwitch("
-              "box:LinearLayout,"
-              "empId:Long,"
-              "date:String,"
-              "which:Int,"
-              "rec:PunchDay"
-              "){\n"
-
-              "        val enabled=if(which==0)"
-              "extraEnabled(empId,date)"
-              "else"
-              "extraReturnEnabled(empId,date)\n"
-
-              "        val title=if(which==0)"
-              '"Saída intervalo 2"'
-              "else"
-              '"Retorno intervalo 2"'
-              "\n"
-
-              "        val row=LinearLayout(this).apply{\n"
-              "            orientation=LinearLayout.HORIZONTAL\n"
-              "            gravity=Gravity.CENTER_VERTICAL\n"
-              "            setPadding("
-              "dp(14),dp(3),dp(10),dp(3)"
-              ")\n"
-              "            background("
-              "Color.WHITE,"
-              "dp(12),dp(12),dp(12),dp(12)"
-              ")\n"
-              "            elevation=dp(1).toFloat()\n"
-              "        }\n"
-
-              "        row.addView(\n"
-              "            TextView(this).apply{\n"
-              "                text=title\n"
-              "                textSize=15f\n"
-              "                setTextColor(this@MainActivity.text)\n"
-              "            },\n"
-              "            LinearLayout.LayoutParams(0,dp(52),1f)\n"
-              "        )\n"
-
-              "        val sw=Switch(this).apply{\n"
-              "            isChecked=enabled\n"
-              '            text=if(isChecked)"ATIVO" else "ATIVAR"\n'
-              "            isAllCaps=true\n"
-              "        }\n"
-
-              "        if(which==1){\n"
-              "            sw.isEnabled=extraEnabled(empId,date)\n"
-              "        }\n"
-
-              "        sw.setOnCheckedChangeListener{\n"
-              "            _,checked->\n"
-              "            if(which==0){\n"
-              "                setExtraEnabled(\n"
-              "                    empId,date,checked\n"
-              "                )\n"
-              "            }else{\n"
-              "                setExtraReturnEnabled(\n"
-              "                    empId,date,checked\n"
-              "                )\n"
-              "            }\n"
-              "            showPunch()\n"
-              "        }\n"
-
-              "        row.addView(sw)\n"
-
-              "        row.setOnClickListener{\n"
-              "            if(sw.isEnabled){\n"
-              "                sw.isChecked=!sw.isChecked\n"
-              "            }\n"
-              "        }\n"
-
-              "        box.addView(\n"
-              "            row,\n"
-              "            LinearLayout.LayoutParams(-1,dp(58)).apply{\n"
-              "                bottomMargin=dp(7)\n"
-              "            }\n"
-              "        )\n"
-              "    }\n"
-
-              "    private fun registerPunch(empId:Long){\n"
-
-              "        val r=getRecord(\n"
-              "            empId,\n"
-              "            selectedPunchDate\n"
-              "        )\n"
-
-              "        val n=nextPunchIndex(\n"
-              "            r,\n"
-              "            extraEnabled(empId,selectedPunchDate)\n"
-              "        )\n"
-
-              "        if(n<0)return\n"
-
-              "        if(selectedPunchDate==today()){\n"
-              "            r.punches[n]=nowTime()\n"
-              "            saveData()\n"
-              "            showPunch()\n"
-              "            return\n"
-              "        }\n"
-
-              "        val e=timeEdit(\n              "",\n              "punchNames[n]\n"
-              "        )\n"
-
-              "        AlertDialog.Builder(this)\n"
-              "            .setTitle("
-              '"Lançar ${punchNames[n]}"'
-              ")\n"
-              "            .setMessage(\n"
-              "                df.format("
-              "parseIso(selectedPunchDate)"
-              ")\n"
-              "            )\n"
-              "            .setView(e)\n"
-              "            .setNegativeButton("
-              '"Cancelar",null'
-              ")\n"
-              "            .setPositiveButton("
-              '"Salvar"'
-              "){_,_->\n"
-              "                val t=normalizeTime(\n"
-              "                    e.text.toString()\n"
-              "                )\n"
-              "                if(t.isNotBlank()){\n"
-              "                    r.punches[n]=t\n"
-              "                    saveData()\n"
-              "                    showPunch()\n"
-              "                }else{\n"
-              "                    Toast.makeText(\n"
-              "                        this,\n"
-              '                        "Horário inválido.",'
-              "                        Toast.LENGTH_LONG\n"
-              "                    ).show()\n"
-              "                }\n"
-              "            }\n"
-              "            .show()\n"
-              "    }\n"
-          )
-
-          code = code[:start] + show + code[end:]
-
-          src.write_text(
-              code,
-              encoding="utf-8"
-          )
-
-          print(
-              "TELA DE PONTO APLICADA"
-          )
-          PY
-
-      - name: Preparar correção Base 70 - parte 2
-        shell: bash
-        run: |
-          cat >> /tmp/patch0.py <<'PY'
-          # ------------------------------------------------------------
-          # CÁLCULO
-          # ------------------------------------------------------------
-
-          cstart = code.find(
-              "    private fun calculate(r:PunchDay):Calc{"
-          )
-
-          cend = code.find(
-              "    private fun minutesBetween",
-              cstart
-          )
-
-          if cstart < 0 or cend < 0:
-
-              raise SystemExit(
-                  "ERRO: calculate não encontrado"
+          show = r'''    private fun showPunch(){
+
+              val box=page("Bater Ponto")
+
+              if(employees.isEmpty()){
+
+                  box.addView(
+                      infoCard(
+                          "Nenhum funcionário cadastrado.\n"
+                          + "Cadastre o primeiro em Funcionários."
+                      )
+                  )
+
+                  return
+              }
+
+              val emp=
+                  employees.firstOrNull{
+                      it.id==selectedEmployeeId
+                  }
+                  ?:employees.first().also{
+                      selectedEmployeeId=it.id
+                  }
+
+              val employeeCard=
+                  (card() as ViewGroup).apply{
+
+                      val line=
+                          LinearLayout(context).apply{
+
+                              orientation=
+                                  LinearLayout.VERTICAL
+
+                              setPadding(
+                                  dp(16),
+                                  dp(12),
+                                  dp(16),
+                                  dp(12)
+                              )
+                          }
+
+                      line.addView(
+                          label("Funcionário")
+                      )
+
+                      val spinner=
+                          Spinner(context)
+
+                      spinner.adapter=
+                          ArrayAdapter(
+                              context,
+                              android.R.layout.simple_spinner_dropdown_item,
+                              employees.map{
+                                  it.name
+                              }
+                          )
+
+                      spinner.setSelection(
+                          employees.indexOfFirst{
+                              it.id==selectedEmployeeId
+                          }.coerceAtLeast(0)
+                      )
+
+                      spinner.onItemSelectedListener=
+                          object:
+                          AdapterView.OnItemSelectedListener{
+
+                              override fun onNothingSelected(
+                                  p:AdapterView<*>?
+                              ){}
+
+                              override fun onItemSelected(
+                                  p:AdapterView<*>?,
+                                  v:View?,
+                                  pos:Int,
+                                  id:Long
+                              ){
+
+                                  if(
+                                      employees[pos].id !=
+                                      selectedEmployeeId
+                                  ){
+
+                                      selectedEmployeeId=
+                                          employees[pos].id
+
+                                      selectedPunchDate=
+                                          today()
+
+                                      showPunch()
+                                  }
+                              }
+                          }
+
+                      line.addView(
+                          spinner
+                      )
+
+                      line.addView(
+                          TextView(context).apply{
+
+                              text=
+                                  "Salário mensal   " +
+                                  money.format(emp.salary)
+
+                              textSize=14f
+
+                              setTextColor(
+                                  muted
+                              )
+
+                              setPadding(
+                                  0,
+                                  dp(8),
+                                  0,
+                                  0
+                              )
+                          }
+                      )
+
+                      addView(
+                          line
+                      )
+                  }
+
+              box.addView(
+                  employeeCard,
+                  LinearLayout.LayoutParams(
+                      -1,
+                      -2
+                  ).apply{
+                      bottomMargin=
+                          dp(10)
+                  }
               )
 
-          calc = """    private fun calculate(r:PunchDay):Calc{
+              val dateCard=
+                  card()
+
+              val dateLine=
+                  LinearLayout(this).apply{
+
+                      orientation=
+                          LinearLayout.HORIZONTAL
+
+                      gravity=
+                          Gravity.CENTER_VERTICAL
+
+                      setPadding(
+                          dp(14),
+                          dp(8),
+                          dp(14),
+                          dp(8)
+                      )
+                  }
+
+              dateLine.addView(
+                  TextView(this).apply{
+                      text="📅"
+                      textSize=25f
+                  },
+                  LinearLayout.LayoutParams(
+                      dp(45),
+                      dp(55)
+                  )
+              )
+
+              dateLine.addView(
+                  TextView(this).apply{
+
+                      text=
+                          "DATA\n" +
+                          df.format(
+                              parseIso(
+                                  selectedPunchDate
+                              )
+                          )
+
+                      textSize=16f
+
+                      setTypeface(
+                          null,
+                          Typeface.BOLD
+                      )
+
+                      setTextColor(
+                          this@MainActivity.text
+                      )
+                  },
+                  LinearLayout.LayoutParams(
+                      0,
+                      dp(60),
+                      1f
+                  )
+              )
+
+              dateLine.addView(
+                  Button(this).apply{
+
+                      text="ALTERAR"
+
+                      isAllCaps=false
+
+                      setOnClickListener{
+                          choosePunchDate()
+                      }
+                  },
+                  LinearLayout.LayoutParams(
+                      dp(105),
+                      dp(52)
+                  )
+              )
+
+              dateCard.addView(
+                  dateLine
+              )
+
+              box.addView(
+                  dateCard,
+                  LinearLayout.LayoutParams(
+                      -1,
+                      dp(82)
+                  ).apply{
+                      bottomMargin=
+                          dp(8)
+                  }
+              )
+
+              box.addView(
+                  Button(this).apply{
+
+                      text=
+                          "✎  REGISTRO MANUAL"
+
+                      isAllCaps=false
+
+                      textSize=14f
+
+                      setOnClickListener{
+                          showManualWheel(
+                              emp.id
+                          )
+                      }
+                  },
+                  LinearLayout.LayoutParams(
+                      -1,
+                      dp(54)
+                  ).apply{
+                      bottomMargin=
+                          dp(10)
+                  }
+              )
+
+              val rec=
+                  getRecord(
+                      emp.id,
+                      selectedPunchDate
+                  )
+
+              val extra=
+                  extraEnabled(
+                      emp.id,
+                      selectedPunchDate
+                  )
+
+              val extraReturn=
+                  extraReturnEnabled(
+                      emp.id,
+                      selectedPunchDate
+                  )
+
+              val next=
+                  nextPunchIndex(
+                      rec,
+                      extra
+                  )
+
+              box.addView(
+                  Button(this).apply{
+
+                      text=
+                          if(next<0){
+
+                              "PONTO DO DIA COMPLETO"
+
+                          }else{
+
+                              "▶  REGISTRAR PRÓXIMA BATIDA\n" +
+                              punchNames[next]
+                          }
+
+                      textSize=15f
+
+                      setTextColor(
+                          Color.WHITE
+                      )
+
+                      isAllCaps=false
+
+                      isEnabled=
+                          next>=0
+
+                      background(
+                          green,
+                          dp(12),
+                          dp(12),
+                          dp(12),
+                          dp(12)
+                      )
+
+                      setOnClickListener{
+                          registerPunch(
+                              emp.id
+                          )
+                      }
+                  },
+                  LinearLayout.LayoutParams(
+                      -1,
+                      dp(72)
+                  ).apply{
+                      bottomMargin=
+                          dp(10)
+                  }
+              )
+
+              box.addView(
+                  TextView(this).apply{
+
+                      text=
+                          "BATIDAS DO DIA"
+
+                      textSize=13f
+
+                      setTypeface(
+                          null,
+                          Typeface.BOLD
+                      )
+
+                      setTextColor(
+                          muted
+                      )
+
+                      setPadding(
+                          dp(4),
+                          dp(2),
+                          0,
+                          dp(6)
+                      )
+                  }
+              )
+
+              addPunchRow(
+                  box,
+                  rec,
+                  0,
+                  punchNames[0]
+              )
+
+              addPunchRow(
+                  box,
+                  rec,
+                  1,
+                  punchNames[1]
+              )
+
+              addPunchRow(
+                  box,
+                  rec,
+                  2,
+                  punchNames[2]
+              )
+
+              box.addView(
+                  TextView(this).apply{
+
+                      text=
+                          "INTERVALO 2 (OPCIONAL)"
+
+                      textSize=13f
+
+                      setTypeface(
+                          null,
+                          Typeface.BOLD
+                      )
+
+                      setTextColor(
+                          muted
+                      )
+
+                      setPadding(
+                          dp(4),
+                          dp(10),
+                          0,
+                          dp(5)
+                      )
+                  }
+              )
+
+              addExtraSwitch(
+                  box,
+                  emp.id,
+                  selectedPunchDate,
+                  0,
+                  rec
+              )
+
+              if(extra){
+
+                  addPunchRow(
+                      box,
+                      rec,
+                      3,
+                      punchNames[3]
+                  )
+              }
+
+              addExtraSwitch(
+                  box,
+                  emp.id,
+                  selectedPunchDate,
+                  1,
+                  rec
+              )
+
+              if(extraReturn){
+
+                  addPunchRow(
+                      box,
+                      rec,
+                      4,
+                      punchNames[4]
+                  )
+              }
+
+              addPunchRow(
+                  box,
+                  rec,
+                  5,
+                  punchNames[5]
+              )
+
+              val calc=
+                  calculate(
+                      rec
+                  )
+
+              val cards=
+                  LinearLayout(this).apply{
+                      orientation=
+                          LinearLayout.HORIZONTAL
+                  }
+
+              cards.addView(
+                  metricCard(
+                      "Horas trabalhadas",
+                      formatMin(
+                          calc.worked
+                      ),
+                      blue
+                  ),
+                  LinearLayout.LayoutParams(
+                      0,
+                      dp(82),
+                      1f
+                  ).apply{
+                      rightMargin=
+                          dp(6)
+                  }
+              )
+
+              cards.addView(
+                  metricCard(
+                      "Horas extras",
+                      formatMin(
+                          calc.extra60+
+                          calc.extra100
+                      ),
+                      green
+                  ),
+                  LinearLayout.LayoutParams(
+                      0,
+                      dp(82),
+                      1f
+                  ).apply{
+                      leftMargin=
+                          dp(6)
+                  }
+              )
+
+              box.addView(
+                  cards
+              )
+          }
+
+          private fun addPunchRow(
+              box:LinearLayout,
+              rec:PunchDay,
+              index:Int,
+              name:String
+          ){
+
+              val row=
+                  LinearLayout(this).apply{
+
+                      orientation=
+                          LinearLayout.HORIZONTAL
+
+                      gravity=
+                          Gravity.CENTER_VERTICAL
+
+                      setPadding(
+                          dp(12),
+                          dp(4),
+                          dp(10),
+                          dp(4)
+                      )
+
+                      background(
+                          Color.WHITE,
+                          dp(12),
+                          dp(12),
+                          dp(12),
+                          dp(12)
+                      )
+
+                      elevation=
+                          dp(1).toFloat()
+                  }
+
+              row.addView(
+                  TextView(this).apply{
+
+                      text=
+                          (index+1).toString()
+
+                      textSize=16f
+
+                      gravity=
+                          Gravity.CENTER
+
+                      setTypeface(
+                          null,
+                          Typeface.BOLD
+                      )
+
+                      background(
+                          0xFFEAF0F7.toInt(),
+                          30,
+                          30,
+                          30,
+                          30
+                      )
+                  },
+                  LinearLayout.LayoutParams(
+                      dp(42),
+                      dp(42)
+                  )
+              )
+
+              row.addView(
+                  TextView(this).apply{
+
+                      text=name
+
+                      textSize=15f
+
+                      setTextColor(
+                          this@MainActivity.text
+                      )
+
+                      setPadding(
+                          dp(12),
+                          0,
+                          0,
+                          0
+                      )
+                  },
+                  LinearLayout.LayoutParams(
+                      0,
+                      dp(52),
+                      1f
+                  )
+              )
+
+              row.addView(
+                  TextView(this).apply{
+
+                      text=
+                          rec.punches[index]
+                              .ifBlank{
+                                  "--:--"
+                              }
+
+                      textSize=15f
+
+                      setTextColor(
+                          if(
+                              rec.punches[index]
+                                  .isBlank()
+                          )
+                              muted
+                          else
+                              darkBlue
+                      )
+
+                      setTypeface(
+                          null,
+                          Typeface.BOLD
+                      )
+
+                      gravity=
+                          Gravity.CENTER
+                  }
+              )
+
+              row.setOnClickListener{
+
+                  showEditWheel(
+                      rec,
+                      index
+                  )
+              }
+
+              box.addView(
+                  row,
+                  LinearLayout.LayoutParams(
+                      -1,
+                      dp(58)
+                  ).apply{
+                      bottomMargin=
+                          dp(7)
+                  }
+              )
+          }
+
+          private fun addExtraSwitch(
+              box:LinearLayout,
+              empId:Long,
+              date:String,
+              which:Int,
+              rec:PunchDay
+          ){
+
+              val enabled=
+                  if(which==0)
+                      extraEnabled(
+                          empId,
+                          date
+                      )
+                  else
+                      extraReturnEnabled(
+                          empId,
+                          date
+                      )
+
+              val title=
+                  if(which==0)
+                      "Saída intervalo 2"
+                  else
+                      "Retorno intervalo 2"
+
+              val row=
+                  LinearLayout(this).apply{
+
+                      orientation=
+                          LinearLayout.HORIZONTAL
+
+                      gravity=
+                          Gravity.CENTER_VERTICAL
+
+                      setPadding(
+                          dp(14),
+                          dp(3),
+                          dp(10),
+                          dp(3)
+                      )
+
+                      background(
+                          Color.WHITE,
+                          dp(12),
+                          dp(12),
+                          dp(12),
+                          dp(12)
+                      )
+
+                      elevation=
+                          dp(1).toFloat()
+                  }
+
+              row.addView(
+                  TextView(this).apply{
+
+                      text=title
+
+                      textSize=15f
+
+                      setTextColor(
+                          this@MainActivity.text
+                      )
+                  },
+                  LinearLayout.LayoutParams(
+                      0,
+                      dp(52),
+                      1f
+                  )
+              )
+
+              val sw=
+                  Switch(this).apply{
+
+                      isChecked=
+                          enabled
+
+                      text=
+                          if(isChecked)
+                              "ATIVO"
+                          else
+                              "ATIVAR"
+
+                      isAllCaps=true
+                  }
+
+              if(which==1){
+
+                  sw.isEnabled=
+                      extraEnabled(
+                          empId,
+                          date
+                      )
+              }
+
+              sw.setOnCheckedChangeListener{
+                  _,
+                  checked->
+
+                  if(which==0){
+
+                      setExtraEnabled(
+                          empId,
+                          date,
+                          checked
+                      )
+
+                  }else{
+
+                      setExtraReturnEnabled(
+                          empId,
+                          date,
+                          checked
+                      )
+                  }
+
+                  showPunch()
+              }
+
+              row.addView(
+                  sw
+              )
+
+              row.setOnClickListener{
+
+                  if(sw.isEnabled){
+
+                      sw.isChecked=
+                          !sw.isChecked
+                  }
+              }
+
+              box.addView(
+                  row,
+                  LinearLayout.LayoutParams(
+                      -1,
+                      dp(58)
+                  ).apply{
+                      bottomMargin=
+                          dp(7)
+                  }
+              )
+          }
+
+          private fun registerPunch(
+              empId:Long
+          ){
+
+              val r=
+                  getRecord(
+                      empId,
+                      selectedPunchDate
+                  )
+
+              val n=
+                  nextPunchIndex(
+                      r,
+                      extraEnabled(
+                          empId,
+                          selectedPunchDate
+                      )
+                  )
+
+              if(n<0)
+                  return
+
+              if(
+                  selectedPunchDate==
+                  today()
+              ){
+
+                  r.punches[n]=
+                      nowTime()
+
+                  saveData()
+
+                  showPunch()
+
+                  return
+              }
+
+              val e=
+                  timeEdit(
+                      "",
+                      punchNames[n]
+                  )
+
+              AlertDialog.Builder(this)
+                  .setTitle(
+                      "Lançar " +
+                      punchNames[n]
+                  )
+                  .setMessage(
+                      df.format(
+                          parseIso(
+                              selectedPunchDate
+                          )
+                      )
+                  )
+                  .setView(e)
+                  .setNegativeButton(
+                      "Cancelar",
+                      null
+                  )
+                  .setPositiveButton(
+                      "Salvar"
+                  ){_,_->
+
+                      val t=
+                          normalizeTime(
+                              e.text.toString()
+                          )
+
+                      if(t.isNotBlank()){
+
+                          r.punches[n]=
+                              t
+
+                          saveData()
+
+                          showPunch()
+
+                      }else{
+
+                          Toast.makeText(
+                              this,
+                              "Horário inválido.",
+                              Toast.LENGTH_LONG
+                          ).show()
+                      }
+                  }
+                  .show()
+          }
+
+          private fun calculate(
+              r:PunchDay
+          ):Calc{
+
               var worked=
                   minutesBetween(
                       r.punches[0],
@@ -918,9 +1231,16 @@ jobs:
                       )
               }
 
-              val date=parseIso(r.date)
+              val date=
+                  parseIso(
+                      r.date
+                  )
 
-              if(!modeForDay(date)){
+              if(
+                  !modeForDay(
+                      date
+                  )
+              ){
 
                   return Calc(
                       worked,
@@ -931,9 +1251,15 @@ jobs:
               }
 
               val expected=
-                  durationMinutes(weeklyTarget) /
+                  durationMinutes(
+                      weeklyTarget
+                  ) /
                   (
-                      if(modeForDate(date)=="MS")
+                      if(
+                          modeForDate(
+                              date
+                          )=="MS"
+                      )
                           6
                       else
                           5
@@ -953,103 +1279,13 @@ jobs:
               )
           }
 
-          """
+          '''
 
           code = (
-              code[:cstart]
-              + calc
-              + code[cend:]
+              code[:start]
+              + show
+              + code[end:]
           )
-
-          # ------------------------------------------------------------
-          # REMOVE NUMBERPICKER IMPORT ANTIGO
-          # ------------------------------------------------------------
-
-          code = code.replace(
-              "import android.widget.NumberPicker\n",
-              ""
-          )
-
-          # ------------------------------------------------------------
-          # INSETS
-          # ------------------------------------------------------------
-
-          imports = (
-              "import androidx.core.view.WindowCompat\n"
-              "import androidx.core.view.ViewCompat\n"
-              "import androidx.core.view.WindowInsetsCompat\n"
-          )
-
-          if (
-              "import androidx.core.view.WindowCompat"
-              not in code
-          ):
-
-              anchor = (
-                  "import androidx.core.content.FileProvider\n"
-              )
-
-              if anchor in code:
-
-                  code = code.replace(
-                      anchor,
-                      anchor + imports,
-                      1
-                  )
-
-          if (
-              "WindowCompat.setDecorFitsSystemWindows"
-              not in code
-          ):
-
-              anchor = "        buildShell()\n"
-
-              if anchor in code:
-
-                  inset = """        WindowCompat.setDecorFitsSystemWindows(
-              window,
-              false
-          )
-
-          window.statusBarColor=blue
-
-          window.navigationBarColor=Color.WHITE
-
-          window.decorView.systemUiVisibility=
-              View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
-
-          ViewCompat.setOnApplyWindowInsetsListener(
-              root
-          ){v,insets->
-
-              val bars=
-                  insets.getInsets(
-                      WindowInsetsCompat.Type.systemBars()
-                  )
-
-              v.setPadding(
-                  v.paddingLeft,
-                  bars.top,
-                  v.paddingRight,
-                  bars.bottom
-              )
-
-              insets
-          }
-
-          ViewCompat.requestApplyInsets(root)
-
-          """
-
-                  code = code.replace(
-                      anchor,
-                      anchor + inset,
-                      1
-                  )
-
-          # ------------------------------------------------------------
-          # SALVAR
-          # ------------------------------------------------------------
 
           src.write_text(
               code,
@@ -1057,383 +1293,377 @@ jobs:
           )
 
           print(
-              "CORREÇÃO BASE 70 CONCLUÍDA"
+              "CORREÇÃO PARTE 1 APLICADA"
           )
-          PY
+          ''',
 
-      - name: Executar correção Base 70
-        shell: bash
-        run: |
-          python /tmp/patch0.py
+              r'''from pathlib import Path
 
-      - name: Instalar roleta e edição pela rolagem
-        shell: bash
-        run: |
-          cat > /tmp/patch1.py <<'PY'
-          from pathlib import Path
-
-          root = Path("ControleHoras")
+          root = Path(
+              "ControleHoras"
+          )
 
           src = (
-              root
-              / "app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
+              root /
+              "app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
           )
 
           wheel = (
-              root
-              / "app/src/main/java/com/didhuuu/controlehoras/TimeWheelView.kt"
+              root /
+              "app/src/main/java/com/didhuuu/controlehoras/TimeWheelView.kt"
           )
 
           code = src.read_text(
               encoding="utf-8"
           )
 
-          helpers = """
-              private fun showEditWheel(
-                  rec:PunchDay,
-                  index:Int
-              ){
-
-                  val parts=
-                      rec.punches[index]
-                          .split(":")
-
-                  val now=
-                      Calendar.getInstance()
-
-                  val hour=
-                      parts.getOrNull(0)
-                          ?.toIntOrNull()
-                          ?.coerceIn(0,23)
-                          ?:now.get(
-                              Calendar.HOUR_OF_DAY
-                          )
-
-                  val minute=
-                      parts.getOrNull(1)
-                          ?.toIntOrNull()
-                          ?.coerceIn(0,59)
-                          ?:now.get(
-                              Calendar.MINUTE
-                          )
-
-                  showTimeWheelDialog(
-                      "Editar registro",
-                      "${punchNames[index]}\\n"
-                      + df.format(parseIso(rec.date)),
-                      hour,
-                      minute,
-                      "SALVAR"
-                  ){h,m->
-
-                      rec.punches[index]=
-                          "%02d:%02d".format(
-                              Locale.US,
-                              h,
-                              m
-                          )
-
-                      saveData()
-
-                      showPunch()
-                  }
-              }
-
-              private fun showManualWheel(
-                  empId:Long
-              ){
-
-                  val r=
-                      getRecord(
-                          empId,
-                          selectedPunchDate
-                      )
-
-                  val n=
-                      nextPunchIndex(
-                          r,
-                          extraEnabled(
-                              empId,
-                              selectedPunchDate
-                          )
-                      )
-
-                  if(n<0){
-
-                      Toast.makeText(
-                          this,
-                          "As batidas disponíveis deste dia já estão preenchidas.",
-                          Toast.LENGTH_LONG
-                      ).show()
-
-                      return
-                  }
-
-                  val now=
-                      Calendar.getInstance()
-
-                  showTimeWheelDialog(
-                      "Registro manual",
-                      "${punchNames[n]}\\n"
-                      + df.format(
-                          parseIso(
-                              selectedPunchDate
-                          )
-                      ),
-                      now.get(
-                          Calendar.HOUR_OF_DAY
-                      ),
-                      now.get(
-                          Calendar.MINUTE
-                      ),
-                      "REGISTRAR"
-                  ){h,m->
-
-                      r.punches[n]=
-                          "%02d:%02d".format(
-                              Locale.US,
-                              h,
-                              m
-                          )
-
-                      saveData()
-
-                      showPunch()
-                  }
-              }
-
-              private fun showTimeWheelDialog(
-                  title:String,
-                  subtitle:String,
-                  initialHour:Int,
-                  initialMinute:Int,
-                  positive:String,
-                  onSave:(Int,Int)->Unit
-              ){
-
-                  val wrap=
-                      LinearLayout(this).apply{
-
-                          orientation=
-                              LinearLayout.VERTICAL
-
-                          gravity=
-                              Gravity.CENTER_HORIZONTAL
-
-                          setPadding(
-                              dp(8),
-                              0,
-                              dp(8),
-                              0
-                          )
-                      }
-
-                  wrap.addView(
-                      TextView(this).apply{
-
-                          text=subtitle
-
-                          gravity=
-                              Gravity.CENTER
-
-                          textSize=16f
-
-                          setTypeface(
-                              null,
-                              Typeface.BOLD
-                          )
-
-                          setTextColor(
-                              darkBlue
-                          )
-
-                          setPadding(
-                              0,
-                              dp(2),
-                              0,
-                              dp(10)
-                          )
-                      }
-                  )
-
-                  val wheels=
-                      LinearLayout(this).apply{
-
-                          orientation=
-                              LinearLayout.HORIZONTAL
-
-                          gravity=
-                              Gravity.CENTER
-                      }
-
-                  val hour=
-                      TimeWheelView(
-                          this,
-                          0,
-                          23,
-                          initialHour
-                      )
-
-                  val minute=
-                      TimeWheelView(
-                          this,
-                          0,
-                          59,
-                          initialMinute
-                      )
-
-                  val sep=
-                      TextView(this).apply{
-
-                          text=":"
-
-                          textSize=32f
-
-                          gravity=
-                              Gravity.CENTER
-
-                          setTypeface(
-                              null,
-                              Typeface.BOLD
-                          )
-
-                          setTextColor(
-                              darkBlue
-                          )
-                      }
-
-                  wheels.addView(
-                      hour,
-                      LinearLayout.LayoutParams(
-                          dp(105),
-                          dp(190)
-                      )
-                  )
-
-                  wheels.addView(
-                      sep,
-                      LinearLayout.LayoutParams(
-                          dp(28),
-                          dp(190)
-                      )
-                  )
-
-                  wheels.addView(
-                      minute,
-                      LinearLayout.LayoutParams(
-                          dp(105),
-                          dp(190)
-                      )
-                  )
-
-                  wrap.addView(
-                      wheels
-                  )
-
-                  val selected=
-                      TextView(this).apply{
-
-                          text=
-                              "%02d:%02d".format(
-                                  Locale.US,
-                                  hour.value,
-                                  minute.value
-                              )
-
-                          textSize=30f
-
-                          setTypeface(
-                              null,
-                              Typeface.BOLD
-                          )
-
-                          setTextColor(
-                              blue
-                          )
-
-                          gravity=
-                              Gravity.CENTER
-
-                          setPadding(
-                              0,
-                              dp(6),
-                              0,
-                              dp(10)
-                          )
-                      }
-
-                  fun refresh(){
-
-                      selected.text=
-                          "%02d:%02d".format(
-                              Locale.US,
-                              hour.value,
-                              minute.value
-                          )
-                  }
-
-                  hour.onValueChanged={
-                      refresh()
-                  }
-
-                  minute.onValueChanged={
-                      refresh()
-                  }
-
-                  wrap.addView(
-                      selected
-                  )
-
-                  val dialog=
-                      AlertDialog.Builder(this)
-                          .setTitle(title)
-                          .setView(wrap)
-                          .setNegativeButton(
-                              "CANCELAR",
-                              null
-                          )
-                          .setPositiveButton(
-                              positive,
-                              null
-                          )
-                          .create()
-
-                  dialog.setOnShowListener{
-
-                      dialog.getButton(
-                          AlertDialog.BUTTON_POSITIVE
-                      ).setOnClickListener{
-
-                          onSave(
-                              hour.value,
-                              minute.value
-                          )
-
-                          dialog.dismiss()
-                      }
-                  }
-
-                  dialog.show()
-              }
-
-          """
-
-          start =
-              code.find(
-                  "    private fun showEditWheel("
-              )
-
-          end =
-              code.find(
-                  "    private fun calculate(r:PunchDay):Calc{",
-                  start
-              )
+          start = code.find(
+              "    private fun showEditWheel("
+          )
+
+          end = code.find(
+              "    private fun calculate(r:PunchDay):Calc{",
+              start
+          )
 
           if start < 0 or end < 0:
 
               raise SystemExit(
                   "ERRO: funções antigas da roda não encontradas"
               )
+
+          helpers = r'''    private fun showEditWheel(
+              rec:PunchDay,
+              index:Int
+          ){
+
+              val parts=
+                  rec.punches[index]
+                      .split(":")
+
+              val now=
+                  Calendar.getInstance()
+
+              val hour=
+                  parts.getOrNull(0)
+                      ?.toIntOrNull()
+                      ?.coerceIn(0,23)
+                      ?:now.get(
+                          Calendar.HOUR_OF_DAY
+                      )
+
+              val minute=
+                  parts.getOrNull(1)
+                      ?.toIntOrNull()
+                      ?.coerceIn(0,59)
+                      ?:now.get(
+                          Calendar.MINUTE
+                      )
+
+              showTimeWheelDialog(
+                  "Editar registro",
+                  "${punchNames[index]}\n" +
+                  df.format(
+                      parseIso(
+                          rec.date
+                      )
+                  ),
+                  hour,
+                  minute,
+                  "SALVAR"
+              ){h,m->
+
+                  rec.punches[index]=
+                      "%02d:%02d".format(
+                          Locale.US,
+                          h,
+                          m
+                      )
+
+                  saveData()
+
+                  showPunch()
+              }
+          }
+
+          private fun showManualWheel(
+              empId:Long
+          ){
+
+              val r=
+                  getRecord(
+                      empId,
+                      selectedPunchDate
+                  )
+
+              val n=
+                  nextPunchIndex(
+                      r,
+                      extraEnabled(
+                          empId,
+                          selectedPunchDate
+                      )
+                  )
+
+              if(n<0){
+
+                  Toast.makeText(
+                      this,
+                      "As batidas disponíveis deste dia já estão preenchidas.",
+                      Toast.LENGTH_LONG
+                  ).show()
+
+                  return
+              }
+
+              val now=
+                  Calendar.getInstance()
+
+              showTimeWheelDialog(
+                  "Registro manual",
+                  "${punchNames[n]}\n" +
+                  df.format(
+                      parseIso(
+                          selectedPunchDate
+                      )
+                  ),
+                  now.get(
+                      Calendar.HOUR_OF_DAY
+                  ),
+                  now.get(
+                      Calendar.MINUTE
+                  ),
+                  "REGISTRAR"
+              ){h,m->
+
+                  r.punches[n]=
+                      "%02d:%02d".format(
+                          Locale.US,
+                          h,
+                          m
+                      )
+
+                  saveData()
+
+                  showPunch()
+              }
+          }
+
+          private fun showTimeWheelDialog(
+              title:String,
+              subtitle:String,
+              initialHour:Int,
+              initialMinute:Int,
+              positive:String,
+              onSave:(Int,Int)->Unit
+          ){
+
+              val wrap=
+                  LinearLayout(this).apply{
+
+                      orientation=
+                          LinearLayout.VERTICAL
+
+                      gravity=
+                          Gravity.CENTER_HORIZONTAL
+
+                      setPadding(
+                          dp(8),
+                          0,
+                          dp(8),
+                          0
+                      )
+                  }
+
+              wrap.addView(
+                  TextView(this).apply{
+
+                      text=subtitle
+
+                      gravity=
+                          Gravity.CENTER
+
+                      textSize=16f
+
+                      setTypeface(
+                          null,
+                          Typeface.BOLD
+                      )
+
+                      setTextColor(
+                          darkBlue
+                      )
+
+                      setPadding(
+                          0,
+                          dp(2),
+                          0,
+                          dp(10)
+                      )
+                  }
+              )
+
+              val wheels=
+                  LinearLayout(this).apply{
+
+                      orientation=
+                          LinearLayout.HORIZONTAL
+
+                      gravity=
+                          Gravity.CENTER
+                  }
+
+              val hour=
+                  TimeWheelView(
+                      this,
+                      0,
+                      23,
+                      initialHour
+                  )
+
+              val minute=
+                  TimeWheelView(
+                      this,
+                      0,
+                      59,
+                      initialMinute
+                  )
+
+              val sep=
+                  TextView(this).apply{
+
+                      text=":"
+
+                      textSize=32f
+
+                      gravity=
+                          Gravity.CENTER
+
+                      setTypeface(
+                          null,
+                          Typeface.BOLD
+                      )
+
+                      setTextColor(
+                          darkBlue
+                      )
+                  }
+
+              wheels.addView(
+                  hour,
+                  LinearLayout.LayoutParams(
+                      dp(105),
+                      dp(190)
+                  )
+              )
+
+              wheels.addView(
+                  sep,
+                  LinearLayout.LayoutParams(
+                      dp(28),
+                      dp(190)
+                  )
+              )
+
+              wheels.addView(
+                  minute,
+                  LinearLayout.LayoutParams(
+                      dp(105),
+                      dp(190)
+                  )
+              )
+
+              wrap.addView(
+                  wheels
+              )
+
+              val selected=
+                  TextView(this).apply{
+
+                      text=
+                          "%02d:%02d".format(
+                              Locale.US,
+                              hour.value,
+                              minute.value
+                          )
+
+                      textSize=30f
+
+                      setTypeface(
+                          null,
+                          Typeface.BOLD
+                      )
+
+                      setTextColor(
+                          blue
+                      )
+
+                      gravity=
+                          Gravity.CENTER
+
+                      setPadding(
+                          0,
+                          dp(6),
+                          0,
+                          dp(10)
+                      )
+                  }
+
+              fun refresh(){
+
+                  selected.text=
+                      "%02d:%02d".format(
+                          Locale.US,
+                          hour.value,
+                          minute.value
+                      )
+              }
+
+              hour.onValueChanged={
+                  refresh()
+              }
+
+              minute.onValueChanged={
+                  refresh()
+              }
+
+              wrap.addView(
+                  selected
+              )
+
+              val dialog=
+                  AlertDialog.Builder(this)
+                      .setTitle(title)
+                      .setView(wrap)
+                      .setNegativeButton(
+                          "CANCELAR",
+                          null
+                      )
+                      .setPositiveButton(
+                          positive,
+                          null
+                      )
+                      .create()
+
+              dialog.setOnShowListener{
+
+                  dialog.getButton(
+                      AlertDialog.BUTTON_POSITIVE
+                  ).setOnClickListener{
+
+                      onSave(
+                          hour.value,
+                          minute.value
+                      )
+
+                      dialog.dismiss()
+                  }
+              }
+
+              dialog.show()
+          }
+
+          '''
 
           code = (
               code[:start]
@@ -1443,7 +1673,7 @@ jobs:
           )
 
           wheel.write_text(
-              """package com.didhuuu.controlehoras
+              '''package com.didhuuu.controlehoras
 
           import android.content.Context
           import android.graphics.Canvas
@@ -1479,9 +1709,9 @@ jobs:
                       .density
 
               private fun dp(
-                  value:Int
+                  v:Int
               )=
-                  value*density
+                  v*density
 
               private val paint=
                   Paint(
@@ -1553,8 +1783,6 @@ jobs:
 
                   val center=
                       h/2f
-
-                  #GRADIENT
 
                   paint.shader=
                       LinearGradient(
@@ -1652,7 +1880,9 @@ jobs:
                       canvas.drawText(
                           "%02d".format(v),
                           w/2f,
-                          center+offset*dp(47)+dp(9),
+                          center+
+                          offset*dp(47)+
+                          dp(9),
                           paint
                       )
                   }
@@ -1666,7 +1896,8 @@ jobs:
                   paint.strokeWidth=
                       2.5f*density
 
-                  val cy=center
+                  val cy=
+                      center
 
                   canvas.drawLine(
                       dp(3),
@@ -1708,7 +1939,9 @@ jobs:
                   event:MotionEvent
               ):Boolean{
 
-                  when(event.actionMasked){
+                  when(
+                      event.actionMasked
+                  ){
 
                       MotionEvent.ACTION_DOWN->{
 
@@ -1793,11 +2026,8 @@ jobs:
                   return true
               }
           }
-          """.replace(
-              "#GRADIENT",
-              ""
-          ),
-          encoding="utf-8"
+          ''',
+              encoding="utf-8"
           )
 
           src.write_text(
@@ -1808,9 +2038,37 @@ jobs:
           print(
               "RODA AZUL/NEON APLICADA"
           )
-          PY
+          '''
+          ]
 
-          python /tmp/patch1.py
+          for i, code in enumerate(PATCHES):
+
+              path = Path(
+                  f"/tmp/final_patch_{i}.py"
+              )
+
+              path.write_text(
+                  code,
+                  encoding="utf-8"
+              )
+
+              compile(
+                  code,
+                  str(path),
+                  "exec"
+              )
+
+              subprocess.run(
+                  [
+                      sys.executable,
+                      str(path)
+                  ],
+                  check=True
+              )
+
+          print(
+              "PATCHES FINAIS APLICADOS"
+          )
 
       - name: Validar estrutura final
         shell: bash
@@ -1822,23 +2080,15 @@ jobs:
           WHEEL="ControleHoras/app/src/main/java/com/didhuuu/controlehoras/TimeWheelView.kt"
 
           test -s "$FILE"
-
           test -s "$WHEEL"
 
           grep -q "extra2Enabled" "$FILE"
-
           grep -q "showManualWheel" "$FILE"
-
           grep -q "showEditWheel" "$FILE"
-
           grep -q "showTimeWheelDialog" "$FILE"
-
           grep -q "TimeWheelView" "$FILE"
-
           grep -q "nextPunchIndex" "$FILE"
-
           grep -q "punchNames" "$FILE"
-
           grep -q "class TimeWheelView" "$WHEEL"
 
           if grep -q "NumberPicker" "$FILE"; then
@@ -1882,7 +2132,8 @@ jobs:
         run: |
           set -e
 
-          gradle clean --no-daemon
+          gradle clean \
+            --no-daemon
 
       - name: Gerar APK
         working-directory: ControleHoras
