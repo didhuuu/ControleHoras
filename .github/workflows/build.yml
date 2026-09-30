@@ -294,7 +294,7 @@ jobs:
           url = (
               "https://raw.githubusercontent.com/"
               "didhuuu/ControleHoras/"
-              "39fc6bfb41ebc7b01d6c435a85b5228e735f3f2b/"
+              "39fc6bfb41ebc7b01d6c435a85b5228e735f3f2/"
               ".github/workflows/build.yml"
           )
 
@@ -387,76 +387,63 @@ jobs:
           )
 
           # ==========================================================
-          # EXTRAIR A IMPLEMENTAÇÃO COMPLETA DA FUNÇÃO DA ROLETA
-          # DIRETAMENTE DA VARIÁVEL wheel_dialog DO SCRIPT ORIGINAL.
+          # EXTRAIR A ROLETA DE FORMA ROBUSTA
+          #
+          # IMPORTANTE:
+          # Depois que o YAML é convertido para Python, o fechamento
+          # ''' fica sem os 10 espaços do YAML.
+          #
+          # Portanto NÃO usamos mais:
+          #
+          #     \n          '''
+          #
+          # Usamos uma expressão regular que procura o fechamento
+          # real do bloco.
           # ==========================================================
 
-          wheel_begin_marker = (
-              "wheel_dialog = r'''"
+          wheel_match = re.search(
+              r"wheel_dialog\s*=\s*r'''(.*?)\n'''",
+              script,
+              flags=re.DOTALL
           )
 
-          wheel_end_marker = (
-              "\n          '''"
-          )
-
-          wheel_begin = script.find(
-              wheel_begin_marker
-          )
-
-          if wheel_begin < 0:
+          if wheel_match is None:
 
               raise SystemExit(
-                  "ERRO: wheel_dialog não encontrado no script original"
+                  "ERRO: bloco wheel_dialog não encontrado no script original"
               )
 
-          wheel_begin += len(
-              wheel_begin_marker
-          )
+          wheel_dialog = wheel_match.group(1)
 
-          wheel_end = script.find(
-              wheel_end_marker,
-              wheel_begin
-          )
-
-          if wheel_end < 0:
+          if (
+              "private fun showControleHorasWheelDialog("
+              not in wheel_dialog
+          ):
 
               raise SystemExit(
-                  "ERRO: fim de wheel_dialog não encontrado"
+                  "ERRO: wheel_dialog encontrado, "
+                  "mas a função showControleHorasWheelDialog "
+                  "não está dentro dele"
               )
 
-          wheel_dialog = script[
-              wheel_begin:wheel_end
-          ]
+          print(
+              "WHEEL_DIALOG EXTRAÍDO COM SUCESSO"
+          )
 
           # ==========================================================
-          # GRAVAR UMA CÓPIA DO SCRIPT ORIGINAL CORRIGIDO
+          # PREPARAR SCRIPT ORIGINAL
           # ==========================================================
 
           fixed_script = script
 
           # ==========================================================
-          # IMPEDIR O SCRIPT ANTIGO DE BLOQUEAR A ROLETA
-          #
-          # O código antigo verificava somente:
-          #
-          # showControleHorasWheelDialog(
-          #
-          # Isso pode encontrar uma chamada e não a declaração.
-          #
-          # A declaração real precisa ser:
-          #
-          # private fun showControleHorasWheelDialog(
+          # CORRIGIR A CONDIÇÃO ANTIGA
           # ==========================================================
 
           fixed_script = fixed_script.replace(
               'if "showControleHorasWheelDialog(" not in code:',
               'if "private fun showControleHorasWheelDialog(" not in code:'
           )
-
-          # ==========================================================
-          # CORRIGIR A MESMA VERIFICAÇÃO CASO ESTEJA FORMATADA
-          # EM MAIS DE UMA LINHA.
-          # ==========================================================
 
           fixed_script = re.sub(
               r'if\s+"showControleHorasWheelDialog\("\s+not\s+in\s+code:',
@@ -465,7 +452,24 @@ jobs:
           )
 
           # ==========================================================
-          # VALIDAR SINTAXE DO SCRIPT ANTES DE EXECUTAR
+          # IMPORTANTE:
+          #
+          # O script antigo possuía uma lista "required" que podia
+          # interromper a execução ANTES de nossa correção final.
+          #
+          # A roleta será validada depois da inserção definitiva.
+          # Portanto removemos somente esse item da validação antiga.
+          # ==========================================================
+
+          fixed_script = re.sub(
+              r'^\s*"showControleHorasWheelDialog",\s*$',
+              '',
+              fixed_script,
+              flags=re.MULTILINE
+          )
+
+          # ==========================================================
+          # VALIDAR SINTAXE DO SCRIPT
           # ==========================================================
 
           compile(
@@ -513,12 +517,12 @@ jobs:
           )
 
           # ==========================================================
-          # CORREÇÃO DEFINITIVA:
+          # INSERÇÃO DEFINITIVA DA ROLETA
           #
-          # Se a declaração da roleta NÃO estiver presente,
-          # nós mesmos inserimos a implementação completa.
+          # Se a função já existir, não duplica.
           #
-          # Não dependemos mais da decisão do script antigo.
+          # Se não existir, insere diretamente antes de
+          # showManualWheel.
           # ==========================================================
 
           function_signature = (
@@ -538,7 +542,8 @@ jobs:
               if anchor < 0:
 
                   raise SystemExit(
-                      "ERRO: showManualWheel não encontrado para inserir a roleta"
+                      "ERRO: showManualWheel não encontrado "
+                      "para inserir a roleta"
                   )
 
               insertion = (
@@ -644,7 +649,8 @@ jobs:
           ):
 
               raise SystemExit(
-                  "ERRO FINAL: declaração da roleta não está no MainActivity.kt"
+                  "ERRO FINAL: declaração da roleta "
+                  "não está no MainActivity.kt"
               )
 
           if "NumberPicker(" in code:
