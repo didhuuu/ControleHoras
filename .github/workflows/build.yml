@@ -15,6 +15,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Baixar projeto
         uses: actions/checkout@v4
 
@@ -56,21 +57,36 @@ jobs:
               ".github/workflows/build.yml"
           )
 
-          workflow = urlopen(url, timeout=30).read().decode("utf-8")
+          workflow = urlopen(
+              url,
+              timeout=30
+          ).read().decode("utf-8")
 
           def extract_step(name, next_name):
-              start = workflow.index(f"      - name: {name}")
-              end = workflow.index(f"      - name: {next_name}", start)
+              start = workflow.index(
+                  f"      - name: {name}"
+              )
+
+              end = workflow.index(
+                  f"      - name: {next_name}",
+                  start
+              )
 
               block = workflow[start:end]
 
               marker = "        run: |\n"
-              pos = block.index(marker) + len(marker)
+
+              pos = (
+                  block.index(marker)
+                  + len(marker)
+              )
 
               lines = block[pos:].splitlines()
 
               return "\n".join(
-                  line[10:] if line.startswith("          ") else line
+                  line[10:]
+                  if line.startswith("          ")
+                  else line
                   for line in lines
               ) + "\n"
 
@@ -86,7 +102,11 @@ jobs:
           ]
 
           for i, script in enumerate(scripts):
-              p = Path(tempfile.gettempdir()) / f"base70_{i}.py"
+
+              p = (
+                  Path(tempfile.gettempdir())
+                  / f"base70_{i}.py"
+              )
 
               p.write_text(
                   script,
@@ -94,7 +114,10 @@ jobs:
               )
 
               subprocess.run(
-                  ["python", str(p)],
+                  [
+                      "python",
+                      str(p)
+                  ],
                   check=True
               )
 
@@ -115,7 +138,10 @@ jobs:
               ".github/workflows/build.yml"
           )
 
-          workflow = urlopen(url, timeout=30).read().decode("utf-8")
+          workflow = urlopen(
+              url,
+              timeout=30
+          ).read().decode("utf-8")
 
           start = workflow.index(
               "      - name: Aplicar correções finais da Base 70, edição por rolagem e ícone"
@@ -129,16 +155,25 @@ jobs:
           block = workflow[start:end]
 
           marker = "        run: |\n"
-          pos = block.index(marker) + len(marker)
+
+          pos = (
+              block.index(marker)
+              + len(marker)
+          )
 
           lines = block[pos:].splitlines()
 
           script = "\n".join(
-              line[10:] if line.startswith("          ") else line
+              line[10:]
+              if line.startswith("          ")
+              else line
               for line in lines
           ) + "\n"
 
-          p = Path(tempfile.gettempdir()) / "funcionalidades.py"
+          p = (
+              Path(tempfile.gettempdir())
+              / "funcionalidades.py"
+          )
 
           p.write_text(
               script,
@@ -146,11 +181,16 @@ jobs:
           )
 
           subprocess.run(
-              ["python", str(p)],
+              [
+                  "python",
+                  str(p)
+              ],
               check=True
           )
 
-          print("FUNCIONALIDADES DA VERSÃO 80 APLICADAS")
+          print(
+              "FUNCIONALIDADES DA VERSÃO 80 APLICADAS"
+          )
 
       - name: Recuperar ícone aprovado da versão 80
         shell: bash
@@ -160,11 +200,13 @@ jobs:
           set -e
 
           ROOT="$PWD/ControleHoras"
+
           ICON="$ROOT/app/src/main/res/drawable/controlehoras_icon.jpg"
 
           mkdir -p "$(dirname "$ICON")"
 
           ARTIFACT="/tmp/controlehoras80.zip"
+
           APKDIR="/tmp/controlehoras80"
 
           curl -fL \
@@ -177,24 +219,31 @@ jobs:
           test -s "$ARTIFACT"
 
           rm -rf "$APKDIR"
+
           mkdir -p "$APKDIR"
 
-          unzip -q -o "$ARTIFACT" -d "$APKDIR"
+          unzip -q -o \
+            "$ARTIFACT" \
+            -d "$APKDIR"
 
           APK="$APKDIR/app-debug.apk"
 
           test -s "$APK"
 
           rm -rf /tmp/controlehoras80-apk
+
           mkdir -p /tmp/controlehoras80-apk
 
-          unzip -q -o "$APK" \
+          unzip -q -o \
+            "$APK" \
             -d /tmp/controlehoras80-apk
 
-          FOUND="$(find /tmp/controlehoras80-apk/res \
-            -type f \
-            -name 'controlehoras_icon.jpg' \
-            | head -n 1)"
+          FOUND="$(
+            find /tmp/controlehoras80-apk/res \
+              -type f \
+              -name 'controlehoras_icon.jpg' \
+              | head -n 1
+          )"
 
           test -n "$FOUND"
 
@@ -204,15 +253,17 @@ jobs:
 
           echo "ÍCONE APROVADO RECUPERADO"
 
-      - name: Corrigir layout e instalar roda personalizada
+      - name: Corrigir manifesto e validar
         shell: python
         run: |
           from pathlib import Path
-          import base64
-          import gzip
-          import re
 
           root = Path("ControleHoras")
+
+          manifest = (
+              root /
+              "app/src/main/AndroidManifest.xml"
+          )
 
           src = (
               root /
@@ -220,20 +271,141 @@ jobs:
               "controlehoras/MainActivity.kt"
           )
 
-          wheel = (
+          icon = (
               root /
-              "app/src/main/java/com/didhuuu/"
-              "controlehoras/TimeWheelView.kt"
+              "app/src/main/res/drawable/"
+              "controlehoras_icon.jpg"
           )
 
-          def dec(s):
-              raw = base64.b64decode(s)
+          m = manifest.read_text(
+              encoding="utf-8"
+          )
 
-              return gzip.decompress(
-                  raw
-              ).decode("utf-8")
+          if (
+              'android:icon="@drawable/controlehoras_icon"'
+              not in m
+          ):
 
-          blocks = {}
+              m = m.replace(
+                  "<application",
+                  '<application\n'
+                  '        android:icon="@drawable/controlehoras_icon"\n'
+                  '        android:roundIcon="@drawable/controlehoras_icon"',
+                  1
+              )
 
-          blocks["SHOWPUNCH"] = dec(
-              "H4sIADTjvGoC/81Y3Y7aRhS+5ylclAtPSiwgyzZaxUm9LEksGYyAJlWT1WqwxzCNPWONh92liMve9iZSrypVfYm+QN4kT9BH6IzNj41tFrYbqQjZmDlzfM53vvNjK4qihAxfQ44Ub0aUaEpv+jPiTFWwqCirzzX0lTG91UM4QWr1XMgypU8Jp1WwkcGeioLQp3OEIg1HnSDkcxWklMiPUKJB132L0Y2KiUfbkLlqtYfIdBbI2zuYks9/MUwVB7ow4gy6VPtA2skFUqi0NUCYUQUFyqvUhkirApC5F0N8xsjmr2Ul446wVd/a62EWcZv1Zr6/wFzDrq5HyEcOR25nJWS6y4z6l2c721WgQT+ii/xGPVaZMiANQ0apI/EQesLQn2eRW9vtY4J0Sxwgs+CczrjqiECgW166S34ow4hwyAVamc3a285gZLYNq3BXhHhfmInJRHVDtXEKavLUTE6bK5Dbu8z9I63eeOzDMfLVajp61QIt0tsoxIQgpg+T88bXnPBKUNwDhoKdusEYnBvJhVro3EpVrXAREpdR7GoDzU9wirCIJrpa3eZKrIYuvSFXmKOgWMWWHQEMJakIDFAemXJXBPrDmEoCJPWOW2DiolvbeyV5uIfAmkMRc5DBLSTySa2DI8yhxBS+DldKLRxxJCNDxz+LP85WUMv4anahZAkxrxFj2E1qDyU9yqeCbuu9aphW/Pzxi5dgUcCuAkVpC4rBk5+c+lqp6PWZlNkjENLozCS8XAC7ZxYlk8J1sCjflqqr78VNLkVwvykI7h4VSS7nqlJO7UEK4uZwIVqAzqkLRYnfv2vbTkrligO6PLasrIgK9kuNRM7HPw4pm1JArw6hn/SkAJFIFCVFebQIKEFzzaMsgFzGRxMLkM3BslqqaIh/QXrjxCsrtdKyNvUpU4OZwBncVZLrsv4+A7V6rSCPl/m/NuVXwJFdXW
+              manifest.write_text(
+                  m,
+                  encoding="utf-8"
+              )
+
+          for p in (
+              src,
+              icon
+          ):
+
+              if (
+                  not p.exists()
+                  or p.stat().st_size == 0
+              ):
+
+                  raise SystemExit(
+                      "ERRO: arquivo ausente: "
+                      + str(p)
+                  )
+
+          source = src.read_text(
+              encoding="utf-8"
+          )
+
+          required = (
+              "extra2Enabled",
+              "showManualWheel",
+              "showEditWheel",
+              "nextPunchIndex",
+              "punchNames",
+              "WindowCompat.setDecorFitsSystemWindows"
+          )
+
+          for term in required:
+
+              if term not in source:
+
+                  raise SystemExit(
+                      "ERRO: recurso ausente: "
+                      + term
+                  )
+
+          if "Button(context)" in source:
+
+              raise SystemExit(
+                  "ERRO: Button(context) encontrado"
+              )
+
+          print("VALIDAÇÃO OK")
+
+      - name: Instalar Gradle 8.11.1
+        shell: bash
+        run: |
+          set -e
+
+          wget -q \
+            https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
+
+          unzip -q \
+            gradle-8.11.1-bin.zip
+
+          echo \
+            "$PWD/gradle-8.11.1/bin" \
+            >> "$GITHUB_PATH"
+
+          "$PWD/gradle-8.11.1/bin/gradle" \
+            --version
+
+      - name: Limpar projeto
+        working-directory: ControleHoras
+        shell: bash
+        run: |
+          set -e
+
+          gradle clean \
+            --no-daemon
+
+      - name: Gerar APK
+        working-directory: ControleHoras
+        shell: bash
+        run: |
+          set -e
+
+          gradle assembleDebug \
+            --no-daemon \
+            --stacktrace
+
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+
+          test -s "$APK"
+
+          ls -lh "$APK"
+
+          echo "APK GERADO COM SUCESSO"
+
+      - name: Verificar APK
+        working-directory: ControleHoras
+        shell: bash
+        run: |
+          set -e
+
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+
+          test -s "$APK"
+
+          unzip -t "$APK" >/dev/null
+
+          echo "APK VALIDADO"
+
+      - name: Publicar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ControleHoras-APK
+          path: ControleHoras/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
