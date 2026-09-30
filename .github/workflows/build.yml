@@ -270,7 +270,7 @@ jobs:
           url = (
               "https://raw.githubusercontent.com/"
               "didhuuu/ControleHoras/"
-              "39fc6bba4ee9c420fee5d398a9974b793d8aaec7/"
+              "39fc6bfb41ebc7b01d6c435a85b5228e735f3f2b/"
               ".github/workflows/build.yml"
           )
 
