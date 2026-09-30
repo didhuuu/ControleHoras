@@ -192,6 +192,225 @@ jobs:
               "FUNCIONALIDADES DA VERSÃO 80 APLICADAS"
           )
 
+      - name: Corrigir erros de compilação da MainActivity
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          src = Path(
+              "ControleHoras/app/src/main/java/"
+              "com/didhuuu/controlehoras/MainActivity.kt"
+          )
+
+          text = src.read_text(
+              encoding="utf-8"
+          )
+
+          # ---------------------------------------------------------
+          # CORREÇÃO 1:
+          # O código da versão 80 utiliza punchNames em vários
+          # pontos, mas a declaração não estava presente.
+          # ---------------------------------------------------------
+
+          if "private val punchNames" not in text:
+
+              declaration = '''
+          private val punchNames = arrayOf(
+              "Entrada",
+              "Saída",
+              "Retorno",
+              "Saída intervalo 2",
+              "Retorno intervalo 2",
+              "Saída"
+          )
+
+          '''
+
+              match = re.search(
+                  r'(class\s+MainActivity\b[^{]*\{)',
+                  text
+              )
+
+              if not match:
+                  raise SystemExit(
+                      "ERRO: classe MainActivity não encontrada"
+                  )
+
+              pos = match.end()
+
+              text = (
+                  text[:pos]
+                  + "\n"
+                  + declaration
+                  + text[pos:]
+              )
+
+              print(
+                  "punchNames ADICIONADO"
+              )
+
+          else:
+              print(
+                  "punchNames JÁ EXISTIA"
+              )
+
+          # ---------------------------------------------------------
+          # CORREÇÃO 2:
+          # A versão 80 deixou um addView com quatro inteiros:
+          #
+          # addView(view, 0, 0, 0, dp(10))
+          #
+          # Android não possui essa assinatura.
+          #
+          # Transformamos isso em LayoutParams com bottomMargin.
+          # ---------------------------------------------------------
+
+          old_pattern = re.compile(
+              r'''box\.addView\(
+                  \s*
+                  (card\(\)\.apply\{
+                      .*?
+                  \})
+                  \s*,\s*
+                  0
+                  \s*,\s*
+                  0
+                  \s*,\s*
+                  0
+                  \s*,\s*
+                  dp\(10\)
+                  \s*
+              \)''',
+              re.DOTALL | re.VERBOSE
+          )
+
+          match = old_pattern.search(text)
+
+          if match:
+
+              card_block = match.group(1)
+
+              replacement = (
+                  "box.addView(\n"
+                  "                "
+                  + card_block
+                  + ",\n"
+                  "                LinearLayout.LayoutParams(\n"
+                  "                    -1,\n"
+                  "                    -2\n"
+                  "                ).apply {\n"
+                  "                    bottomMargin = dp(10)\n"
+                  "                }\n"
+                  "            )"
+              )
+
+              text = (
+                  text[:match.start()]
+                  + replacement
+                  + text[match.end():]
+              )
+
+              print(
+                  "addView da linha 341 CORRIGIDO"
+              )
+
+          else:
+
+              # Segunda tentativa para a mesma estrutura,
+              # caso a formatação tenha sido alterada.
+
+              simple_pattern = re.compile(
+                  r'''box\.addView\(
+                      ([\s\S]*?)
+                      \s*,\s*0\s*,\s*0\s*,\s*0\s*,\s*dp\(10\)
+                      \s*\)''',
+                  re.DOTALL | re.VERBOSE
+              )
+
+              match = simple_pattern.search(text)
+
+              if match:
+
+                  inner = match.group(1)
+
+                  replacement = (
+                      "box.addView("
+                      + inner
+                      + ",\n"
+                      "                "
+                      "LinearLayout.LayoutParams("
+                      "-1, -2"
+                      ").apply { "
+                      "bottomMargin = dp(10) "
+                      "}"
+                      "\n            )"
+                  )
+
+                  text = (
+                      text[:match.start()]
+                      + replacement
+                      + text[match.end():]
+                  )
+
+                  print(
+                      "addView corrigido pela segunda regra"
+                  )
+
+              else:
+
+                  # Se o código já estiver correto, não altera.
+
+                  if (
+                      "LinearLayout.LayoutParams("
+                      in text
+                      and "bottomMargin = dp(10)"
+                      in text
+                  ):
+
+                      print(
+                          "addView já estava corrigido"
+                      )
+
+                  else:
+
+                      raise SystemExit(
+                          "ERRO: não foi possível localizar "
+                          "o addView problemático"
+                      )
+
+          src.write_text(
+              text,
+              encoding="utf-8"
+          )
+
+          # ---------------------------------------------------------
+          # VALIDAÇÃO DAS CORREÇÕES
+          # ---------------------------------------------------------
+
+          final_text = src.read_text(
+              encoding="utf-8"
+          )
+
+          if "private val punchNames" not in final_text:
+              raise SystemExit(
+                  "ERRO: punchNames não foi criado"
+              )
+
+          if (
+              "addView(line),\n"
+              in final_text
+              and "0,\n            0,\n            0,\n"
+              in final_text
+          ):
+              raise SystemExit(
+                  "ERRO: addView antigo ainda encontrado"
+              )
+
+          print(
+              "CORREÇÕES DA MAINACTIVITY OK"
+          )
+
       - name: Recuperar ícone aprovado da versão 80
         shell: bash
         env:
