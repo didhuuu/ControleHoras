@@ -388,17 +388,6 @@ jobs:
 
           # ==========================================================
           # EXTRAIR A ROLETA DE FORMA ROBUSTA
-          #
-          # IMPORTANTE:
-          # Depois que o YAML é convertido para Python, o fechamento
-          # ''' fica sem os 10 espaços do YAML.
-          #
-          # Portanto NÃO usamos mais:
-          #
-          #     \n          '''
-          #
-          # Usamos uma expressão regular que procura o fechamento
-          # real do bloco.
           # ==========================================================
 
           wheel_match = re.search(
@@ -452,13 +441,15 @@ jobs:
           )
 
           # ==========================================================
-          # IMPORTANTE:
+          # REMOVER VALIDAÇÃO ANTIGA DA ROLETA
           #
-          # O script antigo possuía uma lista "required" que podia
-          # interromper a execução ANTES de nossa correção final.
+          # O problema da versão 110 está aqui.
           #
-          # A roleta será validada depois da inserção definitiva.
-          # Portanto removemos somente esse item da validação antiga.
+          # O script antigo exige showEditWheel, mas a base atual
+          # pode não trazer essa função.
+          #
+          # Abaixo nós removemos a exigência antiga e, logo depois,
+          # garantimos a função de forma compatível.
           # ==========================================================
 
           fixed_script = re.sub(
@@ -466,6 +457,96 @@ jobs:
               '',
               fixed_script,
               flags=re.MULTILINE
+          )
+
+          fixed_script = re.sub(
+              r'^\s*"showEditWheel",\s*$',
+              '',
+              fixed_script,
+              flags=re.MULTILINE
+          )
+
+          # ==========================================================
+          # GARANTIR SHOW EDIT WHEEL
+          #
+          # Se a função já existir, não duplica.
+          #
+          # Se não existir, cria uma função compatível com a roleta
+          # personalizada nova.
+          # ==========================================================
+
+          ensure_edit = r'''
+if "private fun showEditWheel(" not in code:
+
+    anchor = code.find(
+        "    private fun showManualWheel("
+    )
+
+    if anchor < 0:
+
+        raise SystemExit(
+            "ERRO: showManualWheel não encontrado para inserir showEditWheel"
+        )
+
+    edit_method = "\n".join([
+        "    private fun showEditWheel(",
+        "        rec:PunchDay,",
+        "        index:Int",
+        "    ){",
+        "",
+        "        val old=rec.punches[index]",
+        "        val parts=old.split(\":\")",
+        "        val now=Calendar.getInstance()",
+        "",
+        "        val hour=if(parts.size==2)",
+        "            parts[0].toIntOrNull() ?: now.get(Calendar.HOUR_OF_DAY)",
+        "        else now.get(Calendar.HOUR_OF_DAY)",
+        "",
+        "        val minute=if(parts.size==2)",
+        "            parts[1].toIntOrNull() ?: now.get(Calendar.MINUTE)",
+        "        else now.get(Calendar.MINUTE)",
+        "",
+        "        showControleHorasWheelDialog(",
+        "            \"Editar registro\",",
+        "            df.format(parseIso(rec.date)),",
+        "            hour,",
+        "            minute",
+        "        ){value->",
+        "",
+        "            rec.punches[index]=value",
+        "",
+        "            saveData()",
+        "",
+        "            showPunch()",
+        "        }",
+        "    }",
+        ""
+    ])
+
+    code = (
+        code[:anchor]
+        + edit_method
+        + code[anchor:]
+    )
+'''
+
+          marker_edit = (
+              "# ==========================================================\n"
+              "# GARANTIR MANIFESTO"
+          )
+
+          if marker_edit not in fixed_script:
+
+              raise SystemExit(
+                  "ERRO: ponto de inserção da correção showEditWheel não encontrado"
+              )
+
+          fixed_script = fixed_script.replace(
+              marker_edit,
+              ensure_edit.strip("\n")
+              + "\n\n"
+              + marker_edit,
+              1
           )
 
           # ==========================================================
@@ -518,11 +599,6 @@ jobs:
 
           # ==========================================================
           # INSERÇÃO DEFINITIVA DA ROLETA
-          #
-          # Se a função já existir, não duplica.
-          #
-          # Se não existir, insere diretamente antes de
-          # showManualWheel.
           # ==========================================================
 
           function_signature = (
@@ -612,6 +688,73 @@ jobs:
               )
 
           # ==========================================================
+          # GARANTIR NOVAMENTE SHOW EDIT WHEEL
+          #
+          # Esta segunda proteção existe para impedir que qualquer
+          # transformação anterior remova a função.
+          # ==========================================================
+
+          if "private fun showEditWheel(" not in code:
+
+              anchor = code.find(
+                  "    private fun showManualWheel("
+              )
+
+              if anchor < 0:
+
+                  raise SystemExit(
+                      "ERRO FINAL: showManualWheel não encontrado "
+                      "para inserir showEditWheel"
+                  )
+
+              edit_method = "\n".join([
+                  "    private fun showEditWheel(",
+                  "        rec:PunchDay,",
+                  "        index:Int",
+                  "    ){",
+                  "",
+                  "        val old=rec.punches[index]",
+                  "        val parts=old.split(\":\")",
+                  "        val now=Calendar.getInstance()",
+                  "",
+                  "        val hour=if(parts.size==2)",
+                  "            parts[0].toIntOrNull() ?: now.get(Calendar.HOUR_OF_DAY)",
+                  "        else now.get(Calendar.HOUR_OF_DAY)",
+                  "",
+                  "        val minute=if(parts.size==2)",
+                  "            parts[1].toIntOrNull() ?: now.get(Calendar.MINUTE)",
+                  "        else now.get(Calendar.MINUTE)",
+                  "",
+                  "        showControleHorasWheelDialog(",
+                  "            \"Editar registro\",",
+                  "            df.format(parseIso(rec.date)),",
+                  "            hour,",
+                  "            minute",
+                  "        ){value->",
+                  "            rec.punches[index]=value",
+                  "            saveData()",
+                  "            showPunch()",
+                  "        }",
+                  "    }",
+                  ""
+              ])
+
+              code = (
+                  code[:anchor]
+                  + edit_method
+                  + code[anchor:]
+              )
+
+              src.write_text(
+                  code,
+                  encoding="utf-8"
+              )
+
+              print(
+                  "SHOW EDIT WHEEL INSERIDO COM SUCESSO"
+              )
+
+          # ==========================================================
           # VALIDAÇÃO FINAL DA ROLETA
           # ==========================================================
 
@@ -653,6 +796,16 @@ jobs:
                   "não está no MainActivity.kt"
               )
 
+          if (
+              "private fun showEditWheel("
+              not in code
+          ):
+
+              raise SystemExit(
+                  "ERRO FINAL: showEditWheel "
+                  "não está no MainActivity.kt"
+              )
+
           if "NumberPicker(" in code:
 
               raise SystemExit(
@@ -686,6 +839,10 @@ jobs:
 
           print(
               "ROLETA PERSONALIZADA VALIDADA COM SUCESSO"
+          )
+
+          print(
+              "SHOW EDIT WHEEL VALIDADO"
           )
 
           print(
