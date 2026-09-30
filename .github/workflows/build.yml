@@ -1,4 +1,5 @@
 name: ControleHoras APK
+
 on:
   workflow_dispatch:
   push:
@@ -13,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Baixar projeto
         uses: actions/checkout@v4
 
@@ -26,13 +28,17 @@ jobs:
         shell: bash
         run: |
           set -e
+
           rm -rf ControleHoras
+
           unzip -q -o ControleHoras.zip
+
           test -f ControleHoras/settings.gradle.kts
           test -f ControleHoras/build.gradle.kts
           test -f ControleHoras/app/build.gradle.kts
           test -f ControleHoras/app/src/main/AndroidManifest.xml
           test -f ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt
+
           echo "PROJETO ORIGINAL OK"
 
       - name: Aplicar exatamente a base da versão 70
@@ -43,30 +49,36 @@ jobs:
           import subprocess
           import tempfile
 
-          url="https://raw.githubusercontent.com/didhuuu/ControleHoras/6381d26e525e1f9eeb91af17cdb9fed66293c1f2/.github/workflows/build.yml"
+          url = (
+              "https://raw.githubusercontent.com/"
+              "didhuuu/ControleHoras/"
+              "6381d26e525e1f9eeb91af17cdb9fed66293c1f2/"
+              ".github/workflows/build.yml"
+          )
 
-          workflow=urlopen(
+          workflow = urlopen(
               url,
               timeout=30
           ).read().decode("utf-8")
 
-          def extract_step(name,next_name):
-              start=workflow.index(
+          def extract_step(name, next_name):
+
+              start = workflow.index(
                   f"      - name: {name}"
               )
 
-              end=workflow.index(
+              end = workflow.index(
                   f"      - name: {next_name}",
                   start
               )
 
-              block=workflow[start:end]
+              block = workflow[start:end]
 
-              marker="        run: |\n"
+              marker = "        run: |\n"
 
-              pos=block.index(marker)+len(marker)
+              pos = block.index(marker) + len(marker)
 
-              lines=block[pos:].splitlines()
+              lines = block[pos:].splitlines()
 
               return (
                   "\n".join(
@@ -75,10 +87,10 @@ jobs:
                       else line
                       for line in lines
                   )
-                  +"\n"
+                  + "\n"
               )
 
-          scripts=[
+          scripts = [
               extract_step(
                   "Aplicar versão 36",
                   "Adicionar seleção de data"
@@ -89,11 +101,11 @@ jobs:
               )
           ]
 
-          for i,script in enumerate(scripts):
+          for i, script in enumerate(scripts):
 
-              p=(
-                  Path(tempfile.gettempdir())
-                  /f"base70_{i}.py"
+              p = (
+                  Path(tempfile.gettempdir()) /
+                  f"base70_{i}.py"
               )
 
               p.write_text(
@@ -110,217 +122,446 @@ jobs:
               )
 
           print(
-              "BASE DA VERSÃO 70 APLICADA"
+              "BASE 70 APLICADA"
           )
 
-      - name: Aplicar correções finais da Base 70, edição por rolagem e ícone
+      - name: Aplicar funcionalidades completas
         shell: python
         run: |
           from pathlib import Path
-          import base64
+          from urllib.request import urlopen
+          import subprocess
+          import tempfile
 
-          root=Path("ControleHoras")
-
-          src=(
-              root
-              /"app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
+          url = (
+              "https://raw.githubusercontent.com/"
+              "didhuuu/ControleHoras/"
+              "894fb3f98dfda80c297f31474130324a094b6dc6/"
+              ".github/workflows/build.yml"
           )
 
-          manifest=(
-              root
-              /"app/src/main/AndroidManifest.xml"
+          workflow = urlopen(
+              url,
+              timeout=30
+          ).read().decode("utf-8")
+
+          def extract_step(name, next_name):
+
+              start = workflow.index(
+                  f"- name: {name}"
+              )
+
+              end = workflow.index(
+                  f"- name: {next_name}",
+                  start
+              )
+
+              block = workflow[start:end]
+
+              marker = "        run: |\n"
+
+              pos = block.index(marker) + len(marker)
+
+              lines = block[pos:].splitlines()
+
+              return (
+                  "\n".join(
+                      line[10:]
+                      if line.startswith("          ")
+                      else line
+                      for line in lines
+                  )
+                  + "\n"
+              )
+
+          script = extract_step(
+              "Aplicar correções finais da Base 70, edição por rolagem e ícone",
+              "Validar código e ícone"
           )
 
-          code=src.read_text(
+          p = (
+              Path(tempfile.gettempdir()) /
+              "funcionalidades.py"
+          )
+
+          p.write_text(
+              script,
               encoding="utf-8"
           )
 
-          if "private val extra2Enabled" not in code:
+          subprocess.run(
+              [
+                  "python",
+                  str(p)
+              ],
+              check=True
+          )
 
-              anchors=[
+          print(
+              "FUNCIONALIDADES COMPLETAS APLICADAS"
+          )
+
+      - name: Corrigir pontos finais sem quebrar o Python
+        shell: python
+        run: |
+          from pathlib import Path
+
+          file = Path(
+              "ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
+          )
+
+          code = file.read_text(
+              encoding="utf-8"
+          )
+
+          # ============================================================
+          # CORRIGIR addView COM 4 ARGUMENTOS
+          # ============================================================
+
+          old = (
+              "                  },\n"
+              "                  0,\n"
+              "                  0,\n"
+              "                  0,\n"
+              "                  dp(10)\n"
+              "              )\n"
+              "\n"
+              "              val dateCard=card()"
+          )
+
+          new = (
+              "                  },\n"
+              "                  LinearLayout.LayoutParams(\n"
+              "                      -1,\n"
+              "                      -2\n"
+              "                  ).apply{\n"
+              "                      bottomMargin=dp(10)\n"
+              "                  }\n"
+              "              )\n"
+              "\n"
+              "              val dateCard=card()"
+          )
+
+          if old in code:
+
+              code = code.replace(
+                  old,
+                  new,
+                  1
+              )
+
+              print(
+                  "addView corrigido"
+              )
+
+          # ============================================================
+          # PERMITIR EDITAR UMA BATIDA VAZIA
+          # ============================================================
+
+          old = (
+              "                  if(rec.punches[index].isBlank()){\n"
+              "                      Toast.makeText(this,\"Esse registro ainda está vazio. Use REGISTRO MANUAL.\",Toast.LENGTH_LONG).show()\n"
+              "                      return\n"
+              "                  }\n"
+          )
+
+          if old in code:
+
+              code = code.replace(
+                  old,
+                  "",
+                  1
+              )
+
+              print(
+                  "Edição de batida vazia liberada"
+              )
+
+          # ============================================================
+          # CRIAR VISUAL DAS RODAS
+          # ============================================================
+
+          if (
+              "private fun styleWheel(picker:NumberPicker)"
+              not in code
+          ):
+
+              marker = (
+                  "              private fun showEditWheel("
+              )
+
+              helper_lines = [
+                  "              private fun styleWheel(picker:NumberPicker){",
+                  "                  picker.setBackgroundColor(Color.TRANSPARENT)",
+                  "                  picker.wrapSelectorWheel=true",
+                  "                  picker.descendantFocusability=NumberPicker.FOCUS_BLOCK_DESCENDANTS",
+                  "                  picker.post{",
+                  "                      for(i in 0 until picker.childCount){",
+                  "                          val child=picker.getChildAt(i)",
+                  "                          if(child is TextView){",
+                  "                              child.setTextColor(darkBlue)",
+                  "                              child.textSize=21f",
+                  "                              child.gravity=Gravity.CENTER",
+                  "                              child.setTypeface(null,Typeface.BOLD)",
+                  "                          }",
+                  "                      }",
+                  "                  }",
+                  "              }",
+                  "",
+              ]
+
+              helper = "\n".join(
+                  helper_lines
+              )
+
+              if marker not in code:
+                  raise SystemExit(
+                      "ERRO: showEditWheel não encontrado"
+                  )
+
+              code = code.replace(
+                  marker,
+                  helper + marker,
+                  1
+              )
+
+          # ============================================================
+          # APLICAR ESTILO NAS DUAS RODAS
+          # ============================================================
+
+          for function_name in (
+              "showEditWheel",
+              "showManualWheel"
+          ):
+
+              pos = code.find(
+                  "private fun " + function_name
+              )
+
+              if pos < 0:
+                  raise SystemExit(
+                      "ERRO: " + function_name + " não encontrado"
+                  )
+
+              end = code.find(
+                  "\n              }",
+                  pos
+              )
+
+              if end < 0:
+                  raise SystemExit(
+                      "ERRO: fim de " + function_name + " não encontrado"
+                  )
+
+              trecho = code[
+                  pos:end
+              ]
+
+              if "styleWheel(hour)" not in trecho:
+
+                  marker = (
+                      "                  val sep="
+                  )
+
+                  sep = trecho.find(
+                      marker
+                  )
+
+                  if sep >= 0:
+
+                      insertion = (
+                          "                  styleWheel(hour)\n"
+                          "                  styleWheel(minute)\n\n"
+                      )
+
+                      trecho = (
+                          trecho[:sep]
+                          + insertion
+                          + trecho[sep:]
+                      )
+
+                      code = (
+                          code[:pos]
+                          + trecho
+                          + code[end:]
+                      )
+
+          # ============================================================
+          # GARANTIR PUNCHNAMES
+          # ============================================================
+
+          if "private val punchNames" not in code:
+
+              names = (
+                  "    private val punchNames=arrayOf<String>(\n"
+                  "        \"Entrada\",\n"
+                  "        \"Saída\",\n"
+                  "        \"Retorno\",\n"
+                  "        \"Saída intervalo 2\",\n"
+                  "        \"Retorno intervalo 2\",\n"
+                  "        \"Saída\"\n"
+                  "    )\n"
+              )
+
+              anchors = [
+                  "    private val extra2ReturnEnabled=mutableSetOf<String>()\n",
+                  "    private val extra2Enabled=mutableSetOf<String>()\n",
                   "    private val weekModes=linkedMapOf<String,String>()\n",
                   "    private val weekModes = linkedMapOf<String,String>()\n"
               ]
 
-              for a in anchors:
+              inserted = False
 
-                  if a in code:
+              for anchor in anchors:
 
-                      code=code.replace(
-                          a,
-                          a
-                          +"    private val extra2Enabled=mutableSetOf<String>()\n"
-                          +"    private val extra2ReturnEnabled=mutableSetOf<String>()\n",
+                  if anchor in code:
+
+                      code = code.replace(
+                          anchor,
+                          anchor + names,
                           1
                       )
 
+                      inserted = True
                       break
 
-              else:
+              if not inserted:
+
                   raise SystemExit(
-                      "ERRO: weekModes não encontrado"
+                      "ERRO: não foi possível inserir punchNames"
                   )
 
-          if 'prefs.getString("extra2Enabled"' not in code:
-
-              anchor="        scale.clear()\n"
-
-              if anchor not in code:
-                  raise SystemExit(
-                      "ERRO: scale.clear não encontrado"
-                  )
-
-              block=(
-                  "        extra2Enabled.clear()\n"
-                  "                  extra2ReturnEnabled.clear()\n"
-                  "                  try{\n"
-                  "                      val ja=JSONArray(prefs.getString(\"extra2Enabled\",\"[]\") ?: \"[]\")\n"
-                  "                      for(i in 0 until ja.length()) extra2Enabled.add(ja.optString(i))\n"
-                  "                      val jb=JSONArray(prefs.getString(\"extra2ReturnEnabled\",\"[]\") ?: \"[]\")\n"
-                  "                      for(i in 0 until jb.length()) extra2ReturnEnabled.add(jb.optString(i))\n"
-                  "                  }catch(_:Exception){}\n"
-              )
-
-              code=code.replace(
-                  anchor,
-                  block+anchor,
-                  1
-              )
-
-              anchor="        e.apply()\n"
-
-              if anchor not in code:
-                  raise SystemExit(
-                      "ERRO: e.apply não encontrado"
-                  )
-
-              block=(
-                  "        val extraJson=JSONArray()\n"
-                  "                  extra2Enabled.forEach{extraJson.put(it)}\n"
-                  "                  e.putString(\"extra2Enabled\",extraJson.toString())\n"
-                  "                  val extraReturnJson=JSONArray()\n"
-                  "                  extra2ReturnEnabled.forEach{extraReturnJson.put(it)}\n"
-                  "                  e.putString(\"extra2ReturnEnabled\",extraReturnJson.toString())\n"
-              )
-
-              code=code.replace(
-                  anchor,
-                  block+anchor,
-                  1
-              )
-
-          if "private fun extraKey" not in code:
-
-              anchor="    private fun today()=iso.format(Date())\n"
-
-              if anchor not in code:
-                  raise SystemExit(
-                      "ERRO: today não encontrado"
-                  )
-
-              block=(
-                  "    private fun extraKey(empId:Long,date:String)=empId.toString()+\"|\"+date\n"
-                  "              private fun extraEnabled(empId:Long,date:String)=extra2Enabled.contains(extraKey(empId,date))\n"
-                  "              private fun extraReturnEnabled(empId:Long,date:String)=extra2ReturnEnabled.contains(extraKey(empId,date))\n"
-                  "              private fun setExtraEnabled(empId:Long,date:String,value:Boolean){\n"
-                  "                  val k=extraKey(empId,date)\n"
-                  "                  if(value) extra2Enabled.add(k) else {extra2Enabled.remove(k);extra2ReturnEnabled.remove(k)}\n"
-                  "                  saveData()\n"
-                  "              }\n"
-                  "              private fun setExtraReturnEnabled(empId:Long,date:String,value:Boolean){\n"
-                  "                  val k=extraKey(empId,date)\n"
-                  "                  if(value && extra2Enabled.contains(k)) extra2ReturnEnabled.add(k) else extra2ReturnEnabled.remove(k)\n"
-                  "                  saveData()\n"
-                  "              }\n"
-              )
-
-              code=code.replace(
-                  anchor,
-                  block+anchor,
-                  1
-              )
-
-          start=code.find(
-              "    private fun showPunch()"
+          file.write_text(
+              code,
+              encoding="utf-8"
           )
 
-          end=code.find(
-              "    private fun showHistory()",
-              start
+          print(
+              "CORREÇÕES FINAIS APLICADAS"
           )
 
-          if start<0 or end<0:
-              raise SystemExit(
-                  "ERRO: showPunch/showHistory não encontrados"
-              )
+      - name: Validar código e ícone
+        shell: bash
+        run: |
+          set -e
 
-          show=(
-              "    private fun showPunch(){\n"
-              "                  val box=page(\"Bater Ponto\")\n"
-              "                  if(employees.isEmpty()){box.addView(infoCard(\"Nenhum funcionário cadastrado.\\\\nCadastre o primeiro em Funcionários.\"));return}\n"
-              "                  val emp=employees.firstOrNull{it.id==selectedEmployeeId}?:employees.first().also{selectedEmployeeId=it.id}\n"
-              "                  box.addView(card().apply{\n"
-              "                      val line=LinearLayout(context).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(16),dp(12),dp(16),dp(12))}\n"
-              "                      line.addView(label(\"Funcionário\"))\n"
-              "                      val spinner=Spinner(context)\n"
-              "                      spinner.adapter=ArrayAdapter(context,android.R.layout.simple_spinner_dropdown_item,employees.map{it.name})\n"
-              "                      spinner.setSelection(employees.indexOfFirst{it.id==selectedEmployeeId}.coerceAtLeast(0))\n"
-              "                      spinner.onItemSelectedListener=object:AdapterView.OnItemSelectedListener{\n"
-              "                          override fun onNothingSelected(p:AdapterView<*>?){ }\n"
-              "                          override fun onItemSelected(p:AdapterView<*>?,v:View?,pos:Int,id:Long){\n"
-              "                              if(employees[pos].id!=selectedEmployeeId){selectedEmployeeId=employees[pos].id;selectedPunchDate=today();showPunch()}\n"
-              "                          }\n"
-              "                      }\n"
-              "                      line.addView(spinner)\n"
-              "                      line.addView(TextView(context).apply{text=\"Salário mensal   ${money.format(emp.salary)}\";textSize=14f;setTextColor(muted);setPadding(0,dp(8),0,0)})\n"
-              "                      addView(line)\n"
-              "                  },0,0,0,dp(10))\n"
-              "                  val dateCard=card()\n"
-              "                  val dateLine=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(dp(14),dp(8),dp(14),dp(8))}\n"
-              "                  dateLine.addView(TextView(this).apply{text=\"📅\";textSize=25f},LinearLayout.LayoutParams(dp(45),dp(55)))\n"
-              "                  dateLine.addView(TextView(this).apply{text=\"DATA\\\\n${df.format(parseIso(selectedPunchDate))}\";textSize=16f;setTypeface(null,Typeface.BOLD);setTextColor(this@MainActivity.text)},LinearLayout.LayoutParams(0,dp(60),1f))\n"
-              "                  dateLine.addView(Button(this).apply{text=\"ALTERAR\";isAllCaps=false;setOnClickListener{choosePunchDate()}},LinearLayout.LayoutParams(dp(105),dp(52)))\n"
-              "                  dateCard.addView(dateLine)\n"
-              "                  box.addView(dateCard,LinearLayout.LayoutParams(-1,dp(82)).apply{bottomMargin=dp(8)})\n"
-              "                  box.addView(Button(this).apply{\n"
-              "                      text=\"✎  REGISTRO MANUAL\";isAllCaps=false;textSize=14f\n"
-              "                      setOnClickListener{showManualWheel(emp.id)}\n"
-              "                  },LinearLayout.LayoutParams(-1,dp(54)).apply{bottomMargin=dp(10)})\n"
-              "                  val rec=getRecord(emp.id,selectedPunchDate)\n"
-              "                  val extra=extraEnabled(emp.id,selectedPunchDate)\n"
-              "                  val next=nextPunchIndex(rec,extra)\n"
-              "                  box.addView(Button(this).apply{\n"
-              "                      text=if(next<0)\"PONTO DO DIA COMPLETO\" else \"▶  REGISTRAR PRÓXIMA BATIDA\\\\n${punchNames[next]}\"\n"
-              "                      textSize=15f;setTextColor(Color.WHITE);isAllCaps=false;isEnabled=next>=0\n"
-              "                      background(green,dp(12),dp(12),dp(12),dp(12))\n"
-              "                      setOnClickListener{registerPunch(emp.id)}\n"
-              "                  },LinearLayout.LayoutParams(-1,dp(72)).apply{bottomMargin=dp(10)})\n"
-              "                  box.addView(TextView(this).apply{text=\"BATIDAS DO DIA\";textSize=13f;setTypeface(null,Typeface.BOLD);setTextColor(muted);setPadding(dp(4),dp(2),0,dp(6))})\n"
-              "                  addPunchRow(box,rec,0,punchNames[0])\n"
-              "                  addPunchRow(box,rec,1,punchNames[1])\n"
-              "                  addPunchRow(box,rec,2,punchNames[2])\n"
-              "                  addPunchRow(box,rec,5,punchNames[5])\n"
-              "                  box.addView(TextView(this).apply{text=\"INTERVALO 2 (OPCIONAL)\";textSize=13f;setTypeface(null,Typeface.BOLD);setTextColor(muted);setPadding(dp(4),dp(8),0,dp(4))})\n"
-              "                  addExtraSwitch(box,emp.id,selectedPunchDate,0,rec)\n"
-              "                  addExtraSwitch(box,emp.id,selectedPunchDate,1,rec)\n"
-              "                  val calc=calculate(rec)\n"
-              "                  val cards=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}\n"
-              "                  cards.addView(metricCard(\"Horas trabalhadas\",formatMin(calc.worked),blue),LinearLayout.LayoutParams(0,dp(82),1f).apply{rightMargin=dp(6)})\n"
-              "                  cards.addView(metricCard(\"Horas extras\",formatMin(calc.extra60+calc.extra100),green),LinearLayout.LayoutParams(0,dp(82),1f).apply{leftMargin=dp(6)})\n"
-              "                  box.addView(cards)\n"
-              "              }\n"
-              "              private fun addPunchRow(box:LinearLayout,rec:PunchDay,index:Int,name:String){\n"
-              "                  val row=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(dp(12),dp(4),dp(10),dp(4));background(Color.WHITE,dp(12),dp(12),dp(12),dp(12));elevation=dp(1).toFloat()}\n"
-              "                  row.addView(TextView(this).apply{text=(index+1).toString();textSize=16f;gravity=Gravity.CENTER;setTypeface(null,Typeface.BOLD);background(0xFFEAF0F7.toInt(),30,30,30,30)},LinearLayout.LayoutParams(dp(42),dp(42)))\n"
-              "                  row.addView(TextView(this).apply{text=name;textSize=15f;setTextColor(this@MainActivity.text);setPadding(dp(12),0,0,0)},LinearLayout.LayoutParams(0,dp(52),1f))\n"
-              "                  row.addView(TextView(this).apply{text=rec.punches[index].ifBlank{\"--:--\"};textSize=15f;setTextColor(if(rec.punches[index].isBlank())muted else darkBlue);setTypeface(null,Typeface.BOLD);gravity=Gravity.CENTER})\n"
-              "                  row.setOnClickListener{showEditWheel(rec,index)}\n"
-              "                  box.addView(row,LinearLayout.LayoutParams(-1,dp(58)).apply{bottomMargin=dp(7)})\n"
-              "              }\n"
-              "              private fun addExtraSwitch(box:LinearLayout,empId:Long,date:String,which:Int,rec:PunchDay){\n"
-              "                  val enabled=if(which==0)extraEnabled(empId,date) else extraReturnEnabled(empId,date)\n"
-              "                  val index=if(which==0)3 else 4\n"
-              "                  val title=if(which==0)\"Saída intervalo 2\" else \"Retorno intervalo 2\"\n"
-              "                  val row=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(dp(12),dp(5),dp(10),dp(5));background(Color.WHITE,dp(12),dp(12),dp(12),dp(12));elevation=dp(1).toFloat()}\n"
-              "                  row.addView(TextView(this).apply{text=(index+1).toString();textSize=16f;gravity=Gravity.CENTER;setTypeface(null,Typeface.BOLD);background(0xFFEAF0F7.toInt(),30,30,30,30)},LinearLayout.LayoutParams(dp(42),dp(42)))\n"
-              "                  row.addView(TextView
+          FILE="ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
+
+          echo "========================================"
+          echo "VALIDANDO"
+          echo "========================================"
+
+          test -s "$FILE"
+
+          test -s \
+            "ControleHoras/app/src/main/res/drawable/controlehoras_icon.jpg"
+
+          grep -q \
+            'extra2Enabled' \
+            "$FILE"
+
+          grep -q \
+            'showManualWheel' \
+            "$FILE"
+
+          grep -q \
+            'showEditWheel' \
+            "$FILE"
+
+          grep -q \
+            'nextPunchIndex' \
+            "$FILE"
+
+          grep -q \
+            'punchNames' \
+            "$FILE"
+
+          grep -q \
+            'WindowCompat.setDecorFitsSystemWindows' \
+            "$FILE"
+
+          grep -q \
+            'controlehoras_icon' \
+            ControleHoras/app/src/main/AndroidManifest.xml
+
+          if grep -q \
+            'Button(context)' \
+            "$FILE"
+          then
+            echo "ERRO: Button(context)"
+            exit 1
+          fi
+
+          echo "VALIDAÇÃO OK"
+
+      - name: Instalar Gradle 8.11.1
+        shell: bash
+        run: |
+          set -e
+
+          wget -q \
+            https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
+
+          unzip -q \
+            gradle-8.11.1-bin.zip
+
+          echo \
+            "$PWD/gradle-8.11.1/bin" \
+            >> "$GITHUB_PATH"
+
+          "$PWD/gradle-8.11.1/bin/gradle" \
+            --version
+
+      - name: Limpar projeto
+        working-directory: ControleHoras
+        shell: bash
+        run: |
+          set -e
+
+          gradle clean \
+            --no-daemon
+
+      - name: Gerar APK
+        working-directory: ControleHoras
+        shell: bash
+        run: |
+          set -e
+
+          echo "========================================"
+          echo "GERANDO APK"
+          echo "========================================"
+
+          gradle assembleDebug \
+            --no-daemon \
+            --stacktrace
+
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+
+          test -s "$APK"
+
+          ls -lh "$APK"
+
+          echo "APK GERADO"
+
+      - name: Verificar APK
+        working-directory: ControleHoras
+        shell: bash
+        run: |
+          set -e
+
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+
+          test -s "$APK"
+
+          unzip -t \
+            "$APK" \
+            >/dev/null
+
+          echo "APK VALIDADO"
+
+      - name: Publicar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ControleHoras-APK
+          path: ControleHoras/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
