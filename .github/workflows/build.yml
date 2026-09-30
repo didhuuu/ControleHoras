@@ -266,9 +266,9 @@ jobs:
           import subprocess
           import tempfile
 
-          # ----------------------------------------------------------
-          # BAIXAR A IMPLEMENTAÇÃO COMPLETA DA ROLETA
-          # ----------------------------------------------------------
+          # ==========================================================
+          # BAIXAR IMPLEMENTAÇÃO DA ROLETA
+          # ==========================================================
 
           url = (
               "https://raw.githubusercontent.com/"
@@ -282,9 +282,9 @@ jobs:
               timeout=30
           ).read().decode("utf-8")
 
-          # ----------------------------------------------------------
-          # LOCALIZAR A ETAPA
-          # ----------------------------------------------------------
+          # ==========================================================
+          # LOCALIZAR A ETAPA DA ROLETA
+          # ==========================================================
 
           step_name = (
               "      - name: "
@@ -327,9 +327,9 @@ jobs:
               for line in lines
           ) + "\n"
 
-          # ----------------------------------------------------------
-          # REMOVER BLOCO ANTIGO DE BATIDA VAZIA
-          # ----------------------------------------------------------
+          # ==========================================================
+          # 1. REMOVER BLOCO ANTIGO DE BATIDA VAZIA
+          # ==========================================================
 
           bad_start = script.find(
               "# PERMITIR EDITAR BATIDA VAZIA"
@@ -357,9 +357,9 @@ jobs:
                   "BLOCO ANTIGO DE BATIDA VAZIA REMOVIDO"
               )
 
-          # ----------------------------------------------------------
-          # GARANTIA CONTRA O BLOCO ANTIGO
-          # ----------------------------------------------------------
+          # ==========================================================
+          # 2. GARANTIR QUE O BLOCO ANTIGO NÃO SOBROU
+          # ==========================================================
 
           if (
               "'''if(rec.punches[index].isBlank())"
@@ -370,9 +370,9 @@ jobs:
                   "ERRO: bloco problemático ainda existe"
               )
 
-          # ----------------------------------------------------------
-          # CORRIGIR main_index
-          # ----------------------------------------------------------
+          # ==========================================================
+          # 3. CORRIGIR main_index
+          # ==========================================================
 
           script = script.replace(
               "main_index=\n"
@@ -389,28 +389,75 @@ jobs:
           if "main_index=\n" in script:
 
               raise SystemExit(
-                  "ERRO: assinatura main_index ainda está quebrada"
+                  "ERRO: main_index ainda está quebrado"
               )
 
-          # ----------------------------------------------------------
-          # IMPORTANTE:
-          # verificar a DECLARAÇÃO da função,
-          # e não somente chamadas da função.
-          # ----------------------------------------------------------
+          # ==========================================================
+          # 4. CORREÇÃO PRINCIPAL
+          #
+          # O SCRIPT ORIGINAL FAZIA:
+          #
+          # if "showControleHorasWheelDialog(" not in code:
+          #
+          # Isso encontra chamadas da função e não a declaração.
+          #
+          # O correto é procurar:
+          #
+          # private fun showControleHorasWheelDialog(
+          #
+          # Assim a função será realmente inserida.
+          # ==========================================================
 
-          function_marker = (
-              "private fun showControleHorasWheelDialog("
+          old_check = (
+              'if "showControleHorasWheelDialog(" not in code:'
           )
 
-          if function_marker not in script:
+          new_check = (
+              'if "private fun showControleHorasWheelDialog(" '
+              'not in code:'
+          )
 
-              raise SystemExit(
-                  "ERRO: declaração da roleta não foi encontrada"
+          if old_check not in script:
+
+              print(
+                  "AVISO: verificação original da roleta "
+                  "não encontrada exatamente"
               )
 
-          # ----------------------------------------------------------
-          # TESTE DE SINTAXE
-          # ----------------------------------------------------------
+          else:
+
+              script = script.replace(
+                  old_check,
+                  new_check
+              )
+
+              print(
+                  "VERIFICAÇÃO DA DECLARAÇÃO DA ROLETA CORRIGIDA"
+              )
+
+          # ==========================================================
+          # 5. GARANTIR QUE A CORREÇÃO FOI APLICADA
+          # ==========================================================
+
+          if (
+              old_check in script
+          ):
+
+              raise SystemExit(
+                  "ERRO: verificação antiga da roleta ainda existe"
+              )
+
+          if (
+              new_check not in script
+          ):
+
+              raise SystemExit(
+                  "ERRO: nova verificação da roleta não foi instalada"
+              )
+
+          # ==========================================================
+          # 6. TESTE DE SINTAXE
+          # ==========================================================
 
           try:
 
@@ -452,9 +499,9 @@ jobs:
               "SINTAXE DA ROLETA OK"
           )
 
-          # ----------------------------------------------------------
-          # GRAVAR SCRIPT
-          # ----------------------------------------------------------
+          # ==========================================================
+          # 7. GRAVAR SCRIPT CORRIGIDO
+          # ==========================================================
 
           p = (
               Path(tempfile.gettempdir())
@@ -466,9 +513,9 @@ jobs:
               encoding="utf-8"
           )
 
-          # ----------------------------------------------------------
-          # EXECUTAR
-          # ----------------------------------------------------------
+          # ==========================================================
+          # 8. EXECUTAR
+          # ==========================================================
 
           subprocess.run(
               [
