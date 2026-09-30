@@ -176,7 +176,9 @@ jobs:
               check=True
           )
 
-          print("FUNCIONALIDADES DA VERSÃO 80 APLICADAS")
+          print(
+              "FUNCIONALIDADES DA VERSÃO 80 APLICADAS"
+          )
 
       - name: Criar som mecânico da roleta
         shell: python
@@ -252,7 +254,9 @@ jobs:
                   b"".join(frames)
               )
 
-          print("SOM DA ROLETA CRIADO")
+          print(
+              "SOM DA ROLETA CRIADO"
+          )
 
       - name: Corrigir tela e instalar roleta personalizada
         shell: python
@@ -263,7 +267,7 @@ jobs:
           import tempfile
 
           # ----------------------------------------------------------
-          # IMPLEMENTAÇÃO COMPLETA DA ROLETA
+          # BAIXAR A IMPLEMENTAÇÃO COMPLETA DA ROLETA
           # ----------------------------------------------------------
 
           url = (
@@ -278,6 +282,10 @@ jobs:
               timeout=30
           ).read().decode("utf-8")
 
+          # ----------------------------------------------------------
+          # LOCALIZAR A ETAPA
+          # ----------------------------------------------------------
+
           step_name = (
               "      - name: "
               "Corrigir tela e instalar roleta personalizada"
@@ -287,14 +295,8 @@ jobs:
               step_name
           )
 
-          # ----------------------------------------------------------
-          # IMPORTANTE:
-          # O texto "Validar projeto antes do Gradle" aparece também
-          # dentro do script Python da roleta.
-          #
-          # Por isso usamos rfind(), e não index().
-          # ----------------------------------------------------------
-
+          # O texto abaixo aparece também dentro do código.
+          # Portanto usamos rfind().
           end = workflow.rfind(
               "      - name: Validar projeto antes do Gradle"
           )
@@ -302,7 +304,7 @@ jobs:
           if end <= start:
 
               raise SystemExit(
-                  "ERRO: limite final da etapa da roleta não encontrado"
+                  "ERRO: etapa da roleta não encontrada"
               )
 
           block = workflow[start:end]
@@ -328,37 +330,22 @@ jobs:
           ) + "\n"
 
           # ----------------------------------------------------------
-          # CORREÇÃO DEFINITIVA DO ERRO:
+          # CORREÇÃO DEFINITIVA
           #
-          # A implementação da roleta possui blocos ''' dentro do
-          # script Python que está sendo extraído.
+          # O código original contém este bloco antigo:
           #
-          # Depois que o script foi extraído, transformamos esses
-          # delimitadores em """, antes do compile().
+          # code=code.replace(
+          #     '''if(rec.punches[index].isBlank()){
+          #       ...
+          #     }''',
+          #     ""
+          # )
           #
-          # Isso impede que a string seja encerrada antes de:
+          # Esse ''' está dentro do show_method=r''' ... '''.
+          # Ele encerra a string Python antes de main_index=.
           #
-          # main_index=
-          #
-          # ----------------------------------------------------------
-
-          script = script.replace(
-              "'''",
-              '"""'
-          )
-
-          # ----------------------------------------------------------
-          # Remove eventual linha residual de YAML.
-          # ----------------------------------------------------------
-
-          if script.startswith("|"):
-
-              script = script[
-                  1:
-              ].lstrip("\n")
-
-          # ----------------------------------------------------------
-          # Remove o bloco antigo relacionado à batida vazia.
+          # NÃO vamos alterar os outros triple-quotes.
+          # Vamos retirar somente esse bloco inteiro.
           # ----------------------------------------------------------
 
           bad_start = script.find(
@@ -375,8 +362,7 @@ jobs:
               if bad_end < 0:
 
                   raise SystemExit(
-                      "ERRO: bloco antigo encontrado, "
-                      "mas seu final não foi localizado"
+                      "ERRO: final do bloco antigo não encontrado"
                   )
 
               script = (
@@ -389,7 +375,21 @@ jobs:
               )
 
           # ----------------------------------------------------------
-          # TESTE DE SINTAXE ANTES DE EXECUTAR.
+          # GARANTIA EXTRA:
+          # o bloco problemático não pode mais existir.
+          # ----------------------------------------------------------
+
+          if (
+              "'''if(rec.punches[index].isBlank())"
+              in script
+          ):
+
+              raise SystemExit(
+                  "ERRO: bloco problemático ainda existe"
+              )
+
+          # ----------------------------------------------------------
+          # TESTE DE SINTAXE
           # ----------------------------------------------------------
 
           try:
@@ -403,7 +403,7 @@ jobs:
           except SyntaxError as exc:
 
               print(
-                  "========================================"
+                  "=========================================="
               )
 
               print(
@@ -423,17 +423,17 @@ jobs:
               )
 
               print(
-                  "========================================"
+                  "=========================================="
               )
 
               raise
 
           print(
-              "SINTAXE DO SCRIPT DA ROLETA OK"
+              "SINTAXE DA ROLETA OK"
           )
 
           # ----------------------------------------------------------
-          # Salva o script temporariamente.
+          # GRAVAR SCRIPT
           # ----------------------------------------------------------
 
           p = (
@@ -447,7 +447,7 @@ jobs:
           )
 
           # ----------------------------------------------------------
-          # Executa a correção.
+          # EXECUTAR
           # ----------------------------------------------------------
 
           subprocess.run(
@@ -502,7 +502,10 @@ jobs:
               exit 1
           fi
 
-          if grep -q "Esse registro ainda está vazio" "$SRC"; then
+          if grep -q \
+            "Esse registro ainda está vazio" \
+            "$SRC"
+          then
               echo "ERRO: mensagem antiga encontrada"
               exit 1
           fi
