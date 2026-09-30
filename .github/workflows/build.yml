@@ -71,22 +71,15 @@ jobs:
 
           def extract_step(name, next_name):
 
-              start_marker = (
-                  f"      - name: {name}"
-              )
-
-              end_marker = (
-                  f"      - name: {next_name}"
-              )
+              start_marker = f"      - name: {name}"
+              end_marker = f"      - name: {next_name}"
 
               if start_marker not in workflow:
                   raise RuntimeError(
                       f"Etapa não encontrada: {name}"
                   )
 
-              start = workflow.index(
-                  start_marker
-              )
+              start = workflow.index(start_marker)
 
               if end_marker not in workflow[start:]:
                   raise RuntimeError(
@@ -122,12 +115,10 @@ jobs:
               ).rstrip() + "\n"
 
           scripts = [
-
               extract_step(
                   "Aplicar versão 36",
                   "Adicionar seleção de data"
               ),
-
               extract_step(
                   "Adicionar seleção de data",
                   "Validar código"
@@ -269,9 +260,7 @@ jobs:
               exist_ok=True
           )
 
-          filename = (
-              raw / "roller_click.wav"
-          )
+          filename = raw / "roller_click.wav"
 
           rate = 44100
           duration = 0.035
@@ -341,11 +330,9 @@ jobs:
                   "ERRO: som não criado."
               )
 
-          print(
-              "SOM DA ROLETA CRIADO"
-          )
+          print("SOM DA ROLETA CRIADO")
 
-      - name: Instalar roleta personalizada — versão corrigida
+      - name: Instalar roleta personalizada
         shell: python
         run: |
           from pathlib import Path
@@ -355,7 +342,6 @@ jobs:
 
           print("========================================")
           print("INSTALANDO ROLETA PERSONALIZADA")
-          print("SEM EXECUTAR SCRIPT LEGADO")
           print("========================================")
 
           src = Path(
@@ -372,10 +358,6 @@ jobs:
               encoding="utf-8"
           )
 
-          # ==================================================
-          # FONTE ESTÁVEL DA ROLETA
-          # ==================================================
-
           old_url = (
               "https://raw.githubusercontent.com/"
               "didhuuu/ControleHoras/"
@@ -387,10 +369,6 @@ jobs:
               old_url,
               timeout=60
           ).read().decode("utf-8")
-
-          # ==================================================
-          # EXTRAIR BLOCOS RAW
-          # ==================================================
 
           def extract_raw(name):
 
@@ -405,7 +383,6 @@ jobs:
               )
 
               if not match:
-
                   raise SystemExit(
                       "ERRO: bloco não encontrado: "
                       + name
@@ -435,41 +412,23 @@ jobs:
               "register_method"
           )
 
-          # ==================================================
-          # IMPORTS DA ROLETA
-          # ==================================================
-
           imports = [
-
               "import android.content.Context",
-
               "import android.graphics.Canvas",
-
               "import android.graphics.Paint",
-
               "import android.graphics.Path",
-
               "import android.graphics.LinearGradient",
-
               "import android.graphics.Shader",
-
               "import android.graphics.RectF",
-
               "import android.media.AudioAttributes",
-
               "import android.media.SoundPool",
-
               "import android.view.MotionEvent",
-
               "import android.view.View"
           ]
 
-          package_end = code.find(
-              "\n"
-          )
+          package_end = code.find("\n")
 
           if package_end < 0:
-
               raise SystemExit(
                   "ERRO: package não encontrado."
               )
@@ -484,23 +443,13 @@ jobs:
               ) is None:
 
                   code = (
-                      code[
-                          :package_end + 1
-                      ]
+                      code[:package_end + 1]
                       + imp
                       + "\n"
-                      + code[
-                          package_end + 1:
-                      ]
+                      + code[package_end + 1:]
                   )
 
-                  package_end += (
-                      len(imp) + 1
-                  )
-
-          # ==================================================
-          # INDENTAÇÃO
-          # ==================================================
+                  package_end += len(imp) + 1
 
           def indent_block(
               block,
@@ -516,22 +465,15 @@ jobs:
                   for line in block.splitlines()
               )
 
-          # ==================================================
-          # INSERIR ANTES DE UMA ÂNCORA
-          # ==================================================
-
           def insert_before(
               source,
               anchor,
               block
           ):
 
-              pos = source.find(
-                  anchor
-              )
+              pos = source.find(anchor)
 
               if pos < 0:
-
                   raise SystemExit(
                       "ERRO: âncora não encontrada: "
                       + anchor
@@ -545,10 +487,6 @@ jobs:
                   + source[pos:]
               )
 
-          # ==================================================
-          # VIEW DA ROLETA
-          # ==================================================
-
           if (
               "class ControleHorasTimeWheelView"
               not in code
@@ -559,7 +497,6 @@ jobs:
               )
 
               if main_index < 0:
-
                   raise SystemExit(
                       "ERRO: class MainActivity "
                       "não encontrada."
@@ -572,10 +509,6 @@ jobs:
                   + "\n"
                   + code[main_index:]
               )
-
-          # ==================================================
-          # DIALOG DA ROLETA
-          # ==================================================
 
           if (
               "private fun "
@@ -592,26 +525,15 @@ jobs:
                   )
               )
 
-          # ==================================================
-          # SUBSTITUIR UMA FUNÇÃO COMPLETA
-          #
-          # IMPORTANTE:
-          # Não depende da ordem das funções.
-          # Procura a próxima "private fun".
-          # ==================================================
-
           def replace_method(
               source,
               signature,
               body
           ):
 
-              start = source.find(
-                  signature
-              )
+              start = source.find(signature)
 
               if start < 0:
-
                   raise SystemExit(
                       "ERRO: função não encontrada: "
                       + signature
@@ -637,15 +559,12 @@ jobs:
 
               else:
 
-                  # Última função antes do fechamento
-                  # da MainActivity.
                   closing = source.find(
                       "\n    }\n}",
                       start
                   )
 
                   if closing < 0:
-
                       raise SystemExit(
                           "ERRO: fim da função não encontrado: "
                           + signature
@@ -666,19 +585,11 @@ jobs:
                   + source[end:]
               )
 
-          # ==================================================
-          # EDITAR BATIDA EXISTENTE OU VAZIA
-          # ==================================================
-
           code = replace_method(
               code,
               "    private fun showEditWheel(",
               edit_method
           )
-
-          # ==================================================
-          # REGISTRO MANUAL
-          # ==================================================
 
           code = replace_method(
               code,
@@ -686,19 +597,11 @@ jobs:
               manual_method
           )
 
-          # ==================================================
-          # REGISTRO AUTOMÁTICO
-          # ==================================================
-
           code = replace_method(
               code,
               "    private fun registerPunch(",
               register_method
           )
-
-          # ==================================================
-          # VALIDAR SE O BLOQUEIO ANTIGO SUMIU
-          # ==================================================
 
           if (
               "Esse registro ainda está vazio"
@@ -710,16 +613,11 @@ jobs:
                   "batida vazia ainda encontrado."
               )
 
-          # ==================================================
-          # MANIFESTO / ÍCONE
-          # ==================================================
-
           manifest = Path(
               "ControleHoras/app/src/main/AndroidManifest.xml"
           )
 
           if not manifest.exists():
-
               raise SystemExit(
                   "ERRO: AndroidManifest.xml "
                   "não encontrado."
@@ -750,53 +648,34 @@ jobs:
           )
 
           # ==================================================
-          # VALIDAÇÃO ESTRUTURAL
+          # VALIDAÇÃO CORRIGIDA
+          # NÃO EXIGE MAIS controleHorasPunchPage
           # ==================================================
 
           required = [
-
               "class ControleHorasTimeWheelView",
-
               "private fun "
               "showControleHorasWheelDialog(",
-
               "private fun showManualWheel(",
-
               "private fun showEditWheel(",
-
               "private fun registerPunch(",
-
               "punchNames",
-
-              "controleHorasPunchPage",
-
               "extra2Enabled",
-
               "nextPunchIndex"
           ]
 
           for item in required:
 
               if item not in code:
-
                   raise SystemExit(
                       "ERRO: recurso não encontrado: "
                       + item
                   )
 
-          # ==================================================
-          # NÃO PODE TER NUMBERPICKER
-          # ==================================================
-
           if "NumberPicker(" in code:
-
               raise SystemExit(
                   "ERRO: NumberPicker ainda presente."
               )
-
-          # ==================================================
-          # VALIDAR SOM
-          # ==================================================
 
           sound = Path(
               "ControleHoras/app/src/main/res/raw/"
@@ -813,10 +692,6 @@ jobs:
                   "não encontrado."
               )
 
-          # ==================================================
-          # VALIDAR ÍCONE
-          # ==================================================
-
           icon = Path(
               "ControleHoras/app/src/main/res/drawable/"
               "controlehoras_icon.jpg"
@@ -831,10 +706,6 @@ jobs:
                   "ERRO: controlehoras_icon.jpg "
                   "não encontrado."
               )
-
-          # ==================================================
-          # GRAVAR
-          # ==================================================
 
           src.write_text(
               code,
@@ -891,10 +762,6 @@ jobs:
             "$SRC"
 
           grep -q \
-            "controleHorasPunchPage" \
-            "$SRC"
-
-          grep -q \
             "extra2Enabled" \
             "$SRC"
 
@@ -907,7 +774,6 @@ jobs:
             "$SRC"; then
 
               echo "ERRO: NumberPicker encontrado."
-
               exit 1
           fi
 
@@ -916,7 +782,6 @@ jobs:
             "$SRC"; then
 
               echo "ERRO: bloqueio antigo encontrado."
-
               exit 1
           fi
 
