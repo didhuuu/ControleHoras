@@ -335,11 +335,6 @@ jobs:
 
       # ============================================================
       # RODA AZUL/NEON
-      #
-      # IMPORTANTE:
-      # TODO O KOTLIN É TRANSPORTADO COMO BASE64.
-      #
-      # NÃO EXISTE KOTLIN MULTILINHA DENTRO DO YAML.
       # ============================================================
 
       - name: Instalar roda azul neon
@@ -347,7 +342,6 @@ jobs:
         run: |
           from pathlib import Path
           import base64
-          import textwrap
 
           root = Path(
               "ControleHoras"
@@ -369,10 +363,6 @@ jobs:
               encoding="utf-8"
           )
 
-          # --------------------------------------------------------
-          # IMPORTS
-          # --------------------------------------------------------
-
           imports = [
               "import android.graphics.Canvas",
               "import android.graphics.LinearGradient",
@@ -391,15 +381,12 @@ jobs:
           )
 
           if package_line not in code:
-
               raise SystemExit(
                   "ERRO: package não encontrado."
               )
 
           for imp in imports:
-
               if imp not in code:
-
                   code = code.replace(
                       package_line,
                       package_line +
@@ -409,9 +396,7 @@ jobs:
                   )
 
           # --------------------------------------------------------
-          # BASE64 DOS BLOCOS KOTLIN
-          #
-          # NÃO ALTERAR.
+          # RODA / DIALOG
           # --------------------------------------------------------
 
           DIALOG = (
@@ -427,7 +412,7 @@ jobs:
           )
 
           WHEEL = (
-              "cGFja2FnZSBjb20uZGlkaHV1dS5jb250cm9sZWhvcmFzCgppbXBvcnQgYW5kcm9pZC5jb250ZW50LkNvbnRleHQKaW1wb3J0IGFuZHJvaWQuZ3JhcGhpY3MuQ2FudmFzCmltcG9ydCBhbmRyb2lkLmdyYXBoaWNzLkxpbmVhckdyYWRpZW50CmltcG9ydCBhbmRyb2lkLmdyYXBoaWNzLlBhaW50CmltcG9ydCBhbmRyb2lkLmdyYXBoaWNzLlNoYWRlcgppbXBvcnQgYW5kcm9pZC5tZWRpYS5BdWRpb01hbmFnZXIKaW1wb3J0IGFuZHJvaWQubWVkaWEuVG9uZUdlbmVyYXRvcgppbXBvcnQgYW5kcm9pZC52aWV3Lk1vdGlvbkV2ZW50CmltcG9ydCBhbmRyb2lkLnZpZXcuVmlldwppbXBvcnQga290bGluLm1hdGguYWJzCgpjbGFzcyBUaW1lV2hlZWxWaWV3KAogICAgY29udGV4dDpDb250ZXh0LAogICAgcHJpdmF0ZSB2YWwgbWluaW11bTpJbnQsCiAgICBwcml2YXRlIHZhbCBtYXhpbXVtOkludCwKICAgIGluaXRpYWw6SW50Cik6Vmlldyhjb250ZXh0KXsKCiAgICB2YXIgdmFsdWU6SW50PWluaXRpYWwuY29lcmNlSW4obWluaW11bSxtYXhpbXVtKQogICAgICAgIHByaXZhdGUgc2V0CgogICAgdmFyIG9uVmFsdWVDaGFuZ2VkOigoKS0+VW5pdCk/PW51bGwKCiAgICBwcml2YXRlIHZhbCBkZW5zaXR5PXJlc291cmNlcy5kaXNwbGF5TWV0cmljcy5kZW5zaXR5CgogICAgcHJpdmF0ZSB2YWwgcGFpbnQ9UGFpbnQoUGFpbnQuQU5USV9BTElBU19GTEFHKQoKICAgIHByaXZhdGUgdmFsIHRvbmU9VG9uZUdlbmVyYXRvcigKICAgICAgICBBdWRpb01hbmFnZXIuU1RSRUFNX05PVElGSUNBVElPTiwKICAgICAgICA2NQogICAgKQoKICAgIHByaXZhdGUgdmFyIGxhc3RZPTBmCiAgICBwcml2YXRlIHZhciBhY2N1bXVsYXRlZD0wZgoKICAgIHByaXZhdGUgZnVuIGRwKHZhbHVlOkludCk6RmxvYXQ9dmFsdWUqZGVuc2l0eQoKICAgIHByaXZhdGUgZnVuIGNoYW5nZShhbW91bnQ6SW50KXsKICAgICAgICB2YWwgbmV4dD0odmFsdWUrYW1vdW50KS5jb2VyY2VJbihtaW5pbXVtLG1heGltdW0pCiAgICAgICAgaWYobmV4dD09dmFsdWUpcmV0dXJuCiAgICAgICAgdmFsdWU9bmV4dAogICAgICAgIHRvbmUuc3RhcnRUb25lKFRvbmVHZW5lcmF0b3IuVE9ORV9QUk9QX0NMSUNLLDM1KQogICAgICAgIG9uVmFsdWVDaGFuZ2VkPy5pbnZva2UoKQogICAgICAgIGludmFsaWRhdGUoKQogICAgfQoKICAgIG92ZXJyaWRlIGZ1biBvbkRyYXcoY2FudmFzOkNhbnZhcyl7CiAgICAgICAgc3VwZXIub25EcmF3KGNhbnZhcykKCiAgICAgICAgdmFsIHdpZHRoPXdpZHRoLnRvRmxvYXQoKQogICAgICAgIHZhbCBoZWlnaHQ9aGVpZ2h0LnRvRmxvYXQoKQogICAgICAgIHZhbCBjZW50ZXI9aGVpZ2h0LzJmCgogICAgICAgIHBhaW50LnNoYWRlcj1MaW5lYXJHcmFkaWVudCgKICAgICAgICAgICAgMGYsMGYsd2lkdGgsMGYsCiAgICAgICAgICAgIGludEFycmF5T2YoCiAgICAgICAgICAgICAgICAweEZGMTcxOTFDLnRvSW50KCksCiAgICAgICAgICAgICAgICAweEZGQjlCREM0LnRvSW50KCksCiAgICAgICAgICAgICAgICAweEZGRjVGN0ZBLnRvSW50KCksCiAgICAgICAgICAgICAgICAweEZGOUVBNEFCLnRvSW50KCksCiAgICAgICAgICAgICAgICAweEZGMTcxOTFDLnRvSW50KCkKICAgICAgICAgICAgKSwKICAgICAgICAgICAgbnVsbCwKICAgICAgICAgICAgU2hhZGVyLlRpbGVNb2RlLkNMQU1QCiAgICAgICAgKQoKICAgICAgICBjYW52YXMuZHJhd1JvdW5kUmVjdCgKICAgICAgICAgICAgZHAoNCksZHAoMyksd2lkdGgtZHAoNCksaGVpZ2h0LWRwKDMpLAogICAgICAgICAgICBkcCgxOCksZHAoMTgpLHBhaW50CiAgICAgICAgKQoKICAgICAgICBwYWludC5zaGFkZXI9TGluZWFyR3JhZGllbnQoCiAgICAgICAgICAgIDBmLGNlbnRlci1kcCgzNCksMGYsY2VudGVyK2RwKDM0KSwKICAgICAgICAgICAgaW50QXJyYXlPZigKICAgICAgICAgICAgICAgIDB4RkYwMDNDRkYudG9JbnQoKSwKICAgICAgICAgICAgICAgIDB4RkYwMDhCRkYudG9JbnQoKSwKICAgICAgICAgICAgICAgIDB4RkYwMDUwRkYudG9JbnQoKQogICAgICAgICAgICApLAogICAgICAgICAgICBudWxsLAogICAgICAgICAgICBTaGFkZXIuVGlsZU1vZGUuQ0xBTVAKICAgICAgICApCgogICAgICAgIGNhbnZhcy5kcmF3Um91bmRSZWN0KAogICAgICAgICAgICBkcCg5KSxjZW50ZXItZHAoMzQpLHdpZHRoLWRwKDkpLGNlbnRlcitkcCgzNCksCiAgICAgICAgICAgIGRwKDEwKSxkcCgxMCkscGFpbnQKICAgICAgICApCgogICAgICAgIHBhaW50LnNoYWRlcj1udWxsCiAgICAgICAgcGFpbnQudGV4dEFsaWduPVBhaW50LkFsaWduLkNFTlRFUgoKICAgICAgICBmb3Iob2Zmc2V0IGluIC0yLi4yKXsKICAgICAgICAgICAgdmFyIG51bWJlcj12YWx1ZStvZmZzZXQKICAgICAgICAgICAgdmFsIHJhbmdlPW1heGltdW0tbWluaW11bSsxCgogICAgICAgICAgICB3aGlsZShudW1iZXI+bWF4aW11bSludW1iZXItPXJhbmdlCiAgICAgICAgICAgIHdoaWxlKG51bWJlcjxtaW5pbXVtKW51bWJlcis9cmFuZ2UKCiAgICAgICAgICAgIHBhaW50LnRleHRTaXplPWlmKG9mZnNldD09MClkcCgyOCkgZWxzZSBkcCgxOSkKICAgICAgICAgICAgcGFpbnQuY29sb3I9aWYob2Zmc2V0PT0wKQogICAgICAgICAgICAgICAgMHhGRkZGRkZGRi50b0ludCgpCiAgICAgICAgICAgIGVsc2UKICAgICAgICAgICAgICAgIDB4RkZFMkU3RUYudG9JbnQoKQoKICAgICAgICAgICAgY2FudmFzLmRyYXdUZXh0KAogICAgICAgICAgICAgICAgIiUwMmQiLmZvcm1hdChudW1iZXIpLAogICAgICAgICAgICAgICAgd2lkdGgvMmYsCiAgICAgICAgICAgICAgICBjZW50ZXIrb2Zmc2V0KmRwKDQ1KStkcCg5KSwKICAgICAgICAgICAgICAgIHBhaW50CiAgICAgICAgICAgICkKICAgICAgICB9CgogICAgICAgIHBhaW50LmNvbG9yPTB4RkYwMEQ5RkYudG9JbnQoKQogICAgICAgIHBhaW50LnN0eWxlPVBhaW50LlN0eWxlLlNUUk9LRQogICAgICAgIHBhaW50LnN0cm9rZVdpZHRoPWRwKDIpCgogICAgICAgIGNhbnZhcy5kcmF3TGluZShkcCgzKSxjZW50ZXItZHAoMzApLGRwKDE5KSxjZW50ZXIscGFpbnQpCiAgICAgICAgY2FudmFzLmRyYXdMaW5lKGRwKDMpLGNlbnRlcitkcCgzMCksZHAoMTkpLGNlbnRlcixwYWludCkKICAgICAgICBjYW52YXMuZHJhd0xpbmUod2lkdGgtZHAoMyksY2VudGVyLWRwKDMwKSx3aWR0aC1kcCgxOSksY2VudGVyLHBhaW50KQogICAgICAgIGNhbnZhcy5kcmF3TGluZSh3aWR0aC1kcCgzKSxjZW50ZXIrZHAoMzApLHdpZHRoLWRwKDE5KSxjZW50ZXIscGFpbnQpCgogICAgICAgIHBhaW50LnN0eWxlPVBhaW50LlN0eWxlLkZJTEwKICAgIH0KCiAgICBvdmVycmlkZSBmdW4gb25Ub3VjaEV2ZW50KGV2ZW50Ok1vdGlvbkV2ZW50KTpCb29sZWFuewogICAgICAgIHdoZW4oZXZlbnQuYWN0aW9uTWFza2VkKXsKICAgICAgICAgICAgTW90aW9uRXZlbnQuQUNUSU9OX0RPV04tPnsKICAgICAgICAgICAgICAgIGxhc3RZPWV2ZW50LnkKICAgICAgICAgICAgICAgIGFjY3VtdWxhdGVkPTBmCiAgICAgICAgICAgICAgICByZXR1cm4gdHJ1ZQogICAgICAgICAgICB9CgogICAgICAgICAgICBNb3Rpb25FdmVudC5BQ1RJT05fTU9WRS0+ewogICAgICAgICAgICAgICAgYWNjdW11bGF0ZWQrPWV2ZW50LnktbGFzdFkKCiAgICAgICAgICAgICAgICBpZihhYnMoYWNjdW11bGF0ZWQpPj1kcCgyOCkpewogICAgICAgICAgICAgICAgICAgIGNoYW5nZShpZihhY2N1bXVsYXRlZDwwKTEgZWxzZSAtMSkKICAgICAgICAgICAgICAgICAgICBhY2N1bGF0ZWQ9MGYKICAgICAgICAgICAgICAgIH0KCiAgICAgICAgICAgICAgICBsYXN0WT1ldmVudC55CiAgICAgICAgICAgICAgICByZXR1cm4gdHJ1ZQogICAgICAgICAgICB9CgogICAgICAgICAgICBNb3Rpb25FdmVudC5BQ1RJT05fVVAtPnsKICAgICAgICAgICAgICAgIGlmKGFicyhhY2N1bXVsYXRlZCk8ZHAoMTApKXsKICAgICAgICAgICAgICAgICAgICBjaGFuZ2UoaWYoZXZlbnQueTxoZWlnaHQvMmYpMSBlbHNlIC0xKQogICAgICAgICAgICAgICAgfQogICAgICAgICAgICAgICAgcGVyZm9ybUNsaWNrKCkKICAgICAgICAgICAgICAgIHJldHVybiB0cnVlCiAgICAgICAgICAgIH0KICAgICAgICB9CgogICAgICAgIHJldHVybiB0cnVlCiAgICB9CgogICAgb3ZlcnJpZGUgZnVuIHBlcmZvcm1DbGljaygpOkJvb2xlYW57CiAgICAgICAgc3VwZXIucGVyZm9ybUNsaWNrKCkKICAgICAgICByZXR1cm4gdHJ1ZQogICAgfQp9Cg=="
+              "cGFja2FnZSBjb20uZGlkaHV1dS5jb250cm9sZWhvcmFzCgppbXBvcnQgYW5kcm9pZC5jb250ZW50LkNvbnRleHQKaW1wb3J0IGFuZHJvaWQuZ3JhcGhpY3MuQ2FudmFzCmltcG9ydCBhbmRyb2lkLmdyYXBoaWNzLkxpbmVhckdyYWRpZW50CmltcG9ydCBhbmRyb2lkLmdyYXBoaWNzLlBhaW50CmltcG9ydCBhbmRyb2lkLmdyYXBoaWNzLlNoYWRlcgppbXBvcnQgYW5kcm9pZC5tZWRpYS5BdWRpb01hbmFnZXIKaW1wb3J0IGFuZHJvaWQubWVkaWEuVG9uZUdlbmVyYXRvcgppbXBvcnQgYW5kcm9pZC52aWV3Lk1vdGlvbkV2ZW50CmltcG9ydCBhbmRyb2lkLnZpZXcuVmlldwppbXBvcnQga290bGluLm1hdGguYWJzCgpjbGFzcyBUaW1lV2hlZWxWaWV3KAogICAgY29udGV4dDpDb250ZXh0LAogICAgcHJpdmF0ZSB2YWwgbWluaW11bTpJbnQsCiAgICBwcml2YXRlIHZh bCBtYXhpbXVtOkludCwKICAgIGluaXRpYWw6SW50Cik6Vmlldyhjb250ZXh0KXsKCiAgICB2YXIgdmFsdWU6SW50PWluaXRpYWwuY29lcmNlSW4obWluaW11bSxtYXhpbXVtKQogICAgICAgIHByaXZhdGUgc2V0CgogICAgdmFyIG9uVmFsdWVDaGFuZ2VkOigoKS0+VW5pdCk/PW51bGwKCiAgICBwcml2YXRlIHZhbCBkZW5zaXR5PXJlc291cmNlcy5kaXNwbGF5TWV0cmljcy5kZW5zaXR5CgogICAgcHJpdmF0ZSB2YWwgcGFpbnQ9UGFpbnQoUGFpbnQuQU5USV9BTElBU19GTEFHKQoKICAgIHByaXZhdGUgdmFsIHRvbmU9VG9uZUdlbmVyYXRvcigKICAgICAgICBBdWRpb01hbmFnZXIuU1RSRUFNX05PVElGSUNBVElPTiwKICAgICAgICA2NQogICAgKQoKICAgIHByaXZhdGUgdmFyIGxhc3RZPTBmCiAgICBwcml2YXRlIHZhciBhY2N1bGF0ZWQ9MGYKICAgIHByaXZhdGUgZnVuIGRwKHZhbHVlOkludCk6RmxvYXQ9dmFsdWUqZGVuc2l0eQoKICAgIHByaXZhdGUgZnVuIGNoYW5nZShhbW91bnQ6SW50KXsKICAgICAgICB2YWwgbmV4dD0odmFsdWUrYW1vdW50KS5jb2VyY2VJbihtaW5pbXVtLG1heGltdW0pCiAgICAgICAgaWYobmV4dD09dmFsdWUpcmV0dXJuCiAgICAgICAgdmFsdWU9bmV4dAogICAgICAgIHRvbmUuc3RhcnRUb25lKFRvbmVHZW5lcmF0b3IuVE9ORV9QUk9QX0NMSUNLLDM1KQogICAgICAgIG9uVmFsdWVDaGFuZ2VkPy5pbnZva2UoKQogICAgICAgIGludmFsaWRhdGUoKQogICAgfQoKICAgIG92ZXJyaWRlIGZ1biBvbkRyYXcoY2FudmFzOkNhbnZhcyl7CiAgICAgICAgc3VwZXIub25EcmF3KGNhbnZhcykKCiAgICAgICAgdmFsIHdpZHRoPXdpZHRoLnRvRmxvYXQoKQogICAgICAgIHZhbCBoZWlnaHQ9aGVpZ2h0LnRvRmxvYXQoKQogICAgICAgIHZhbCBjZW50ZXI9aGVpZ2h0LzJmCgogICAgICAgIHBhaW50LnNoYWRlcj1MaW5lYXJHcmFkaWVudCgKICAgICAgICAgICAgMGYsMGYsd2lkdGgsMGYsCiAgICAgICAgICAgIGludEFycmF5T2YoCiAgICAgICAgICAgICAgICAweEZGMTcxOTFDLnRvSW50KCksCiAgICAgICAgICAgICAgICAweEZGQjlCREM0LnRvSW50KCksCiAgICAgICAgICAgICAgICAweEZGRjVGN0ZBLnRvSW50KCksCiAgICAgICAgICAgICAgICAweEZGOUVBNEFCLnRvSW50KCksCiAgICAgICAgICAgICAgICAweEZGMTcxOTFDLnRvSW50KCkKICAgICAgICAgICAgKSwKICAgICAgICAgICAgbnVsbCwKICAgICAgICAgICAgU2hhZGVyLlRpbGVNb2RlLkNMQU1QCiAgICAgICAgKQoKICAgICAgICBjYW52YXMuZHJhd1JvdW5kUmVjdCgKICAgICAgICAgICAgZHAoNCksZHAoMyksd2lkdGgtZHAoNCksaGVpZ2h0LWRwKDMpLAogICAgICAgICAgICBkcCgxOCksZHAoMTgpLHBhaW50CiAgICAgICAgKQoKICAgICAgICBwYWludC5zaGFkZXI9TGluZWFyR3JhZGllbnQoCiAgICAgICAgICAgIDBmLGNlbnRlci1kcCgzNCksMGYsY2VudGVyK2RwKDM0KSwKICAgICAgICAgICAgaW50QXJyYXlPZigKICAgICAgICAgICAgICAgIDB4RkYwMDNDRkYudG9JbnQoKSwKICAgICAgICAgICAgICAgIDB4RkYwMDhCRkYudG9JbnQoKSwKICAgICAgICAgICAgICAgIDB4RkYwMDUwRkYudG9JbnQoKQogICAgICAgICAgICApLAogICAgICAgICAgICBudWxsLAogICAgICAgICAgICBTaGFkZXIuVGlsZU1vZGUuQ0xBTVAKICAgICAgICApCgogICAgICAgIGNhbnZhcy5kcmF3Um91bmRSZWN0KAogICAgICAgICAgICBkcCg5KSxjZW50ZXItZHAoMzQpLHdpZHRoLWRwKDkpLGNlbnRlcitkcCgzNCksCiAgICAgICAgICAgIGRwKDEwKSxkcCgxMCkscGFpbnQKICAgICAgICApCgogICAgICAgIHBhaW50LnNoYWRlcj1udWxsCiAgICAgICAgcGFpbnQudGV4dEFsaWduPVBhaW50LkFsaWduLkNFTlRFUgoKICAgICAgICBmb3Iob2Zmc2V0IGluIC0yLi4yKXsKICAgICAgICAgICAgdmFyIG51bWJl cj12YWx1ZStvZmZzZXQKICAgICAgICAgICAgdmFsIHJhbmdlPW1heGltdW0tbWluaW11bSsxCgogICAgICAgICAgICB3aGlsZShudW1iZXI+bWF4aW11bSludW1iZXItPXJhbmdlCiAgICAgICAgICAgIHdoaWxlKG51bWJl cjxtaW5pbXVtKW51bWJl rKz1yYW5nZQoKICAgICAgICAgICAgcGFpbnQudGV4dFNpemU9aWYob2Zmc2V0PT0wKWRwKDI4KSBlbHNlIGRwKDE5KQogICAgICAgICAgICBwYWludC5jb2xvcj1pZihvZmZzZXQ9PTApCiAgICAgICAgICAgICAgICAweEZGRkZGRkZGLnRvSW50KCkKICAgICAgICAgICAgZWxzZQogICAgICAgICAgICAgICAgMHhGRkUyRTdFRS50b0ludCgpCgogICAgICAgICAgICBjYW52YXMuZHJhd1RleHQoCiAgICAgICAgICAgICAgICAiJTAyZCIuZm9ybWF0KG51bWJlciksCiAgICAgICAgICAgICAgICB3aWR0aC8yZiwKICAgICAgICAgICAgICAgIGNlbnRlck9mZnNldCpkcCg0NSkrZHAoOSksCiAgICAgICAgICAgICAgICBwYWludAogICAgICAgICAgICApCiAgICAgICAgfQoKICAgICAgICBwYWludC5jb2xvcj0weEZGMDBEOUZGLnRvSW50KCkKICAgICAgICBwYWludC5zdHlsZT1QYWludC5TdHlsZS5TVFJPS0UKICAgICAgICBwYWludC5zdHJva2VXaWR0aD1kcCgyKQoKICAgICAgICBjYW52YXMuZHJhd0xpbmUoZHAoMyksY2VudGVyLWRwKDMwKSxkcCgxOSksY2VudGVyLHBhaW50KQogICAgICAgIGNhbnZhcy5kcmF3TGluZShkcCgzKSxjZW50ZXIrZHAgKDMwKSxkcCgxOSksY2VudGVyLHBhaW50KQogICAgICAgIGNhbnZhcy5kcmF3TGluZSh3aWR0aC1kcCgzKSxjZW50ZXItZHAgKDE5KSx3aWR0aC1kcCgxOSksY2VudGVyLHBhaW50KQogICAgICAgIGNhbnZhcy5kcmF3TGluZSh3aWR0aC1kcCgzKSxjZW50ZXIrZHAgKDMwKSx3aWR0aC1kcCgxOSksY2VudGVyLHBhaW50KQoKICAgICAgICBwYWludC5zdHlsZT1QYWludC5TdHlsZS5GSUxMCiAgICB9CgogICAgb3ZlcnJpZGUgZnVuIG9uVG91Y2hFdmVudChldmVudDpNb3Rpb25FdmVudCk6Qm9vbGVhbn97CiAgICAgICAgd2hlbihldmVudC5hY3Rpb25NYXNrZWQpewogICAgICAgICAgICBNb3Rpb25FdmVudC5BQ1RJT05fRE9XTj0+ewogICAgICAgICAgICAgICAgbGFzdFk9ZXZlbnQueQogICAgICAgICAgICAgICAgYWNjdW11bGF0ZWQ9MGYKICAgICAgICAgICAgICAgIHJldHVybiB0cnVlCiAgICAgICAgICAgIH0KCiAgICAgICAgICAgIE1vdGlvbkV2ZW50LkFDVElPTl9NT1ZFLT57CiAgICAgICAgICAgICAgICBhY2N1bXVsYXRlZDcrPWV2ZW50LnktbGFzdFkKCiAgICAgICAgICAgICAgICBpZihhYnMoYWNjdW11bGF0ZWQpPj1kcCgyOCkpewogICAgICAgICAgICAgICAgICAgIGNoYW5nZShpZihhY2N1bGF0ZWQ8MCkxIGVsc2UgLTEpCiAgICAgICAgICAgICAgICAgICAgYWNj dW11bGF0ZWQ9MGYKICAgICAgICAgICAgICAgIH0KCiAgICAgICAgICAgICAgICBsYXN0WT1ldmVudC55CiAgICAgICAgICAgICAgICByZXR1cm4gdHJ1ZQogICAgICAgICAgICB9CgogICAgICAgICAgICBNb3Rpb25FdmVudC5BQ1RJT05fVVAtPnsKICAgICAgICAgICAgICAgIGlmKGFicyhhY2N1bGF0ZWQpPGRwKDEwKSl7CiAgICAgICAgICAgICAgICAgICAgY2hhbmdlKGlmKGV2ZW50LnktPGhlaWdodC8yZikxIGVsc2UgLTEpCiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICBwZXJmb3JtQ2xpY2soKQogICAgICAgICAgICAgICAgcmV0dXJuIHRydWUKICAgICAgICAgICAgfQogICAgICAgIH0KCiAgICAgICAgcmV0dXJuIHRydWUKICAgIH0KCiAgICBvdmVycmlkZSBmdW4gcGVyZm9ybUNsaWNrKCk6Qm9vbGVhbn57CiAgICAgICAgc3VwZXIucGVyZm9ybUNsaWNrKCkKICAgICAgICByZXR1cm4gdHJ1ZQogICAgfQp9Cg=="
           )
 
           def decode(value):
@@ -441,6 +426,17 @@ jobs:
           edit = decode(EDIT)
           manual = decode(MANUAL)
           wheel_code = decode(WHEEL)
+
+          # Corrige automaticamente erros conhecidos da roda.
+          wheel_code = wheel_code.replace(
+              "ToneGenerator.TONE_PROP_CLICK",
+              "ToneGenerator.TONE_PROP_BEEP"
+          )
+
+          wheel_code = wheel_code.replace(
+              "acculated",
+              "accumulated"
+          )
 
           def find_function(
               source,
@@ -535,8 +531,160 @@ jobs:
           )
 
           print(
-              "RODA INSTALADA SEM KOTLIN MULTILINHA NO YAML"
+              "RODA AZUL/NEON INSTALADA"
           )
+
+      # ============================================================
+      # CORRIGIR PUNCHNAMES + ERROS FINAIS DA RODA
+      # ============================================================
+
+      - name: Corrigir erros finais da roda
+        shell: python
+        run: |
+          from pathlib import Path
+
+          root = Path(
+              "ControleHoras"
+          )
+
+          main = (
+              root /
+              "app/src/main/java/com/didhuuu/"
+              "controlehoras/MainActivity.kt"
+          )
+
+          wheel = (
+              root /
+              "app/src/main/java/com/didhuuu/"
+              "controlehoras/TimeWheelView.kt"
+          )
+
+          code = main.read_text(
+              encoding="utf-8"
+          )
+
+          # --------------------------------------------------------
+          # PUNCHNAMES
+          # --------------------------------------------------------
+
+          punch_names = """
+          private val punchNames = arrayOf(
+              "Entrada",
+              "Saída",
+              "Retorno",
+              "Saída intervalo 2",
+              "Retorno intervalo 2",
+              "Saída"
+          )
+          """
+
+          if "private val punchNames" not in code:
+
+              class_pos = code.find(
+                  "class MainActivity"
+              )
+
+              if class_pos < 0:
+                  raise SystemExit(
+                      "ERRO: MainActivity não encontrada."
+                  )
+
+              brace_pos = code.find(
+                  "{",
+                  class_pos
+              )
+
+              if brace_pos < 0:
+                  raise SystemExit(
+                      "ERRO: abertura da MainActivity não encontrada."
+                  )
+
+              code = (
+                  code[:brace_pos + 1]
+                  +
+                  "\n"
+                  +
+                  punch_names
+                  +
+                  "\n"
+                  +
+                  code[brace_pos + 1:]
+              )
+
+              print(
+                  "punchNames adicionado."
+              )
+
+          else:
+
+              print(
+                  "punchNames já existe."
+              )
+
+          main.write_text(
+              code,
+              encoding="utf-8"
+          )
+
+          # --------------------------------------------------------
+          # CORREÇÕES DA TIMEWHEEL
+          # --------------------------------------------------------
+
+          wheel_code = wheel.read_text(
+              encoding="utf-8"
+          )
+
+          wheel_code = wheel_code.replace(
+              "ToneGenerator.TONE_PROP_CLICK",
+              "ToneGenerator.TONE_PROP_BEEP"
+          )
+
+          wheel_code = wheel_code.replace(
+              "acculated",
+              "accumulated"
+          )
+
+          wheel.write_text(
+              wheel_code,
+              encoding="utf-8"
+          )
+
+          # --------------------------------------------------------
+          # VERIFICAÇÕES
+          # --------------------------------------------------------
+
+          final_main = main.read_text(
+              encoding="utf-8"
+          )
+
+          final_wheel = wheel.read_text(
+              encoding="utf-8"
+          )
+
+          if "private val punchNames" not in final_main:
+              raise SystemExit(
+                  "ERRO: punchNames não foi criado."
+              )
+
+          if "ToneGenerator.TONE_PROP_CLICK" in final_wheel:
+              raise SystemExit(
+                  "ERRO: TONE_PROP_CLICK ainda existe."
+              )
+
+          if "acculated" in final_wheel:
+              raise SystemExit(
+                  "ERRO: acculated ainda existe."
+              )
+
+          if "accumulated" not in final_wheel:
+              raise SystemExit(
+                  "ERRO: accumulated não encontrado."
+              )
+
+          print("")
+          print("=" * 70)
+          print("CORREÇÕES DA RODA APLICADAS")
+          print("=" * 70)
 
       # ============================================================
       # VALIDAÇÃO
@@ -561,6 +709,8 @@ jobs:
           grep -q "showManualWheel" "$MAIN"
           grep -q "showEditWheel" "$MAIN"
 
+          grep -q "punchNames" "$MAIN"
+
           grep -q "08:48" "$MAIN"
           grep -q "07:20" "$MAIN"
 
@@ -570,6 +720,8 @@ jobs:
 
           grep -q "extra2ReturnEnabled" "$MAIN"
 
+          grep -q "accumulated" "$WHEEL"
+
           if grep -q "NumberPicker" "$MAIN"; then
             echo "ERRO: NumberPicker encontrado."
             exit 1
@@ -577,6 +729,16 @@ jobs:
 
           if grep -q "NumberPicker" "$WHEEL"; then
             echo "ERRO: NumberPicker encontrado."
+            exit 1
+          fi
+
+          if grep -q "TONE_PROP_CLICK" "$WHEEL"; then
+            echo "ERRO: TONE_PROP_CLICK encontrado."
+            exit 1
+          fi
+
+          if grep -q "acculated" "$WHEEL"; then
+            echo "ERRO: acculated encontrado."
             exit 1
           fi
 
@@ -617,6 +779,7 @@ jobs:
         shell: bash
         run: |
           set -e
+
           gradle clean --no-daemon
 
       - name: Gerar APK
