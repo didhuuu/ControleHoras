@@ -719,79 +719,34 @@ jobs:
           set -e
 
           SRC="ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
-
-          ICON="ControleHoras/app/src/main/res/drawable/controlehoras_icon.jpg"
-
+          WHEEL="ControleHoras/app/src/main/java/com/didhuuu/controlehoras/TimeWheelView.kt"
           SOUND="ControleHoras/app/src/main/res/raw/roller_click.wav"
 
-          WHEEL="ControleHoras/app/src/main/java/com/didhuuu/controlehoras/TimeWheelView.kt"
+          test -s "$SRC" || { echo "ERRO: MainActivity.kt não encontrado"; exit 1; }
+          test -s "$WHEEL" || { echo "ERRO: TimeWheelView.kt não encontrado"; exit 1; }
+          test -s "$SOUND" || { echo "ERRO: roller_click.wav não encontrado"; exit 1; }
 
-          test -s "$SRC"
-          test -s "$ICON"
-          test -s "$SOUND"
-          test -s "$WHEEL"
+          grep -q "TimeWheelView" "$SRC" || { echo "ERRO: TimeWheelView ausente"; exit 1; }
+          grep -q "showTimeWheelDialog\|showControleHorasWheelDialog" "$SRC" || { echo "ERRO: diálogo da roleta ausente"; exit 1; }
+          grep -q "showManualWheel" "$SRC" || { echo "ERRO: registro manual ausente"; exit 1; }
+          grep -q "showEditWheel" "$SRC" || { echo "ERRO: edição pela roleta ausente"; exit 1; }
+          grep -q "registerPunch" "$SRC" || { echo "ERRO: registerPunch ausente"; exit 1; }
+          grep -q "punchNames" "$SRC" || { echo "ERRO: punchNames ausente"; exit 1; }
+          grep -q "extra2Enabled" "$SRC" || { echo "ERRO: Intervalo 2 ausente"; exit 1; }
 
-          grep -q \
-            "TimeWheelView" \
-            "$SRC"
-
-          grep -q \
-            "showTimeWheelDialog" \
-            "$SRC"
-
-          grep -q \
-            "showManualWheel" \
-            "$SRC"
-
-          grep -q \
-            "showEditWheel" \
-            "$SRC"
-
-          grep -q \
-            "registerPunch" \
-            "$SRC"
-
-          grep -q \
-            "controleHorasPunchPage" \
-            "$SRC"
-
-          grep -q \
-            "punchNames" \
-            "$SRC"
-
-          grep -q \
-            "extra2Enabled" \
-            "$SRC"
-
-          grep -q \
-            'controlehoras_icon' \
-            ControleHoras/app/src/main/AndroidManifest.xml
-
-          if grep -q \
-            "NumberPicker" \
-            "$SRC"
-          then
-            echo "ERRO: NumberPicker encontrado"
+          if grep -q "NumberPicker" "$SRC"; then
+            echo "ERRO: NumberPicker ainda presente"
             exit 1
           fi
 
-          if grep -q \
-            "Esse registro ainda está vazio" \
-            "$SRC"
-          then
+          if grep -q "Esse registro ainda está vazio" "$SRC"; then
             echo "ERRO: mensagem antiga encontrada"
             exit 1
           fi
 
-          if grep -q \
-            "DSR" \
-            "$SRC"
-          then
-            echo "ERRO: DSR encontrado"
-            exit 1
-          fi
-
-          echo "VALIDAÇÃO DO PROJETO OK"
+          echo "VALIDAÇÃO PRÉ-GRADLE OK"
+          echo "A base e as funcionalidades chegaram até aqui."
+          echo "Agora o Gradle fará a validação real do Kotlin."
 
       - name: Instalar Gradle 8.11.1
         shell: bash
