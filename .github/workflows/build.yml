@@ -11,22 +11,12 @@ permissions:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
 
-      # ============================================================
-      # 1 - BAIXAR PROJETO
-      # ============================================================
-
       - name: Baixar projeto
         uses: actions/checkout@v4
-
-
-      # ============================================================
-      # 2 - JAVA 17
-      # ============================================================
 
       - name: Configurar Java 17
         uses: actions/setup-java@v5
@@ -34,22 +24,11 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-
-      # ============================================================
-      # 3 - EXTRAIR PROJETO
-      # ============================================================
-
       - name: Extrair projeto
         shell: bash
         run: |
           set -e
-
-          echo "========================================"
-          echo "EXTRAINDO PROJETO"
-          echo "========================================"
-
           rm -rf ControleHoras
-
           unzip -q -o ControleHoras.zip
 
           test -f ControleHoras/settings.gradle.kts
@@ -58,11 +37,8 @@ jobs:
           test -f ControleHoras/app/src/main/AndroidManifest.xml
           test -f ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt
 
-          echo "PROJETO EXTRAÍDO COM SUCESSO"
-
-
       # ============================================================
-      # 4 - BASE 70
+      # BASE 70
       # ============================================================
 
       - name: Aplicar Base 70
@@ -72,10 +48,6 @@ jobs:
           from urllib.request import urlopen
           import subprocess
           import tempfile
-
-          print("========================================")
-          print("APLICANDO BASE 70")
-          print("========================================")
 
           url = (
               "https://raw.githubusercontent.com/"
@@ -89,82 +61,50 @@ jobs:
               timeout=60
           ).read().decode("utf-8")
 
-
           def extract_step(name, next_name):
-
-              start_marker = (
-                  "      - name: "
-                  + name
-              )
-
-              end_marker = (
-                  "      - name: "
-                  + next_name
-              )
+              start_marker = "      - name: " + name
+              end_marker = "      - name: " + next_name
 
               if start_marker not in workflow:
                   raise SystemExit(
-                      "Etapa Base 70 não encontrada: "
-                      + name
+                      "Etapa Base 70 não encontrada: " + name
                   )
 
-              start = workflow.index(
-                  start_marker
-              )
-
-              end = workflow.index(
-                  end_marker,
-                  start
-              )
+              start = workflow.index(start_marker)
+              end = workflow.index(end_marker, start)
 
               block = workflow[start:end]
-
               marker = "        run: |\n"
 
               if marker not in block:
                   raise SystemExit(
-                      "run da etapa não encontrado: "
-                      + name
+                      "run não encontrado: " + name
                   )
 
-              pos = (
-                  block.index(marker)
-                  + len(marker)
-              )
-
-              lines = block[pos:].splitlines()
+              pos = block.index(marker) + len(marker)
 
               result = []
 
-              for line in lines:
-
+              for line in block[pos:].splitlines():
                   if line.startswith("          "):
                       result.append(line[10:])
                   else:
                       result.append(line)
 
-              return (
-                  "\n".join(result).rstrip()
-                  + "\n"
-              )
-
+              return "\n".join(result).rstrip() + "\n"
 
           scripts = [
-
               extract_step(
                   "Aplicar versão 36",
                   "Adicionar seleção de data"
               ),
-
               extract_step(
                   "Adicionar seleção de data",
                   "Validar código"
               )
           ]
 
-
           for number, script in enumerate(scripts):
-
               path = (
                   Path(tempfile.gettempdir())
                   / f"base70_{number}.py"
@@ -182,22 +122,15 @@ jobs:
               )
 
               subprocess.run(
-                  [
-                      "python",
-                      str(path)
-                  ],
+                  ["python", str(path)],
                   check=True
               )
 
-
-          print("========================================")
           print("BASE 70 APLICADA")
           print("ESCALA PRESERVADA")
-          print("========================================")
-
 
       # ============================================================
-      # 5 - CORREÇÕES DA VERSÃO 80
+      # VERSÃO 80
       # ============================================================
 
       - name: Aplicar correções da versão 80
@@ -207,10 +140,6 @@ jobs:
           from urllib.request import urlopen
           import subprocess
           import tempfile
-
-          print("========================================")
-          print("APLICANDO CORREÇÕES DA VERSÃO 80")
-          print("========================================")
 
           url = (
               "https://raw.githubusercontent.com/"
@@ -224,7 +153,6 @@ jobs:
               timeout=60
           ).read().decode("utf-8")
 
-
           start_marker = (
               "      - name: "
               "Aplicar correções finais da Base 70, "
@@ -235,23 +163,15 @@ jobs:
               "      - name: Validar código e ícone"
           )
 
-
           if start_marker not in workflow:
               raise SystemExit(
                   "Etapa da versão 80 não encontrada."
               )
 
-          start = workflow.index(
-              start_marker
-          )
-
-          end = workflow.index(
-              end_marker,
-              start
-          )
+          start = workflow.index(start_marker)
+          end = workflow.index(end_marker, start)
 
           block = workflow[start:end]
-
           marker = "        run: |\n"
 
           if marker not in block:
@@ -259,17 +179,12 @@ jobs:
                   "run da versão 80 não encontrado."
               )
 
-          pos = (
-              block.index(marker)
-              + len(marker)
-          )
+          pos = block.index(marker) + len(marker)
 
           lines = block[pos:].splitlines()
-
           script_lines = []
 
           for line in lines:
-
               if line.startswith("          "):
                   script_lines.append(line[10:])
               else:
@@ -279,7 +194,6 @@ jobs:
               "\n".join(script_lines).rstrip()
               + "\n"
           )
-
 
           path = (
               Path(tempfile.gettempdir())
@@ -298,27 +212,17 @@ jobs:
           )
 
           subprocess.run(
-              [
-                  "python",
-                  str(path)
-              ],
+              ["python", str(path)],
               check=True
           )
 
-          print("========================================")
           print("VERSÃO 80 APLICADA")
-          print("========================================")
-
 
       # ============================================================
-      # 6 - CORREÇÃO ESTRUTURAL DO CARTÃO
-      #
-      # Não depende de texto exato do cartão.
-      # Localiza box.addView(card().apply{...}) e reconstrói
-      # somente o fechamento desse componente.
+      # CORRIGIR CARTÃO
       # ============================================================
 
-      - name: Corrigir cartão de funcionário
+      - name: Corrigir cartão estruturalmente
         shell: python
         run: |
           from pathlib import Path
@@ -333,221 +237,132 @@ jobs:
               encoding="utf-8"
           )
 
-
           if "import android.view.ViewGroup" not in code:
-
               package_end = code.find("\n")
-
               code = (
                   code[:package_end + 1]
                   + "import android.view.ViewGroup\n"
                   + code[package_end + 1:]
               )
 
+          target = (
+              "box.addView(\n"
+              "                      card().apply"
+          )
 
-          # --------------------------------------------------------
-          # Caso já tenha sido corrigido
-          # --------------------------------------------------------
+          start = code.find(target)
 
-          if (
-              "employeeCard" in code
-              and
-              "bottomMargin=dp(10)" in code
-          ):
-
-              src.write_text(
-                  code,
-                  encoding="utf-8"
-              )
-
-              print(
-                  "CARTÃO JÁ ESTAVA CORRIGIDO"
-              )
-
+          if start < 0:
+              if (
+                  "val employeeCard=" in code
+                  and
+                  "bottomMargin=dp(10)" in code
+              ):
+                  print("CARTÃO JÁ CORRIGIDO")
+              else:
+                  raise SystemExit(
+                      "ERRO: cartão de funcionário não encontrado."
+                  )
           else:
 
-              # ----------------------------------------------------
-              # Localiza a primeira ocorrência problemática.
-              # ----------------------------------------------------
-
-              anchor = code.find(
-                  "box.addView("
+              open_paren = code.find(
+                  "(",
+                  start
               )
 
-              found = False
+              depth = 0
+              quote = None
+              escaped = False
+              end = -1
+              i = open_paren
 
-              while anchor >= 0:
+              while i < len(code):
 
-                  card_start = code.find(
-                      "card().apply",
-                      anchor
-                  )
+                  ch = code[i]
 
-                  if card_start < 0:
-                      break
+                  if quote is not None:
 
-                  # Garante que é o card dentro do box.
-                  if card_start - anchor > 500:
-                      anchor = code.find(
-                          "box.addView(",
-                          anchor + 1
-                      )
-                      continue
+                      if escaped:
+                          escaped = False
 
-                  open_paren = code.find(
-                      "(",
-                      anchor
-                  )
+                      elif ch == "\\":
+                          escaped = True
 
-                  open_brace = code.find(
-                      "{",
-                      card_start
-                  )
+                      elif ch == quote:
+                          quote = None
 
-                  if (
-                      open_paren < 0
-                      or
-                      open_brace < 0
-                  ):
-                      break
+                  else:
 
-                  # ------------------------------------------------
-                  # Encontra o fechamento do lambda card().apply{ }
-                  # ------------------------------------------------
+                      if ch == '"' or ch == "'":
+                          quote = ch
 
-                  brace_depth = 0
-                  brace_end = -1
-                  i = open_brace
+                      elif ch == "(":
+                          depth += 1
 
-                  while i < len(code):
+                      elif ch == ")":
+                          depth -= 1
 
-                      char = code[i]
-
-                      if char == "{":
-                          brace_depth += 1
-
-                      elif char == "}":
-                          brace_depth -= 1
-
-                          if brace_depth == 0:
-                              brace_end = i
+                          if depth == 0:
+                              end = i
                               break
 
-                      i += 1
+                  i += 1
 
-                  if brace_end < 0:
-                      raise SystemExit(
-                          "ERRO: fechamento do card.apply não encontrado."
-                      )
-
-                  # ------------------------------------------------
-                  # A partir daqui esperamos o fechamento do
-                  # box.addView antigo.
-                  # ------------------------------------------------
-
-                  tail = code[
-                      brace_end + 1:
-                  ]
-
-                  old_end = tail.find(
-                      ")"
+              if end < 0:
+                  raise SystemExit(
+                      "ERRO: fechamento do cartão não encontrado."
                   )
 
-                  if old_end < 0:
-                      raise SystemExit(
-                          "ERRO: fechamento do box.addView não encontrado."
-                      )
+              original = code[
+                  start:end + 1
+              ]
 
-                  # Procura especificamente a sequência antiga.
-                  closing_area = tail[:old_end + 1]
+              card_pos = original.find(
+                  "card().apply"
+              )
 
-                  if (
-                      "dp(10)" not in closing_area
-                      or
-                      "0" not in closing_area
-                  ):
-
-                      anchor = code.find(
-                          "box.addView(",
-                          anchor + 1
-                      )
-                      continue
-
-                  # ------------------------------------------------
-                  # Reconstrói todo o addView.
-                  # ------------------------------------------------
-
-                  card_body = code[
-                      card_start:
-                      brace_end + 1
-                  ]
-
-                  replacement = (
-                      "val employeeCard=("
-                      + card_body
-                      + ") as ViewGroup\n\n"
-                      "          box.addView(\n"
-                      "              employeeCard,\n"
-                      "              LinearLayout.LayoutParams(\n"
-                      "                  -1,\n"
-                      "                  -2\n"
-                      "              ).apply{\n"
-                      "                  bottomMargin=dp(10)\n"
-                      "              }\n"
-                      "          )"
+              if card_pos < 0:
+                  raise SystemExit(
+                      "ERRO: card().apply não encontrado."
                   )
 
-                  # O início do replacement precisa começar no
-                  # box.addView e não no card().
-                  end_position = (
-                      brace_end
-                      + 1
-                      + old_end
-                      + 1
-                  )
+              card_expression = original[
+                  card_pos:
+              ]
 
-                  code = (
-                      code[:anchor]
-                      + replacement
-                      + code[end_position:]
-                  )
+              replacement = (
+                  "val employeeCard=("
+                  + card_expression
+                  + ") as ViewGroup\n\n"
+                  "                  box.addView(\n"
+                  "                      employeeCard,\n"
+                  "                      LinearLayout.LayoutParams(\n"
+                  "                          -1,\n"
+                  "                          -2\n"
+                  "                      ).apply{\n"
+                  "                          bottomMargin=dp(10)\n"
+                  "                      }\n"
+                  "                  )"
+              )
 
-                  found = True
-                  break
-
-
-              if not found:
-
-                  # ------------------------------------------------
-                  # Segunda estratégia:
-                  # corrige diretamente o padrão conhecido.
-                  # ------------------------------------------------
-
-                  old = """box.addView(
-            card().apply"""
-
-                  if old not in code:
-
-                      raise SystemExit(
-                          "ERRO: cartão de funcionário não encontrado."
-                      )
-
+              code = (
+                  code[:start]
+                  + replacement
+                  + code[end + 1:]
+              )
 
               src.write_text(
                   code,
                   encoding="utf-8"
               )
 
-              print(
-                  "CARTÃO DE FUNCIONÁRIO CORRIGIDO"
-              )
-
+              print("CARTÃO CORRIGIDO")
 
       # ============================================================
-      # 7 - CRIAR SOM DA ROLETA
+      # SOM
       # ============================================================
 
-      - name: Criar som mecânico da roleta
+      - name: Criar som da roleta
         shell: python
         run: |
           from pathlib import Path
@@ -566,37 +381,28 @@ jobs:
           )
 
           filename = (
-              raw /
-              "roller_click.wav"
+              raw / "roller_click.wav"
           )
 
           rate = 44100
           duration = 0.035
-
-          total = int(
-              rate * duration
-          )
+          total = int(rate * duration)
 
           data = bytearray()
-
 
           for i in range(total):
 
               t = i / rate
-
-              envelope = (
-                  1.0 -
-                  (i / total)
-              )
+              envelope = 1.0 - (i / total)
 
               value = int(
-                  14000 *
-                  envelope *
-                  math.sin(
-                      2 *
-                      math.pi *
-                      1800 *
-                      t
+                  14000
+                  * envelope
+                  * math.sin(
+                      2
+                      * math.pi
+                      * 1800
+                      * t
                   )
               )
 
@@ -607,47 +413,38 @@ jobs:
                   )
               )
 
-
           with wave.open(
               str(filename),
               "wb"
           ) as wav:
 
               wav.setnchannels(1)
-
               wav.setsampwidth(2)
-
               wav.setframerate(rate)
+              wav.writeframes(bytes(data))
 
-              wav.writeframes(
-                  bytes(data)
-              )
+          test = filename.stat().st_size
 
-
-          if not filename.exists():
-
+          if test <= 44:
               raise SystemExit(
-                  "ERRO: som não foi criado."
+                  "Som inválido."
               )
 
-
-          print(
-              "SOM DA ROLETA CRIADO"
-          )
-
+          print("SOM CRIADO")
 
       # ============================================================
-      # 8 - INSTALAR ROLETA AZUL NEON
+      # ROLETA
       #
-      # Usa a implementação da roleta já preparada no workflow atual.
-      # Depois limpa comentários Python que ficaram dentro das strings
-      # Kotlin e valida o resultado.
+      # Os códigos Kotlin são comprimidos em base64.
+      # Isso evita completamente o problema de indentação YAML.
       # ============================================================
 
       - name: Instalar roleta azul neon
         shell: python
         run: |
           from pathlib import Path
+          import base64
+          import gzip
 
           src = Path(
               "ControleHoras/"
@@ -659,1091 +456,214 @@ jobs:
               encoding="utf-8"
           )
 
-
-          # ========================================================
-          # IMPORTS
-          # ========================================================
+          def dec(value):
+              return gzip.decompress(
+                  base64.b64decode(value)
+              ).decode("utf-8")
 
           imports = [
-
               "import android.content.Context",
-
               "import android.graphics.Canvas",
-
               "import android.graphics.Color",
-
               "import android.graphics.Paint",
-
-              "import android.graphics.Path",
-
               "import android.graphics.RectF",
-
               "import android.graphics.Shader",
-
               "import android.graphics.LinearGradient",
-
               "import android.media.AudioAttributes",
-
               "import android.media.SoundPool",
-
-              "import android.view.MotionEvent"
+              "import android.view.MotionEvent",
+              "import android.view.View"
           ]
-
 
           first_line = code.find("\n")
 
-          if first_line < 0:
-
-              raise SystemExit(
-                  "Arquivo MainActivity inválido."
-              )
-
-
-          additions = ""
+          extra = ""
 
           for item in imports:
-
               if item not in code:
+                  extra += item + "\n"
 
-                  additions += (
-                      item +
-                      "\n"
-                  )
-
-
-          if additions:
-
+          if extra:
               code = (
                   code[:first_line + 1]
-                  +
-                  additions
-                  +
-                  code[first_line + 1:]
+                  + extra
+                  + code[first_line + 1:]
               )
-
 
           code = code.replace(
               "import android.widget.NumberPicker",
               ""
           )
 
+          wheel = dec(
+              "H4sIAKYuvWoC/61WbW/iOBD+zq9gVzop2YIvsFe1izZdpSl00fFSlbTVfkJubBqrwUaOA+Wq/veznQTyVtrbqz+Y4BmPn3k8M57GipM1FLjphzCKmi6jgrMQ/2QcRh5Z4rsA4/CW4I3RaMrhSzl+Ej03+W3pxczEGobNJXwiy3jZG9JUSCgRBIZqoWH2tKXUiPncqGxHmEZEbG2OIxZzH0cAkWgVwu0YC058+TdRKGxcxLSJVsa6NwgZFKa9/lKnpcyvIKHCvlKzoWfgTLzh3BkNndl8MHIuzdIW3vRjzrHclPoBfIYlriE1rFbqa3UPYhv6y7YWFcGSrTGyFzCMcNV36TFF9kzNV4yF4DwmIcLcSOyrASIsxvBpJjiGy8joFiVOjAhzhOTpPhY4MnZCNUrCGuN5UzcRfMBGec/NzLnsz53ZbDjznInbn8+mk+Fg6DrecDqpN6TjhApvu6qac6cTrz/x5t6vqzdN3Su4ObA5zzNR9eZC4j8OkW1piVph9BaGMXYDSB8w6hmGDEqzfXYjr9b8YdM4DBu7mH3enZDZ0fcDZIihIrV+Phf2i0sZuiiI4xj4aVIFKqnANeBwA+T/EPO5tl3c2Sk5+ZJgUkG+VugN005jslHJAm3OMPfYycJI4Z9ZRVoTb1RqZRotC3y1FuncaVmtzqKAoHCQptBAOBRQpXbuSBXKVPJhGynMI61lvpo5KU6151PmWs6eZjNNQqVTFCQOF9aKt/wDELpmjzhDU9SVMhgSJN3KGXnJey0zlnOCErcZ9VjsB/21NGRgNffGTBBG9YrZO5d5iyHdg98EmCaKAPpKcQyjR4xK7uVsAMdVKTC/mN5N2mfPlUxISkticVuR5utLWcaxiDltCh4XZS9vQRlPb/t1UHS9zqC0NbCKjrzXRyZCQsESigDA+8hA5pktq3Xn1DSrNvdOVHDurjwJPWkZfbfMZqeJpbfNdses1T7M18vHsXRzVceRRPlJ+2O+4UuK8HuAyUMg/uwuDnq2wnzB+NKtif73ObH/KuvWhX3xuGqUR7HUAK+Aes8BjF7Iomj4UKZj1HP1j1m2X1BK630Whxt7Q5AMMMF0D5A7XkkDO6H1FbEvqcfcDiTre6u6VQBRAOUraY8IxZBfcoiIyvwCqapkLlobNZVKi3A4h9vpwqhckPU0GHT0kJBk+TTMVq2Oq8dhnWQc1jnR47BOEU9BpbRDPZTFlZmmCXgkxGOGMHBHzvgq947t31J9eQDJi7zGvjAy8oKW5tusp3//Mu9FPgsZtxVw6/Tk2+DbDnjtWeqx0wcWYKuVQfV2ZHX6araSqGirP3/VULZp59WOErVDrKmaZ5mt9Ec7UcdQ3jtXzeDu59Drl+Sq4ZiRf7BdOncvdULyQO20yVXfwJXNVv+6rCo7swX0sQ0p4owg8MDhKlCdtpdKwEV/4NyMvPn5dHRRy64njyuyKDtUQh+AKgcy2z7/YXXR51b2ABdp2cisK7VOO0Y73ZLyu1irBvwB8rqW+X98yroKWaTT/sYRIwwjGdnmOx1VcXR8+l5Hfx/iUQ7imEmEWRP2Hy7k5PR3L6SUpKU0F9sQp7E6U99g5l1P/+5X1Lhs5O5UoddX90G53i3k+vFrud4t5Prxx+V61fvBcDQ69FZiAf0AowFnyztCZYuTb/mTxp5j+URH+a5294jW7E4Pe2n8C1M/Hi4PEAAA"
+          )
 
-          # ========================================================
-          # SANITIZAÇÃO DE COMENTÁRIOS INVÁLIDOS
-          #
-          # A versão anterior possuía comentários # dentro de
-          # strings Kotlin. Eles são Python, não Kotlin.
-          # ========================================================
+          dialog = dec(
+              "H4sIAKYuvWoC/9VW3W7aMBS+5yki1EmJlEb8qD8gZVpIaYtEoQpZK02TJosYsGpsZDu0DHGxZ9jt3mZvsieZnQCtSSiw9ma5iGX78/E533eO7YIhvwlDUyCgMYiJwUf00adEMIrhNWWA348gxBcIYDo0C8byE0hgWO8JhsjQXo9G0khmEBEk5OprGrN6i4jMxA0isVymTVHSA1NYN1Nb1vHHzxKbzFrzwho1BdhglAq3jQgErA1mNBamGCFuOWAywbP5GpoYZQgSAQSiRFvh3DWDsOV7bQ09ZGCKxMy9SlvHb3bCZvDtuhu0vnQ74QaaQ3ELokg6a0YTs3xu2aqppM35qrHWaxbPUagIHLn2DsFHUzMawieRjG4NKZFCotziUaLIV3KkNCjmgnroO3TLtUFmMj/UDEzGGM4mcAD60CQxxvaq5zS67QsrFy+39SmmzCw9XV6Wz6re6ZkjqNTatPQFC1vravqkzS1gYMzN47Ii8/QlmZaeEo8qYflbk2KL0Du4WuiujGTSu1o1hWgMk4rKyq18/HQDEPH6AinjdqVqv6iebfGOkwJ6wzYnNVurxbyNUlLz81RFua98qhCqJ0lBVCqlfBFf2+uQmqi/UgfV0n9eB5LAaunfeUyT5j1V086xdOuNROUQw76AkbtbxFTAD6VKVFe/ojOgbAyEqVLNkbZiaFp2GsOqaxX2EnoPkQ8ROCNu6fysdlnLirvXib9i6MDDsLT9MOTyHnUbsRCU7GL7z6+fhhE0r1q9MPACQx6Av38Era5eRIh7GPtgwt0BwBzmc14+HWwnKfk799etsJmhsgH6D0NGYxK9F6Ey/MPIPHnlZokn6nZ157maOdtyNnMgaEmcmdWzWpvODT6xRsmdwvsjQIaywOapp6a1KGyY3Q7UIo2S957rYchE+vZzGjHCEWRpFmluOVK5hHqlQ3aqA4fyfp3CZRYWfa/jN9teULRVcW3g+wwm/jy7oyRUZrrEx6j/0EZcQALZxjWePBizVO8jx25JdsiiS5PtpWQ6EeJjxLmZq+ISo17fS8Ci8BdV2Q+4nAsAAA=="
+          )
 
-          lines = code.splitlines()
+          edit = dec(
+              "H4sIAKYuvWoC/51T0U7CMBR931c0PHUJNqjxQRI0KAuQ4DA44oMx5gbuWMNoSdshSvgYv8Ufsxtk0GF88D704Zxzd3rP7Txia6n4CgySOBNEJ/I9mHLznCCm1CP7UjhpPmZiknTgo16iXExx3ewLUyD+xjswMbUtbJm3oH4phK+M67sUxJz6VkqOKpKgDVvAHCNcG+pweZmE6/oJWgu0RnuzGddGSQLWBAhq8/1FVvDJJSNjy4+Cbv8pGg3JQzsctwesdvqhnf0gCLtR720wDLuOwmd5JtR3QIUmU6KEtofJV5CSJSijW78EoJcpN7TWrPluQyIz1Sq62AzNUIVZmtKGa3nLjLRR78kqN5GoJtgXtFG/uKyQzYbrtuAiM3jid/5Pv6vrP/zy7O6lsAtKsScV6OJhdTikcuYuuogqhEWZlruoacxiqRZgqL23xr6WxQub2ofr+640T9NFdhOXkL+xMWR4dlPZaXVfrULmiDSssAMGKoHkYxb/xxG+9XbnD1fLFrpkAwAA"
+          )
 
-          clean_lines = []
+          manual = dec(
+              "H4sIAKYuvWoC/4WS32rCMBTG7/sUwasWtrLrsQ5EnRa0DqmMMYYczVGz1aQkaRXEhxm73lP4Ykvr6Bq7P7kI5OTknN/5vjjErFSyHDSSZcaJWovtCHgGycMaMXEd8rVwk4b0eij4qgx5e6e6yiEhMlihnuBCSPr9pnp3YYUUJrjQSO8zvlh3Tefq1rOL8oDjTpdpIae4sytLu6rJlNDjME/wDOEXjL9RTjg/gLGly2+uzPz1zFiA0v4GXjE2HM32es1Us3urrcgcNKOgCGUqFfz4kSMzB1TGD8qAvBzfiDkc34WxCdFQFtl+q1nshDDsRf14MBuOo749il8463q2gqgzyavQ4Ux9sQ06kCCnIH3jbsiVBr5AtyZGUbQjuJYiwYGQoMpf02WQiJWtQlooHMEG1RN/tunp0l8KuQHtpiAVhkq4DV88z35j4AomtwIcjKeT2fhu1m0//pc6CqNp3KuZuzfjZnh5a4vjl8glb1Am2J8YcjRgcCZpIUgJXYsfnNP+CfKQu21tAwAA"
+          )
 
-          for line in lines:
+          register = dec(
+              "H4sIAKYuvWoC/32RMWvDMBCFd/8KjTKU0jlEWzsEWgghkCF0uFovtkE5GUl2Ekr+ex25OJGb9AYNd+++9zhloq/G1R0FiF3LwqGsfYBbtlxUMhO/hX2z0LN3y2Vs5d/ZOOrICKdKhBUK6/R1Z9x7SloeBkWAjg6vve84zVMoK8YxRNmCNY4p2aXUXunojenLYBLhQYz/owxx7gSrd5LnL3kaBaF1nGj+kJUKVtNJ5reni8vPzUUDv+VPxfawrveQKd9Th55B03ZlD8M33eQ7w3hMLC7CD+KWzKYCjIzXuLLO2fD+AGilPmcMAgAA"
+          )
 
-              stripped = line.lstrip()
+          def replace_method(source, signature, replacement):
 
-              if stripped.startswith("#"):
-
-                  indent = line[
-                      :len(line) -
-                      len(stripped)
-                  ]
-
-                  clean_lines.append(
-                      indent +
-                      "//" +
-                      stripped[1:]
-                  )
-
-              else:
-
-                  clean_lines.append(
-                      line
-                  )
-
-          code = "\n".join(
-              clean_lines
-          ) + "\n"
-
-
-          # ========================================================
-          # NOMES DAS BATIDAS
-          # ========================================================
-
-          if (
-              "private val punchNames"
-              not in code
-          ):
-
-              anchor = code.find(
-                  "class MainActivity"
-              )
-
-              if anchor < 0:
-
-                  raise SystemExit(
-                      "MainActivity não encontrada."
-                  )
-
-
-              names = """
-private val punchNames=arrayOf<String>(
-    "Entrada",
-    "Saída",
-    "Retorno",
-    "Saída intervalo 2",
-    "Retorno intervalo 2",
-    "Saída"
-)
-
-"""
-
-
-              code = (
-                  code[:anchor]
-                  +
-                  names
-                  +
-                  code[anchor:]
-              )
-
-
-          # ========================================================
-          # CLASSE DA ROLETA
-          # ========================================================
-
-          if (
-              "private class ControleHorasTimeWheelView"
-              not in code
-          ):
-
-              anchor = code.find(
-                  "class MainActivity"
-              )
-
-              if anchor < 0:
-
-                  raise SystemExit(
-                      "MainActivity não encontrada."
-                  )
-
-
-              wheel = r'''
-private class ControleHorasTimeWheelView(
-    context:Context,
-    private val maximum:Int,
-    initial:Int
-):View(context){
-
-    private val density=
-        resources.displayMetrics.density
-
-    private fun dp(
-        value:Float
-    )=value*density
-
-    private val paint=
-        Paint(
-            Paint.ANTI_ALIAS_FLAG
-        )
-
-    private var current=
-        initial.coerceIn(
-            0,
-            maximum
-        )
-
-    private var downY=0f
-
-    private var moved=false
-
-    private val sound=
-        SoundPool.Builder()
-            .setMaxStreams(2)
-            .setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(
-                        AudioAttributes.USAGE_ASSISTANCE_SONIFICATION
-                    )
-                    .setContentType(
-                        AudioAttributes.CONTENT_TYPE_SONIFICATION
-                    )
-                    .build()
-            )
-            .build()
-
-    private var clickId=0
-
-    var onValueChanged:
-        ((Int)->Unit)?=null
-
-    init{
-
-        clickId=
-            sound.load(
-                context,
-                com.didhuuu.controlehoras.R.raw.roller_click,
-                1
-            )
-    }
-
-    fun value()=
-        current
-
-    private fun click(){
-
-        if(clickId>0){
-
-            sound.play(
-                clickId,
-                0.30f,
-                0.30f,
-                1,
-                0,
-                1f
-            )
-        }
-    }
-
-    private fun change(
-        delta:Int
-    ){
-
-        val next=
-            (
-                current+
-                delta
-            ).coerceIn(
-                0,
-                maximum
-            )
-
-        if(next!=current){
-
-            current=next
-
-            click()
-
-            onValueChanged?.invoke(
-                current
-            )
-
-            invalidate()
-        }
-    }
-
-    override fun onTouchEvent(
-        event:MotionEvent
-    ):Boolean{
-
-        when(event.actionMasked){
-
-            MotionEvent.ACTION_DOWN -> {
-
-                downY=
-                    event.y
-
-                moved=false
-
-                return true
-            }
-
-            MotionEvent.ACTION_MOVE -> {
-
-                val distance=
-                    event.y-
-                    downY
-
-                if(
-                    kotlin.math.abs(
-                        distance
-                    )>=dp(18)
-                ){
-
-                    moved=true
-
-                    if(distance<0){
-
-                        change(1)
-
-                    }else{
-
-                        change(-1)
-                    }
-
-                    downY=
-                        event.y
-                }
-
-                return true
-            }
-
-            MotionEvent.ACTION_UP -> {
-
-                if(!moved){
-
-                    if(
-                        event.y<
-                        height/2f
-                    ){
-
-                        change(1)
-
-                    }else{
-
-                        change(-1)
-                    }
-                }
-
-                performClick()
-
-                return true
-            }
-        }
-
-        return true
-    }
-
-    override fun performClick():
-        Boolean{
-
-        super.performClick()
-
-        return true
-    }
-
-    override fun onDraw(
-        canvas:Canvas
-    ){
-
-        super.onDraw(
-            canvas
-        )
-
-        val w=
-            width.toFloat()
-
-        val h=
-            height.toFloat()
-
-        val center=
-            h/2f
-
-
-        paint.shader=
-            LinearGradient(
-                0f,
-                0f,
-                w,
-                0f,
-                intArrayOf(
-                    0xFF111111.toInt(),
-                    0xFFCCCCCC.toInt(),
-                    0xFFFFFFFF.toInt(),
-                    0xFF777777.toInt(),
-                    0xFF111111.toInt()
-                ),
-                null,
-                Shader.TileMode.CLAMP
-            )
-
-        canvas.drawRect(
-            0f,
-            0f,
-            w,
-            h,
-            paint
-        )
-
-
-        paint.shader=null
-
-        paint.color=
-            0xFF0879F9.toInt()
-
-        canvas.drawRoundRect(
-            RectF(
-                dp(3),
-                center-dp(34),
-                w-dp(3),
-                center+dp(34)
-            ),
-            dp(10),
-            dp(10),
-            paint
-        )
-
-
-        paint.color=
-            Color.WHITE
-
-        paint.textSize=
-            dp(34)
-
-        paint.textAlign=
-            Paint.Align.CENTER
-
-        paint.typeface=
-            android.graphics.Typeface.DEFAULT_BOLD
-
-        canvas.drawText(
-            String.format(
-                "%02d",
-                current
-            ),
-            w/2f,
-            center+
-            dp(12),
-            paint
-        )
-
-
-        paint.color=
-            0xFF777777.toInt()
-
-        paint.textSize=
-            dp(20)
-
-        val previous=
-            (current-1)
-                .coerceAtLeast(0)
-
-        val next=
-            (current+1)
-                .coerceAtMost(maximum)
-
-
-        canvas.drawText(
-            String.format(
-                "%02d",
-                previous
-            ),
-            w/2f,
-            center-
-            dp(58),
-            paint
-        )
-
-
-        canvas.drawText(
-            String.format(
-                "%02d",
-                next
-            ),
-            w/2f,
-            center+
-            dp(78),
-            paint
-        )
-
-
-        paint.color=
-            0xFF0879F9.toInt()
-
-        paint.style=
-            Paint.Style.STROKE
-
-        paint.strokeWidth=
-            dp(2)
-
-        canvas.drawRoundRect(
-            RectF(
-                dp(2),
-                center-dp(35),
-                w-dp(2),
-                center+dp(35)
-            ),
-            dp(10),
-            dp(10),
-            paint
-        )
-
-        paint.style=
-            Paint.Style.FILL
-    }
-
-    override fun onDetachedFromWindow(){
-
-        sound.release()
-
-        super.onDetachedFromWindow()
-    }
-}
-
-'''
-
-
-              code = (
-                  code[:anchor]
-                  +
-                  wheel
-                  +
-                  code[anchor:]
-              )
-
-
-          # ========================================================
-          # FUNÇÃO AUXILIAR PARA SUBSTITUIR MÉTODO KOTLIN
-          # ========================================================
-
-          def replace_method(
-              source,
-              signature,
-              replacement
-          ):
-
-              start = source.find(
-                  signature
-              )
+              start = source.find(signature)
 
               if start < 0:
-
-                  return source
-
-
-              opening = source.find(
-                  "{",
-                  start
-              )
-
-              if opening < 0:
-
                   raise SystemExit(
-                      "Abertura não encontrada: "
-                      +
-                      signature
+                      "Método não encontrado: " + signature
                   )
 
+              opening = source.find("{", start)
+
+              if opening < 0:
+                  raise SystemExit(
+                      "Abertura não encontrada: " + signature
+                  )
 
               depth = 0
-
+              quote = None
+              escaped = False
               i = opening
 
               while i < len(source):
 
-                  if source[i] == "{":
+                  ch = source[i]
 
-                      depth += 1
+                  if quote is not None:
 
-                  elif source[i] == "}":
+                      if escaped:
+                          escaped = False
 
-                      depth -= 1
+                      elif ch == "\\":
+                          escaped = True
 
-                      if depth == 0:
+                      elif ch == quote:
+                          quote = None
 
-                          return (
-                              source[:start]
-                              +
-                              replacement
-                              +
-                              source[i + 1:]
-                          )
+                  else:
+
+                      if ch == '"' or ch == "'":
+                          quote = ch
+
+                      elif ch == "{":
+                          depth += 1
+
+                      elif ch == "}":
+
+                          depth -= 1
+
+                          if depth == 0:
+
+                              return (
+                                  source[:start]
+                                  + replacement
+                                  + source[i + 1:]
+                              )
 
                   i += 1
 
-
               raise SystemExit(
-                  "Fechamento não encontrado: "
-                  +
-                  signature
+                  "Fechamento não encontrado: " + signature
               )
 
+          if "ControleHorasTimeWheelView" not in code:
 
-          # ========================================================
-          # DIÁLOGO DA ROLETA
-          # ========================================================
+              anchor = code.find(
+                  "class MainActivity"
+              )
 
-          if (
-              "private fun showControleHorasWheelDialog("
-              not in code
-          ):
+              if anchor < 0:
+                  raise SystemExit(
+                      "MainActivity não encontrada."
+                  )
+
+              code = (
+                  code[:anchor]
+                  + wheel
+                  + "\n"
+                  + code[anchor:]
+              )
+
+          if "showControleHorasWheelDialog" not in code:
 
               anchor = code.find(
                   "    private fun showEditWheel("
               )
 
               if anchor < 0:
-
-                  anchor = code.find(
-                      "    private fun showManualWheel("
-                  )
-
-              if anchor < 0:
-
                   raise SystemExit(
-                      "Métodos da tela de ponto não encontrados."
+                      "showEditWheel não encontrado."
                   )
-
-
-              dialog = r'''
-    private fun showControleHorasWheelDialog(
-        title:String,
-        date:String,
-        initialHour:Int,
-        initialMinute:Int,
-        onSave:(String)->Unit
-    ){
-
-        val root=
-            LinearLayout(this).apply{
-
-                orientation=
-                    LinearLayout.VERTICAL
-
-                gravity=
-                    Gravity.CENTER_HORIZONTAL
-
-                setPadding(
-                    dp(18),
-                    dp(12),
-                    dp(18),
-                    dp(18)
-                )
-            }
-
-
-        root.addView(
-            TextView(this).apply{
-
-                text=
-                    "$title\n$date"
-
-                textSize=19f
-
-                gravity=
-                    Gravity.CENTER
-
-                setTypeface(
-                    null,
-                    Typeface.BOLD
-                )
-
-                setTextColor(
-                    0xFF173A67.toInt()
-                )
-            },
-            LinearLayout.LayoutParams(
-                -1,
-                dp(68)
-            )
-        )
-
-
-        val wheels=
-            LinearLayout(this).apply{
-
-                orientation=
-                    LinearLayout.HORIZONTAL
-
-                gravity=
-                    Gravity.CENTER
-            }
-
-
-        val hour=
-            ControleHorasTimeWheelView(
-                this@MainActivity,
-                23,
-                initialHour
-            )
-
-
-        val minute=
-            ControleHorasTimeWheelView(
-                this@MainActivity,
-                59,
-                initialMinute
-            )
-
-
-        wheels.addView(
-            hour,
-            LinearLayout.LayoutParams(
-                dp(135),
-                dp(220)
-            )
-        )
-
-
-        wheels.addView(
-            TextView(this).apply{
-
-                text=":"
-
-                textSize=30f
-
-                gravity=
-                    Gravity.CENTER
-
-                setTypeface(
-                    null,
-                    Typeface.BOLD
-                )
-
-                setTextColor(
-                    0xFF173A67.toInt()
-                )
-            },
-            LinearLayout.LayoutParams(
-                dp(30),
-                dp(220)
-            )
-        )
-
-
-        wheels.addView(
-            minute,
-            LinearLayout.LayoutParams(
-                dp(135),
-                dp(220)
-            )
-        )
-
-
-        root.addView(
-            wheels
-        )
-
-
-        val selected=
-            TextView(this).apply{
-
-                text=
-                    "%02d:%02d".format(
-                        hour.value(),
-                        minute.value()
-                    )
-
-                textSize=30f
-
-                gravity=
-                    Gravity.CENTER
-
-                setTypeface(
-                    null,
-                    Typeface.BOLD
-                )
-
-                setTextColor(
-                    0xFF0879F9.toInt()
-                )
-            }
-
-
-        root.addView(
-            selected,
-            LinearLayout.LayoutParams(
-                -1,
-                dp(60)
-            )
-        )
-
-
-        val save=
-            Button(this).apply{
-
-                text=
-                    "✓  REGISTRAR HORÁRIO"
-
-                isAllCaps=false
-
-                textSize=16f
-
-                setTextColor(
-                    Color.WHITE
-                )
-
-                setBackgroundColor(
-                    0xFF0879F9.toInt()
-                )
-            }
-
-
-        root.addView(
-            save,
-            LinearLayout.LayoutParams(
-                -1,
-                dp(58)
-            )
-        )
-
-
-        val update={
-
-            selected.text=
-                "%02d:%02d".format(
-                    hour.value(),
-                    minute.value()
-                )
-        }
-
-
-        hour.onValueChanged={
-            update()
-        }
-
-
-        minute.onValueChanged={
-            update()
-        }
-
-
-        val dialog=
-            AlertDialog.Builder(this)
-                .setView(root)
-                .setNegativeButton(
-                    "CANCELAR",
-                    null
-                )
-                .create()
-
-
-        save.setOnClickListener{
-
-            onSave(
-                "%02d:%02d".format(
-                    hour.value(),
-                    minute.value()
-                )
-            )
-
-            dialog.dismiss()
-        }
-
-
-        dialog.show()
-    }
-
-'''
-
 
               code = (
                   code[:anchor]
-                  +
-                  dialog
-                  +
-                  code[anchor:]
+                  + dialog
+                  + "\n"
+                  + code[anchor:]
               )
 
+          code = replace_method(
+              code,
+              "    private fun showEditWheel(",
+              edit
+          )
 
-          # ========================================================
-          # EDITAR BATIDA
-          # ========================================================
+          code = replace_method(
+              code,
+              "    private fun showManualWheel(",
+              manual
+          )
 
-          edit = r'''
-    private fun showEditWheel(
-        rec:PunchDay,
-        index:Int
-    ){
-
-        val old=
-            rec.punches[index]
-
-        val parts=
-            old.split(":")
-
-        val now=
-            Calendar.getInstance()
-
-
-        val hour=
-            parts.getOrNull(0)
-                ?.toIntOrNull()
-                ?.coerceIn(0,23)
-                ?:now.get(
-                    Calendar.HOUR_OF_DAY
-                )
-
-
-        val minute=
-            parts.getOrNull(1)
-                ?.toIntOrNull()
-                ?.coerceIn(0,59)
-                ?:now.get(
-                    Calendar.MINUTE
-                )
-
-
-        showControleHorasWheelDialog(
-            punchNames[index],
-            df.format(
-                parseIso(rec.date)
-            ),
-            hour,
-            minute
-        ){value->
-
-            rec.punches[index]=
-                value
-
-            saveData()
-
-            showPunch()
-        }
-    }
-'''
-
-
-          if (
-              "    private fun showEditWheel("
-              in code
-          ):
-
-              code = replace_method(
-                  code,
-                  "    private fun showEditWheel(",
-                  edit
-              )
-
-
-          # ========================================================
-          # REGISTRO MANUAL
-          # ========================================================
-
-          manual = r'''
-    private fun showManualWheel(
-        empId:Long
-    ){
-
-        val rec=
-            getRecord(
-                empId,
-                selectedPunchDate
-            )
-
-
-        val index=
-            nextPunchIndex(
-                rec,
-                extraEnabled(
-                    empId,
-                    selectedPunchDate
-                )
-            )
-
-
-        if(index<0){
-
-            Toast.makeText(
-                this,
-                "As batidas deste dia já estão preenchidas.",
-                Toast.LENGTH_LONG
-            ).show()
-
-            return
-        }
-
-
-        val now=
-            Calendar.getInstance()
-
-
-        showControleHorasWheelDialog(
-            punchNames[index],
-            df.format(
-                parseIso(
-                    selectedPunchDate
-                )
-            ),
-            now.get(
-                Calendar.HOUR_OF_DAY
-            ),
-            now.get(
-                Calendar.MINUTE
-            )
-        ){value->
-
-            rec.punches[index]=
-                value
-
-            saveData()
-
-            showPunch()
-        }
-    }
-'''
-
-
-          if (
-              "    private fun showManualWheel("
-              in code
-          ):
-
-              code = replace_method(
-                  code,
-                  "    private fun showManualWheel(",
-                  manual
-              )
-
-
-          # ========================================================
-          # REMOVER QUALQUER NUMBERPICKER RESTANTE
-          # ========================================================
+          code = replace_method(
+              code,
+              "    private fun registerPunch(",
+              register
+          )
 
           if "NumberPicker" in code:
-
-              code = code.replace(
-                  "NumberPicker",
-                  "LegacyPickerRemoved"
+              raise SystemExit(
+                  "ERRO: NumberPicker ainda existe."
               )
 
-
-          # ========================================================
-          # VALIDAÇÃO
-          # ========================================================
-
           required = [
-
               "ControleHorasTimeWheelView",
-
               "showControleHorasWheelDialog",
-
               "showEditWheel",
-
               "showManualWheel",
-
-              "punchNames",
-
+              "registerPunch",
               "nextPunchIndex",
-
+              "punchNames",
               "selectedPunchDate"
           ]
 
-
           for item in required:
-
               if item not in code:
-
                   raise SystemExit(
-                      "ERRO: recurso não encontrado: "
-                      +
-                      item
+                      "ERRO: recurso ausente: " + item
                   )
-
-
-          if "NumberPicker" in code:
-
-              raise SystemExit(
-                  "ERRO: NumberPicker ainda presente."
-              )
-
 
           src.write_text(
               code,
               encoding="utf-8"
           )
 
-
-          print("========================================")
           print("ROLETA AZUL NEON INSTALADA")
           print("EDIÇÃO POR ROLAGEM INSTALADA")
           print("REGISTRO MANUAL INSTALADO")
-          print("========================================")
-
 
       # ============================================================
-      # 9 - VALIDAÇÃO FINAL
+      # VALIDAÇÃO FINAL
       # ============================================================
 
       - name: Validar código final
@@ -1752,78 +672,30 @@ private class ControleHorasTimeWheelView(
           set -e
 
           SRC="ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
-
           SOUND="ControleHoras/app/src/main/res/raw/roller_click.wav"
-
-          echo "========================================"
-          echo "VALIDANDO CÓDIGO FINAL"
-          echo "========================================"
 
           test -s "$SRC"
           test -s "$SOUND"
 
-          grep -q \
-            "ControleHorasTimeWheelView" \
-            "$SRC"
+          grep -q "ControleHorasTimeWheelView" "$SRC"
+          grep -q "showControleHorasWheelDialog" "$SRC"
+          grep -q "showEditWheel" "$SRC"
+          grep -q "showManualWheel" "$SRC"
+          grep -q "registerPunch" "$SRC"
+          grep -q "nextPunchIndex" "$SRC"
+          grep -q "punchNames" "$SRC"
+          grep -q "selectedPunchDate" "$SRC"
+          grep -q "extra2Enabled" "$SRC"
 
-          grep -q \
-            "showControleHorasWheelDialog" \
-            "$SRC"
-
-          grep -q \
-            "showEditWheel" \
-            "$SRC"
-
-          grep -q \
-            "showManualWheel" \
-            "$SRC"
-
-          grep -q \
-            "registerPunch" \
-            "$SRC"
-
-          grep -q \
-            "nextPunchIndex" \
-            "$SRC"
-
-          grep -q \
-            "punchNames" \
-            "$SRC"
-
-          grep -q \
-            "selectedPunchDate" \
-            "$SRC"
-
-          grep -q \
-            "extra2Enabled" \
-            "$SRC"
-
-          if grep -q \
-            "NumberPicker" \
-            "$SRC"; then
-
-            echo "ERRO: NumberPicker antigo encontrado."
-
-            exit 1
-          fi
-
-          if grep -q \
-            '^ *#' \
-            "$SRC"; then
-
-            echo "ERRO: comentário Python encontrado no Kotlin."
-
+          if grep -q "NumberPicker" "$SRC"; then
+            echo "ERRO: NumberPicker encontrado."
             exit 1
           fi
 
           echo "CÓDIGO FINAL VALIDADO"
-          echo "ROLETA VALIDADA"
-          echo "REGISTRO MANUAL VALIDADO"
-          echo "========================================"
-
 
       # ============================================================
-      # 10 - INSTALAR GRADLE
+      # GRADLE
       # ============================================================
 
       - name: Instalar Gradle 8.11.1
@@ -1844,35 +716,18 @@ private class ControleHorasTimeWheelView(
           "$PWD/gradle-8.11.1/bin/gradle" \
             --version
 
-
-      # ============================================================
-      # 11 - LIMPAR
-      # ============================================================
-
       - name: Limpar projeto
         working-directory: ControleHoras
         shell: bash
         run: |
           set -e
-
-          gradle \
-            clean \
-            --no-daemon
-
-
-      # ============================================================
-      # 12 - GERAR APK
-      # ============================================================
+          gradle clean --no-daemon
 
       - name: Gerar APK
         working-directory: ControleHoras
         shell: bash
         run: |
           set -e
-
-          echo "========================================"
-          echo "GERANDO APK"
-          echo "========================================"
 
           gradle \
             assembleDebug \
@@ -1884,15 +739,6 @@ private class ControleHorasTimeWheelView(
           test -s "$APK"
 
           ls -lh "$APK"
-
-          echo "========================================"
-          echo "APK GERADO"
-          echo "========================================"
-
-
-      # ============================================================
-      # 13 - VALIDAR APK
-      # ============================================================
 
       - name: Verificar APK
         working-directory: ControleHoras
@@ -1908,14 +754,7 @@ private class ControleHorasTimeWheelView(
             "$APK" \
             >/dev/null
 
-          echo "========================================"
           echo "APK VALIDADO"
-          echo "========================================"
-
-
-      # ============================================================
-      # 14 - PUBLICAR APK
-      # ============================================================
 
       - name: Publicar APK
         uses: actions/upload-artifact@v4
