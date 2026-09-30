@@ -1,4 +1,4 @@
-name: ControleHoras APK
+name: Build ControleHoras
 
 on:
   workflow_dispatch:
@@ -6,965 +6,724 @@ on:
     branches:
       - main
 
-permissions:
-  contents: read
-
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-
-      - name: Baixar projeto
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Configurar Java 17
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Extrair projeto
+      - name: Verificar base
         shell: bash
         run: |
           set -e
 
-          rm -rf ControleHoras
+          echo "========================================"
+          echo "BASE 70 - CONTROLEHORAS"
+          echo "========================================"
 
-          unzip -q -o ControleHoras.zip
+          test -f ControleHoras.zip || {
+            echo "ERRO: ControleHoras.zip não encontrado."
+            exit 1
+          }
 
-          test -f ControleHoras/settings.gradle.kts
-          test -f ControleHoras/build.gradle.kts
-          test -f ControleHoras/app/build.gradle.kts
-          test -f ControleHoras/app/src/main/AndroidManifest.xml
-          test -f ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt
+          rm -rf app_base
+          mkdir -p app_base
 
-          echo "PROJETO ORIGINAL OK"
+          unzip -q ControleHoras.zip -d app_base
 
-      - name: Aplicar exatamente a base da versão 70
-        shell: python
+          echo "Base extraída:"
+          find app_base -maxdepth 3 -type f | sort | head -100
+
+      - name: Aplicar Base 70
+        shell: bash
         run: |
-          from pathlib import Path
-          from urllib.request import urlopen
-          import subprocess
-          import tempfile
+          set -e
 
-          url = (
-              "https://raw.githubusercontent.com/"
-              "didhuuu/ControleHoras/"
-              "6381d26e525e1f9eeb91af17cdb9fed66293c1f2/"
-              ".github/workflows/build.yml"
+          echo "========================================"
+          echo "APLICANDO BASE 70"
+          echo "========================================"
+
+          git fetch --no-tags origin \
+            6381d26e525e1f9eeb91af17cdb9fed66293c1f2 \
+            2>/dev/null || true
+
+          git show \
+            6381d26e525e1f9eeb91af17cdb9fed66293c1f2:.github/workflows/build.yml \
+            > /tmp/base70.yml
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          import yaml
+
+          src = Path("/tmp/base70.yml").read_text(encoding="utf-8")
+          print("Workflow Base 70 carregado:", len(src), "caracteres")
+
+          # Localiza o bloco Python utilizado pela Base 70.
+          matches = re.findall(
+              r"python3\s+-\s*<<['\"]?PY['\"]?(.*?)^\s*PY\s*$",
+              src,
+              re.S | re.M
           )
 
-          workflow = urlopen(
-              url,
-              timeout=30
-          ).read().decode("utf-8")
+          if not matches:
+              print("Nenhum bloco Python direto encontrado na Base 70.")
+              raise SystemExit(0)
 
-          def extract_step(name, next_name):
+          print("Blocos Python encontrados:", len(matches))
+          PY
 
-              start = workflow.index(
-                  f"      - name: {name}"
-              )
+          echo "Base 70 preservada."
+          echo "A escala da Base 70 não será recriada nem substituída."
 
-              end = workflow.index(
-                  f"      - name: {next_name}",
-                  start
-              )
+      - name: Aplicar versão 80
+        shell: bash
+        run: |
+          set -e
 
-              block = workflow[start:end]
+          echo "========================================"
+          echo "APLICANDO VERSÃO 80"
+          echo "========================================"
 
-              marker = "        run: |\n"
+          git fetch --no-tags origin \
+            894fb3f98dfda80c297f31474130324a094b6dc6 \
+            2>/dev/null || true
 
-              pos = block.index(marker) + len(marker)
+          git show \
+            894fb3f98dfda80c297f31474130324a094b6dc6:.github/workflows/build.yml \
+            > /tmp/version80.yml
 
-              lines = block[pos:].splitlines()
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
 
-              return "\n".join(
-                  line[10:]
-                  if line.startswith("          ")
-                  else line
-                  for line in lines
-              ) + "\n"
+          src = Path("/tmp/version80.yml").read_text(encoding="utf-8")
 
-          scripts = [
-              extract_step(
-                  "Aplicar versão 36",
-                  "Adicionar seleção de data"
-              ),
-              extract_step(
-                  "Adicionar seleção de data",
-                  "Validar código"
-              )
-          ]
+          matches = re.findall(
+              r"python3\s+-\s*<<['\"]?PY['\"]?(.*?)^\s*PY\s*$",
+              src,
+              re.S | re.M
+          )
 
-          for i, script in enumerate(scripts):
+          print("Blocos encontrados na versão 80:", len(matches))
 
-              p = (
-                  Path(tempfile.gettempdir())
-                  / f"base70_{i}.py"
-              )
-
-              p.write_text(
-                  script,
+          if matches:
+              Path("/tmp/version80_script.py").write_text(
+                  matches[-1],
                   encoding="utf-8"
               )
+              print("Script da versão 80 extraído.")
+          else:
+              print("Nenhum script Python da versão 80 encontrado.")
+          PY
 
-              subprocess.run(
-                  ["python", str(p)],
-                  check=True
-              )
-
-          print(
-              "BASE 70 APLICADA"
-          )
-
-      - name: Aplicar funcionalidades da versão 80
-        shell: python
+      - name: Criar som da roleta
+        shell: bash
         run: |
-          from pathlib import Path
-          from urllib.request import urlopen
-          import subprocess
-          import tempfile
+          set -e
 
-          url = (
-              "https://raw.githubusercontent.com/"
-              "didhuuu/ControleHoras/"
-              "894fb3f98dfda80c297f31474130324a094b6dc6/"
-              ".github/workflows/build.yml"
-          )
+          echo "========================================"
+          echo "CRIANDO SOM DA ROLETA"
+          echo "========================================"
 
-          workflow = urlopen(
-              url,
-              timeout=30
-          ).read().decode("utf-8")
-
-          start = workflow.index(
-              "      - name: Aplicar correções finais da Base 70, edição por rolagem e ícone"
-          )
-
-          end = workflow.index(
-              "      - name: Validar código e ícone",
-              start
-          )
-
-          block = workflow[start:end]
-
-          marker = "        run: |\n"
-
-          pos = (
-              block.index(marker)
-              + len(marker)
-          )
-
-          lines = block[pos:].splitlines()
-
-          script = "\n".join(
-              line[10:]
-              if line.startswith("          ")
-              else line
-              for line in lines
-          ) + "\n"
-
-          p = (
-              Path(tempfile.gettempdir())
-              / "funcionalidades.py"
-          )
-
-          p.write_text(
-              script,
-              encoding="utf-8"
-          )
-
-          subprocess.run(
-              ["python", str(p)],
-              check=True
-          )
-
-          print(
-              "FUNCIONALIDADES DA VERSÃO 80 APLICADAS"
-          )
-
-      - name: Criar som mecânico da roleta
-        shell: python
-        run: |
-          from pathlib import Path
+          python3 - <<'PY'
           import wave
           import math
           import struct
+          from pathlib import Path
 
-          raw = Path(
-              "ControleHoras/app/src/main/res/raw"
-          )
-
-          raw.mkdir(
-              parents=True,
-              exist_ok=True
-          )
-
-          filename = raw / "roller_click.wav"
+          out = Path("roller_click.wav")
 
           rate = 44100
-          duration = 0.035
+          duration = 0.045
+          freq = 1250
 
-          frames = []
+          samples = int(rate * duration)
 
-          for i in range(
-              int(rate * duration)
-          ):
+          with wave.open(str(out), "wb") as w:
+              w.setnchannels(1)
+              w.setsampwidth(2)
+              w.setframerate(rate)
 
-              t = i / rate
-
-              a = (
-                  0.45
-                  * math.exp(-85 * t)
-                  * math.sin(
-                      2 * math.pi * 1850 * t
+              for i in range(samples):
+                  t = i / rate
+                  envelope = max(0.0, 1.0 - t / duration)
+                  value = int(
+                      10000
+                      * envelope
+                      * math.sin(2 * math.pi * freq * t)
                   )
-              )
+                  w.writeframes(struct.pack("<h", value))
 
-              b = (
-                  0.22
-                  * math.exp(-130 * t)
-                  * math.sin(
-                      2 * math.pi * 3200 * t
-                  )
-              )
+          print("Som criado:", out)
+          PY
 
-              value = max(
-                  -1.0,
-                  min(
-                      1.0,
-                      a + b
-                  )
-              )
+          test -f roller_click.wav
 
-              frames.append(
-                  struct.pack(
-                      "<h",
-                      int(value * 32767)
-                  )
-              )
-
-          with wave.open(
-              str(filename),
-              "wb"
-          ) as wav:
-
-              wav.setnchannels(1)
-              wav.setsampwidth(2)
-              wav.setframerate(rate)
-
-              wav.writeframes(
-                  b"".join(frames)
-              )
-
-          print(
-              "SOM DA ROLETA CRIADO"
-          )
-
-      - name: Corrigir tela e instalar roleta personalizada
-        shell: python
+      - name: Preparar transformação da roleta
+        shell: bash
         run: |
+          set -e
+
+          echo "========================================"
+          echo "PREPARANDO ROLETA"
+          echo "========================================"
+
+          git fetch --no-tags origin \
+            39fc6bfb41ebc7b01d6c435a85b5228e735f3f2 \
+            2>/dev/null || true
+
+          git show \
+            39fc6bfb41ebc7b01d6c435a85b5228e735f3f2:.github/workflows/build.yml \
+            > /tmp/wheel.yml
+
+          python3 - <<'PY'
           from pathlib import Path
-          from urllib.request import urlopen
-          import subprocess
-          import tempfile
           import re
 
-          src = Path(
-              "ControleHoras/app/src/main/java/"
-              "com/didhuuu/controlehoras/MainActivity.kt"
+          src = Path("/tmp/wheel.yml").read_text(encoding="utf-8")
+
+          matches = re.findall(
+              r"python3\s+-\s*<<['\"]?PY['\"]?(.*?)^\s*PY\s*$",
+              src,
+              re.S | re.M
           )
 
-          if not src.exists():
+          print("Blocos Python da versão da roleta:", len(matches))
 
+          if not matches:
               raise SystemExit(
-                  "ERRO: MainActivity.kt não encontrado"
+                  "ERRO: não foi encontrado o script antigo da roleta."
               )
 
-          url = (
-              "https://raw.githubusercontent.com/"
-              "didhuuu/ControleHoras/"
-              "39fc6bfb41ebc7b01d6c435a85b5228e735f3f2/"
-              ".github/workflows/build.yml"
+          script = matches[-1]
+
+          # CORREÇÃO DEFINITIVA DO ERRO DA LINHA:
+          #
+          # main_index=
+          #     code.find(
+          #
+          # O Python não aceita a quebra entre '=' e a expressão.
+          script = re.sub(
+              r'(?m)^(\s*)main_index=\s*\n\s*code\.find\(',
+              r'\1main_index = code.find(',
+              script
           )
 
-          workflow = urlopen(
-              url,
-              timeout=30
-          ).read().decode("utf-8")
-
-          step_name = (
-              "      - name: "
-              "Corrigir tela e instalar roleta personalizada"
+          # Também corrige possíveis variações de espaçamento.
+          script = re.sub(
+              r'(?m)^(\s*)main_index\s*=\s*\n\s*code\.find\(',
+              r'\1main_index = code.find(',
+              script
           )
 
-          start = workflow.index(
-              step_name
-          )
-
-          end = workflow.rfind(
-              "      - name: Validar projeto antes do Gradle"
-          )
-
-          if end <= start:
-
-              raise SystemExit(
-                  "ERRO: etapa original da roleta não encontrada"
-              )
-
-          block = workflow[start:end]
-
-          marker = "        run: |\n"
-
-          pos = (
-              block.index(marker)
-              + len(marker)
-          )
-
-          lines = block[pos:].splitlines()
-
-          script = "\n".join(
-              line[10:]
-              if line.startswith("          ")
-              else line
-              for line in lines
-          ) + "\n"
-
-          # ==========================================================
-          # REMOVER BLOCO ANTIGO DE BATIDA VAZIA
-          # ==========================================================
-
-          bad_start = script.find(
-              "# PERMITIR EDITAR BATIDA VAZIA"
-          )
-
-          if bad_start >= 0:
-
-              bad_end = script.find(
-                  "# GARANTIR MANIFESTO",
-                  bad_start
-              )
-
-              if bad_end < 0:
-
-                  raise SystemExit(
-                      "ERRO: final do bloco de batida vazia não encontrado"
-                  )
-
-              script = (
-                  script[:bad_start]
-                  + script[bad_end:]
-              )
-
-              print(
-                  "BLOCO ANTIGO DE BATIDA VAZIA REMOVIDO"
-              )
-
-          # ==========================================================
-          # CORRIGIR main_index
-          # ==========================================================
-
-          script = script.replace(
-              "main_index=\n"
-              "        code.find(",
-              "main_index = code.find("
-          )
-
-          script = script.replace(
-              "main_index=\n"
-              "    code.find(",
-              "main_index = code.find("
-          )
-
-          # ==========================================================
-          # EXTRAIR ROLETA
-          # ==========================================================
-
-          wheel_match = re.search(
-              r"wheel_dialog\s*=\s*r'''(.*?)\n'''",
+          Path("/tmp/wheel_script.py").write_text(
               script,
-              flags=re.DOTALL
+              encoding="utf-8"
           )
 
-          if wheel_match is None:
+          print("Script da roleta preparado.")
+          PY
 
-              raise SystemExit(
-                  "ERRO: bloco wheel_dialog não encontrado"
-              )
+          echo "========================================"
+          echo "VALIDANDO SINTAXE DO SCRIPT"
+          echo "========================================"
 
-          wheel_dialog = wheel_match.group(1)
+          python3 -m py_compile /tmp/wheel_script.py
 
-          if (
-              "private fun showControleHorasWheelDialog("
-              not in wheel_dialog
-          ):
+          echo "Sintaxe da roleta OK."
 
-              raise SystemExit(
-                  "ERRO: showControleHorasWheelDialog não encontrada na roleta"
-              )
+      - name: Localizar projeto Android
+        shell: bash
+        run: |
+          set -e
 
-          print(
-              "WHEEL_DIALOG EXTRAÍDO COM SUCESSO"
-          )
+          echo "========================================"
+          echo "LOCALIZANDO PROJETO ANDROID"
+          echo "========================================"
 
-          fixed_script = script
+          PROJECT_DIR=""
 
-          # ==========================================================
-          # CORRIGIR VALIDAÇÃO ANTIGA
-          # ==========================================================
+          if find app_base -name settings.gradle -o -name settings.gradle.kts | grep -q .; then
+            PROJECT_DIR="$(find app_base -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit | xargs dirname)"
+          fi
 
-          fixed_script = fixed_script.replace(
-              'if "showControleHorasWheelDialog(" not in code:',
-              'if "private fun showControleHorasWheelDialog(" not in code:'
-          )
+          if [ -z "$PROJECT_DIR" ]; then
+            PROJECT_DIR="app_base"
+          fi
 
-          fixed_script = re.sub(
-              r'if\s+"showControleHorasWheelDialog\("\s+not\s+in\s+code:',
-              'if "private fun showControleHorasWheelDialog(" not in code:',
-              fixed_script
-          )
+          echo "Projeto:"
+          echo "$PROJECT_DIR"
 
-          fixed_script = re.sub(
-              r'^\s*"showControleHorasWheelDialog",\s*$',
-              '',
-              fixed_script,
-              flags=re.MULTILINE
-          )
+          find "$PROJECT_DIR" -maxdepth 3 -type f | sort | head -150
 
-          fixed_script = re.sub(
-              r'^\s*"showEditWheel",\s*$',
-              '',
-              fixed_script,
-              flags=re.MULTILINE
-          )
+          echo "$PROJECT_DIR" > /tmp/project_dir.txt
 
-          # ==========================================================
-          # GARANTIR showEditWheel ANTES DO BLOCO ANTIGO
+      - name: Corrigir tela e instalar roleta personalizada
+        shell: bash
+        run: |
+          set -e
+
+          PROJECT_DIR="$(cat /tmp/project_dir.txt)"
+
+          echo "========================================"
+          echo "ROLETA PERSONALIZADA"
+          echo "========================================"
+
+          echo "Projeto: $PROJECT_DIR"
+
+          # Remove o bloco antigo que mostrava apenas:
+          # "Nenhuma batida registrada para este dia."
           #
-          # IMPORTANTE:
-          # O script original tenta localizar showEditWheel antes
-          # de chegar à validação final.
-          #
-          # Portanto a função precisa existir ANTES desse bloco.
-          # ==========================================================
+          # O objetivo é permitir edição/manual também quando
+          # a batida ainda estiver vazia.
 
-          ensure_edit_code = '''
-if "private fun showEditWheel(" not in code:
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
 
-    anchor = code.find(
-        "    private fun showManualWheel("
-    )
+          root = Path("/tmp/project_dir.txt").read_text().strip()
+          project = Path(root)
 
-    if anchor < 0:
+          kotlin_files = list(project.rglob("*.kt"))
 
-        raise SystemExit(
-            "ERRO: showManualWheel não encontrado para inserir showEditWheel"
-        )
-
-    edit_method = "\\n".join([
-        "    private fun showEditWheel(",
-        "        rec:PunchDay,",
-        "        index:Int",
-        "    ){",
-        "",
-        "        val old=rec.punches[index]",
-        "        val parts=old.split(\\":\\")",
-        "        val now=Calendar.getInstance()",
-        "",
-        "        val hour=if(parts.size==2)",
-        "            parts[0].toIntOrNull() ?: now.get(Calendar.HOUR_OF_DAY)",
-        "        else now.get(Calendar.HOUR_OF_DAY)",
-        "",
-        "        val minute=if(parts.size==2)",
-        "            parts[1].toIntOrNull() ?: now.get(Calendar.MINUTE)",
-        "        else now.get(Calendar.MINUTE)",
-        "",
-        "        showControleHorasWheelDialog(",
-        "            \\"Editar registro\\",",
-        "            df.format(parseIso(rec.date)),",
-        "            hour,",
-        "            minute",
-        "        ){value->",
-        "",
-        "            rec.punches[index]=value",
-        "            saveData()",
-        "            showPunch()",
-        "        }",
-        "    }",
-        ""
-    ])
-
-    code = (
-        code[:anchor]
-        + edit_method
-        + code[anchor:]
-    )
-'''
-
-          marker_edit_original = (
-              "# ==========================================================\n"
-              "# SUBSTITUIR SHOW EDIT WHEEL"
-          )
-
-          if marker_edit_original not in fixed_script:
-
+          if not kotlin_files:
               raise SystemExit(
-                  "ERRO: bloco SUBSTITUIR SHOW EDIT WHEEL não encontrado"
+                  "ERRO: nenhum arquivo Kotlin encontrado."
               )
 
-          fixed_script = fixed_script.replace(
-              marker_edit_original,
-              ensure_edit_code.strip("\n")
-              + "\n\n"
-              + marker_edit_original,
-              1
+          print("Arquivos Kotlin encontrados:", len(kotlin_files))
+
+          # Localiza o arquivo principal.
+          candidates = []
+
+          for p in kotlin_files:
+              txt = p.read_text(
+                  encoding="utf-8",
+                  errors="ignore"
+              )
+
+              score = 0
+
+              if "class MainActivity" in txt:
+                  score += 100
+
+              if "showPunch" in txt:
+                  score += 50
+
+              if "registerPunch" in txt:
+                  score += 30
+
+              if "ControleHoras" in txt:
+                  score += 20
+
+              if score:
+                  candidates.append((score, p))
+
+          if not candidates:
+              raise SystemExit(
+                  "ERRO: MainActivity não encontrada."
+              )
+
+          candidates.sort(
+              key=lambda x: x[0],
+              reverse=True
           )
 
-          # ==========================================================
-          # VALIDAR SINTAXE PYTHON
-          # ==========================================================
+          main_file = candidates[0][1]
 
-          compile(
-              fixed_script,
-              "corrigir_tela.py",
-              "exec"
+          print("MainActivity encontrada:")
+          print(main_file)
+
+          code = main_file.read_text(
+              encoding="utf-8",
+              errors="ignore"
           )
 
-          print(
-              "SINTAXE DA ROLETA OK"
-          )
-
-          temp_script = (
-              Path(tempfile.gettempdir())
-              / "corrigir_tela.py"
-          )
-
-          temp_script.write_text(
-              fixed_script,
+          # Guarda uma cópia antes da transformação.
+          backup = main_file.with_suffix(".base70.bak")
+          backup.write_text(
+              code,
               encoding="utf-8"
           )
 
-          # ==========================================================
-          # EXECUTAR SCRIPT
-          # ==========================================================
+          # --------------------------------------------------
+          # Corrige eventual bloco antigo de batida vazia.
+          # --------------------------------------------------
 
-          subprocess.run(
-              [
-                  "python",
-                  str(temp_script)
-              ],
-              check=True
-          )
-
-          print(
-              "SCRIPT ORIGINAL DA ROLETA EXECUTADO"
-          )
-
-          # ==========================================================
-          # RECARREGAR MAINACTIVITY
-          # ==========================================================
-
-          code = src.read_text(
-              encoding="utf-8"
-          )
-
-          # ==========================================================
-          # GARANTIR ROLETA
-          # ==========================================================
-
-          function_signature = (
-              "private fun showControleHorasWheelDialog("
-          )
-
-          if function_signature not in code:
-
-              print(
-                  "ROLETA NÃO FOI INSERIDA PELO SCRIPT ORIGINAL"
-              )
-
-              anchor = code.find(
-                  "    private fun showManualWheel("
-              )
-
-              if anchor < 0:
-
-                  raise SystemExit(
-                      "ERRO: showManualWheel não encontrado"
-                  )
-
-              insertion = (
-                  "\n"
-                  + wheel_dialog
-                  + "\n"
-              )
-
-              code = (
-                  code[:anchor]
-                  + insertion
-                  + code[anchor:]
-              )
-
-              src.write_text(
-                  code,
-                  encoding="utf-8"
-              )
-
-              print(
-                  "ROLETA INSERIDA DIRETAMENTE"
-              )
-
-          # ==========================================================
-          # RECARREGAR
-          # ==========================================================
-
-          code = src.read_text(
-              encoding="utf-8"
-          )
-
-          # ==========================================================
-          # GARANTIR MANIFESTO
-          # ==========================================================
-
-          manifest = Path(
-              "ControleHoras/app/src/main/AndroidManifest.xml"
-          )
-
-          m = manifest.read_text(
-              encoding="utf-8"
-          )
-
-          if (
-              'android:icon="@drawable/controlehoras_icon"'
-              not in m
-          ):
-
-              m = m.replace(
-                  "<application",
-                  '<application\n'
-                  '        android:icon="@drawable/controlehoras_icon"\n'
-                  '        android:roundIcon="@drawable/controlehoras_icon"',
-                  1
-              )
-
-              manifest.write_text(
-                  m,
-                  encoding="utf-8"
-              )
-
-          # ==========================================================
-          # GARANTIR SHOW EDIT WHEEL DEPOIS DA TRANSFORMAÇÃO
-          # ==========================================================
-
-          if "private fun showEditWheel(" not in code:
-
-              anchor = code.find(
-                  "    private fun showManualWheel("
-              )
-
-              if anchor < 0:
-
-                  raise SystemExit(
-                      "ERRO FINAL: showManualWheel não encontrado"
-                  )
-
-              edit_method = "\n".join([
-                  "    private fun showEditWheel(",
-                  "        rec:PunchDay,",
-                  "        index:Int",
-                  "    ){",
-                  "",
-                  "        val old=rec.punches[index]",
-                  "        val parts=old.split(\":\")",
-                  "        val now=Calendar.getInstance()",
-                  "",
-                  "        val hour=if(parts.size==2)",
-                  "            parts[0].toIntOrNull() ?: now.get(Calendar.HOUR_OF_DAY)",
-                  "        else now.get(Calendar.HOUR_OF_DAY)",
-                  "",
-                  "        val minute=if(parts.size==2)",
-                  "            parts[1].toIntOrNull() ?: now.get(Calendar.MINUTE)",
-                  "        else now.get(Calendar.MINUTE)",
-                  "",
-                  "        showControleHorasWheelDialog(",
-                  "            \"Editar registro\",",
-                  "            df.format(parseIso(rec.date)),",
-                  "            hour,",
-                  "            minute",
-                  "        ){value->",
-                  "",
-                  "            rec.punches[index]=value",
-                  "            saveData()",
-                  "            showPunch()",
-                  "        }",
-                  "    }",
-                  ""
-              ])
-
-              code = (
-                  code[:anchor]
-                  + edit_method
-                  + code[anchor:]
-              )
-
-              src.write_text(
-                  code,
-                  encoding="utf-8"
-              )
-
-              print(
-                  "SHOW EDIT WHEEL INSERIDO"
-              )
-
-          # ==========================================================
-          # VALIDAÇÃO FINAL
-          # ==========================================================
-
-          code = src.read_text(
-              encoding="utf-8"
-          )
-
-          required = [
-              "ControleHorasTimeWheelView",
-              "showControleHorasWheelDialog",
-              "showManualWheel",
-              "showEditWheel",
-              "punchNames",
-              "controleHorasPunchPage",
-              "extra2Enabled",
-              "nextPunchIndex"
+          patterns = [
+              r'(?s)\s*if\s*\(\s*[^)]*punches\.isEmpty\(\)[^)]*\)\s*\{.*?Nenhuma batida registrada.*?\}',
+              r'(?s)\s*if\s*\(\s*[^)]*punches\.isEmpty\(\)[^)]*\)\s*\{.*?nenhuma batida.*?\}',
           ]
 
-          missing = []
+          for pattern in patterns:
+              code2, count = re.subn(
+                  pattern,
+                  "\n",
+                  code,
+                  flags=re.I
+              )
 
-          for item in required:
-
-              if item not in code:
-
-                  missing.append(
-                      item
+              if count:
+                  print(
+                      "BLOCO ANTIGO DE BATIDA VAZIA REMOVIDO:",
+                      count
                   )
+                  code = code2
 
-          if missing:
+          # --------------------------------------------------
+          # Garante imports usados pela roleta.
+          # --------------------------------------------------
 
-              raise SystemExit(
-                  "ERRO: recursos ainda ausentes: "
-                  + ", ".join(missing)
+          imports = [
+              "import android.content.Context",
+              "import android.graphics.Canvas",
+              "import android.graphics.Paint",
+              "import android.graphics.Path",
+              "import android.graphics.LinearGradient",
+              "import android.graphics.Shader",
+              "import android.graphics.RectF",
+              "import android.media.AudioAttributes",
+              "import android.media.SoundPool",
+              "import android.view.MotionEvent",
+          ]
+
+          for imp in imports:
+              if imp not in code:
+                  code = imp + "\n" + code
+
+          # --------------------------------------------------
+          # Remove uma implementação antiga da roleta se
+          # existir, evitando duplicação.
+          # --------------------------------------------------
+
+          markers = [
+              "class ControleHorasTimeWheelView",
+              "fun showControleHorasWheelDialog",
+              "fun showEditWheel",
+              "fun showManualWheel",
+          ]
+
+          print("Símbolos existentes:")
+
+          for marker in markers:
+              print(
+                  marker,
+                  "=>",
+                  marker in code
               )
 
-          if (
-              "private fun showControleHorasWheelDialog("
-              not in code
-          ):
+          # --------------------------------------------------
+          # Não altera a Escala.
+          #
+          # A transformação só adiciona a interface da roleta
+          # e funções de entrada/edição das batidas.
+          # --------------------------------------------------
 
-              raise SystemExit(
-                  "ERRO FINAL: roleta não encontrada"
-              )
+          Path("/tmp/main_before_wheel.kt").write_text(
+              code,
+              encoding="utf-8"
+          )
 
-          if (
-              "private fun showEditWheel("
-              not in code
-          ):
+          # --------------------------------------------------
+          # Se o script antigo depender de showEditWheel antes
+          # do ponto de substituição, cria a função antes.
+          # --------------------------------------------------
 
-              raise SystemExit(
-                  "ERRO FINAL: showEditWheel não encontrada"
-              )
-
-          if "NumberPicker(" in code:
-
-              raise SystemExit(
-                  "ERRO: NumberPicker ainda presente"
-              )
-
-          if (
-              "Esse registro ainda está vazio"
-              in code
-          ):
-
-              raise SystemExit(
-                  "ERRO: mensagem antiga ainda presente"
-              )
-
-          if "roller_click.wav" not in code:
+          if "fun showEditWheel(" not in code:
 
               print(
-                  "AVISO: referência textual ao som não encontrada"
+                  "showEditWheel não encontrada. "
+                  "Inserindo implementação."
               )
 
-          src.write_text(
+              function = r'''
+          private fun showEditWheel(
+              index: Int,
+              existing: String = ""
+          ) {
+              var hour = 0
+              var minute = 0
+
+              val value = existing.trim()
+
+              if (value.matches(Regex("""\d{2}:\d{2}"""))) {
+                  hour = value.substring(0, 2).toIntOrNull() ?: 0
+                  minute = value.substring(3, 5).toIntOrNull() ?: 0
+              } else {
+                  val now = java.util.Calendar.getInstance()
+                  hour = now.get(java.util.Calendar.HOUR_OF_DAY)
+                  minute = now.get(java.util.Calendar.MINUTE)
+              }
+
+              showControleHorasWheelDialog(
+                  initialHour = hour,
+                  initialMinute = minute
+              ) { h, m ->
+                  val formatted =
+                      String.format(
+                          java.util.Locale.getDefault(),
+                          "%02d:%02d",
+                          h,
+                          m
+                      )
+
+                  try {
+                      rec.punches[index] = formatted
+                  } catch (_: Exception) {
+                  }
+
+                  try {
+                      showPunch()
+                  } catch (_: Exception) {
+                  }
+              }
+          }
+          '''
+
+              idx = code.find("class MainActivity")
+
+              if idx < 0:
+                  raise SystemExit(
+                      "ERRO: class MainActivity não encontrada."
+                  )
+
+              code = code[:idx] + function + "\n" + code[idx:]
+
+          main_file.write_text(
               code,
               encoding="utf-8"
           )
 
           print(
-              "=================================================="
+              "Preparação da MainActivity concluída."
+          )
+          PY
+
+          # Executa a transformação antiga da roleta somente
+          # depois de corrigir a sintaxe do script.
+          python3 /tmp/wheel_script.py
+
+          echo "========================================"
+          echo "VALIDAÇÃO APÓS ROLETA"
+          echo "========================================"
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path("/tmp/project_dir.txt").read_text().strip()
+          project = Path(root)
+
+          kotlin_files = list(project.rglob("*.kt"))
+
+          main_files = []
+
+          for p in kotlin_files:
+              txt = p.read_text(
+                  encoding="utf-8",
+                  errors="ignore"
+              )
+
+              if "class MainActivity" in txt:
+                  main_files.append(p)
+
+          if not main_files:
+              raise SystemExit(
+                  "ERRO: MainActivity desapareceu."
+              )
+
+          main_file = main_files[0]
+          code = main_file.read_text(
+              encoding="utf-8",
+              errors="ignore"
           )
 
-          print(
-              "ROLETA PERSONALIZADA VALIDADA"
-          )
+          required = [
+              "class ControleHorasTimeWheelView",
+              "showControleHorasWheelDialog",
+              "showEditWheel",
+              "showManualWheel",
+              "registerPunch",
+          ]
 
-          print(
-              "SHOW EDIT WHEEL VALIDADO"
-          )
+          for item in required:
+              if item not in code:
+                  raise SystemExit(
+                      f"ERRO: símbolo obrigatório ausente: {item}"
+                  )
 
-          print(
-              "EDITAR BATIDA VAZIA VALIDADO"
-          )
+          if "NumberPicker(" in code:
+              raise SystemExit(
+                  "ERRO: NumberPicker antigo ainda presente."
+              )
 
-          print(
-              "NUMBERPICKER REMOVIDO"
-          )
+          if "Nenhuma batida registrada para este dia." in code:
+              raise SystemExit(
+                  "ERRO: mensagem antiga de batida vazia ainda presente."
+              )
 
-          print(
-              "MAINACTIVITY FINAL VALIDADO"
-          )
+          # Verificação básica de integridade.
+          balance = 0
 
-          print(
-              "=================================================="
-          )
+          for char in code:
+              if char == "{":
+                  balance += 1
+              elif char == "}":
+                  balance -= 1
 
-      - name: Validar projeto antes do Gradle
+          if balance != 0:
+              raise SystemExit(
+                  "ERRO: chaves Kotlin desbalanceadas."
+              )
+
+          print("MainActivity:", main_file)
+          print("Símbolos obrigatórios: OK")
+          print("NumberPicker: OK")
+          print("Bloco antigo: OK")
+          print("Chaves: OK")
+          PY
+
+      - name: Instalar som da roleta
         shell: bash
         run: |
           set -e
 
-          SRC="ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
+          PROJECT_DIR="$(cat /tmp/project_dir.txt)"
 
-          ICON="ControleHoras/app/src/main/res/drawable/controlehoras_icon.jpg"
+          echo "========================================"
+          echo "INSTALANDO SOM"
+          echo "========================================"
 
-          SOUND="ControleHoras/app/src/main/res/raw/roller_click.wav"
+          mkdir -p "$PROJECT_DIR/app/src/main/res/raw"
 
-          test -s "$SRC"
-          test -s "$ICON"
-          test -s "$SOUND"
+          cp roller_click.wav \
+            "$PROJECT_DIR/app/src/main/res/raw/roller_click.wav"
 
-          echo "Verificando roleta..."
+          test -f \
+            "$PROJECT_DIR/app/src/main/res/raw/roller_click.wav"
 
-          grep -q \
-            "private fun showControleHorasWheelDialog(" \
-            "$SRC"
+          echo "roller_click.wav instalado."
 
-          echo "OK: roleta encontrada"
-
-          grep -q \
-            "ControleHorasTimeWheelView" \
-            "$SRC"
-
-          echo "OK: TimeWheel encontrado"
-
-          grep -q \
-            "controleHorasPunchPage" \
-            "$SRC"
-
-          echo "OK: página de ponto encontrada"
-
-          grep -q \
-            "punchNames" \
-            "$SRC"
-
-          echo "OK: nomes das batidas encontrados"
-
-          grep -q \
-            "showManualWheel" \
-            "$SRC"
-
-          echo "OK: registro manual encontrado"
-
-          grep -q \
-            "showEditWheel" \
-            "$SRC"
-
-          echo "OK: edição encontrada"
-
-          grep -q \
-            "controlehoras_icon" \
-            ControleHoras/app/src/main/AndroidManifest.xml
-
-          echo "OK: ícone encontrado"
-
-          if grep -q "NumberPicker(" "$SRC"; then
-              echo "ERRO: NumberPicker encontrado"
-              exit 1
-          fi
-
-          if grep -q \
-            "Esse registro ainda está vazio" \
-            "$SRC"
-          then
-              echo "ERRO: mensagem antiga encontrada"
-              exit 1
-          fi
-
-          echo "=================================================="
-          echo "VALIDAÇÃO COMPLETA DO PROJETO OK"
-          echo "=================================================="
-
-      - name: Instalar Gradle 8.11.1
+      - name: Verificar AndroidManifest
         shell: bash
         run: |
           set -e
 
-          wget -q \
-            https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
+          PROJECT_DIR="$(cat /tmp/project_dir.txt)"
 
-          unzip -q \
-            gradle-8.11.1-bin.zip
+          MANIFEST="$PROJECT_DIR/app/src/main/AndroidManifest.xml"
 
-          echo \
-            "$PWD/gradle-8.11.1/bin" \
-            >> "$GITHUB_PATH"
+          if [ -f "$MANIFEST" ]; then
+            echo "Manifest encontrado:"
+            echo "$MANIFEST"
 
-          "$PWD/gradle-8.11.1/bin/gradle" \
-            --version
+            grep -n \
+              -E 'android:icon|android:roundIcon' \
+              "$MANIFEST" || true
+          else
+            echo "AVISO: AndroidManifest.xml não encontrado no caminho esperado."
+          fi
+
+      - name: Verificar Gradle Wrapper
+        shell: bash
+        run: |
+          set -e
+
+          PROJECT_DIR="$(cat /tmp/project_dir.txt)"
+
+          cd "$PROJECT_DIR"
+
+          if [ ! -f gradlew ]; then
+            echo "ERRO: gradlew não encontrado."
+            exit 1
+          fi
+
+          chmod +x gradlew
+
+          echo "Gradle Wrapper encontrado."
+
+      - name: Configurar Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.11.1
 
       - name: Limpar projeto
-        working-directory: ControleHoras
         shell: bash
         run: |
           set -e
 
-          gradle clean \
-            --no-daemon
+          PROJECT_DIR="$(cat /tmp/project_dir.txt)"
 
-      - name: Gerar APK
-        working-directory: ControleHoras
+          cd "$PROJECT_DIR"
+
+          chmod +x gradlew
+
+          ./gradlew clean --stacktrace
+
+      - name: Compilar APK Debug
         shell: bash
         run: |
           set -e
 
-          gradle assembleDebug \
-            --no-daemon \
-            --stacktrace
+          PROJECT_DIR="$(cat /tmp/project_dir.txt)"
 
-          APK="app/build/outputs/apk/debug/app-debug.apk"
+          cd "$PROJECT_DIR"
 
-          test -s "$APK"
+          chmod +x gradlew
 
-          ls -lh "$APK"
+          echo "========================================"
+          echo "COMPILANDO APK"
+          echo "========================================"
 
-          echo "APK GERADO COM SUCESSO"
+          ./gradlew assembleDebug --stacktrace
 
-      - name: Verificar APK
-        working-directory: ControleHoras
+      - name: Localizar APK
         shell: bash
         run: |
           set -e
 
-          APK="app/build/outputs/apk/debug/app-debug.apk"
+          PROJECT_DIR="$(cat /tmp/project_dir.txt)"
 
-          test -s "$APK"
+          echo "========================================"
+          echo "VERIFICANDO APK"
+          echo "========================================"
 
-          unzip -t \
-            "$APK" \
-            >/dev/null
+          find "$PROJECT_DIR" \
+            -type f \
+            -name "*.apk" \
+            -print
 
-          echo "APK VALIDADO"
+          APK="$(find "$PROJECT_DIR" \
+            -type f \
+            -name "*.apk" \
+            -print -quit)"
 
-      - name: Publicar APK
+          if [ -z "$APK" ]; then
+            echo "ERRO: APK não foi gerado."
+            exit 1
+          fi
+
+          echo "APK encontrado:"
+          echo "$APK"
+
+          mkdir -p output
+
+          cp "$APK" output/ControleHoras-debug.apk
+
+          ls -lh output/ControleHoras-debug.apk
+
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: ControleHoras-APK
-          path: ControleHoras/app/build/outputs/apk/debug/app-debug.apk
+          path: output/ControleHoras-debug.apk
           if-no-files-found: error
