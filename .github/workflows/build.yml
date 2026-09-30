@@ -58,7 +58,7 @@ jobs:
           echo "PROJETO ORIGINAL OK"
 
       # ============================================================
-      # 4 - BASE 70
+      # 4 - APLICAR EXATAMENTE A BASE 70
       # ============================================================
 
       - name: Aplicar exatamente a base da versão 70
@@ -87,22 +87,15 @@ jobs:
 
           def extract_step(name, next_name):
 
-              start_marker = (
-                  f"      - name: {name}"
-              )
-
-              end_marker = (
-                  f"      - name: {next_name}"
-              )
+              start_marker = f"      - name: {name}"
+              end_marker = f"      - name: {next_name}"
 
               if start_marker not in workflow:
                   raise RuntimeError(
                       f"Etapa não encontrada: {name}"
                   )
 
-              start = workflow.index(
-                  start_marker
-              )
+              start = workflow.index(start_marker)
 
               if end_marker not in workflow[start:]:
                   raise RuntimeError(
@@ -162,7 +155,7 @@ jobs:
 
               compile(
                   script,
-                  f"base70_{i}.py",
+                  str(p),
                   "exec"
               )
 
@@ -180,7 +173,7 @@ jobs:
           print("========================================")
 
       # ============================================================
-      # 5 - VERSÃO 80
+      # 5 - APLICAR FUNCIONALIDADES DA VERSÃO 80
       # ============================================================
 
       - name: Aplicar funcionalidades da versão 80
@@ -217,6 +210,11 @@ jobs:
               "      - name: Validar código e ícone"
           )
 
+          if start_marker not in workflow:
+              raise RuntimeError(
+                  "Bloco da versão 80 não encontrado."
+              )
+
           start = workflow.index(
               start_marker
           )
@@ -229,6 +227,11 @@ jobs:
           block = workflow[start:end]
 
           marker = "        run: |\n"
+
+          if marker not in block:
+              raise RuntimeError(
+                  "Bloco Python da versão 80 não encontrado."
+              )
 
           pos = (
               block.index(marker)
@@ -256,7 +259,7 @@ jobs:
 
           compile(
               script,
-              "funcionalidades_v80.py",
+              str(p),
               "exec"
           )
 
@@ -268,212 +271,368 @@ jobs:
               check=True
           )
 
+          print("========================================")
           print("VERSÃO 80 APLICADA")
+          print("========================================")
 
       # ============================================================
-      # 6 - CORRIGIR showPunch
-      #
-      # Corrige exatamente os dois erros encontrados no build #126:
-      #
-      # 836 - addView com parâmetros inválidos
-      # 931 - addView não reconhecido dentro de card()
-      #
+      # 6 - CRIAR SOM MECÂNICO DA ROLETA
       # ============================================================
 
-      - name: Corrigir showPunch e ViewGroup
+      - name: Criar som mecânico da roleta
         shell: python
         run: |
           from pathlib import Path
-          import re
+          import wave
+          import math
+          import struct
 
-          print("========================================")
-          print("CORRIGINDO showPunch")
-          print("========================================")
-
-          src = Path(
-              "ControleHoras/app/src/main/java/"
-              "com/didhuuu/controlehoras/MainActivity.kt"
+          raw = Path(
+              "ControleHoras/app/src/main/res/raw"
           )
 
-          if not src.exists():
-              raise SystemExit(
-                  "ERRO: MainActivity.kt não encontrado."
-              )
-
-          code = src.read_text(
-              encoding="utf-8"
+          raw.mkdir(
+              parents=True,
+              exist_ok=True
           )
 
-          # ----------------------------------------------------------
-          # IMPORT ViewGroup
-          # ----------------------------------------------------------
+          filename = raw / "roller_click.wav"
 
-          if not re.search(
-              r"(?m)^import android\.view\.ViewGroup\s*$",
-              code
+          rate = 44100
+          duration = 0.035
+
+          frames = []
+
+          for i in range(
+              int(rate * duration)
           ):
 
-              lines = code.splitlines()
+              t = i / rate
 
-              package_index = 0
-
-              for i, line in enumerate(lines):
-
-                  if line.startswith("package "):
-                      package_index = i
-                      break
-
-              lines.insert(
-                  package_index + 1,
-                  "import android.view.ViewGroup"
+              a = (
+                  0.45
+                  * math.exp(-85 * t)
+                  * math.sin(
+                      2 * math.pi * 1850 * t
+                  )
               )
 
-              code = "\n".join(lines) + "\n"
+              b = (
+                  0.22
+                  * math.exp(-130 * t)
+                  * math.sin(
+                      2 * math.pi * 3200 * t
+                  )
+              )
 
-          # ----------------------------------------------------------
-          # LOCALIZAR O showPunch
-          # ----------------------------------------------------------
+              value = max(
+                  -1.0,
+                  min(
+                      1.0,
+                      a + b
+                  )
+              )
 
-          start = code.find(
-              "    private fun showPunch()"
+              frames.append(
+                  struct.pack(
+                      "<h",
+                      int(value * 32767)
+                  )
+              )
+
+          with wave.open(
+              str(filename),
+              "wb"
+          ) as wav:
+
+              wav.setnchannels(1)
+              wav.setsampwidth(2)
+              wav.setframerate(rate)
+
+              wav.writeframes(
+                  b"".join(frames)
+              )
+
+          print("SOM DA ROLETA CRIADO")
+
+      # ============================================================
+      # 7 - INSTALAR ROLETA E CORRIGIR TELA
+      #
+      # IMPORTANTE:
+      # Usamos o bloco completo que já contém o showPunch
+      # corrigido, em vez daquele bloco Python que ficou truncado.
+      # ============================================================
+
+      - name: Instalar roleta personalizada
+        shell: python
+        run: |
+          from pathlib import Path
+          from urllib.request import urlopen
+          import subprocess
+          import tempfile
+
+          print("========================================")
+          print("INSTALANDO ROLETA PERSONALIZADA")
+          print("========================================")
+
+          url = (
+              "https://raw.githubusercontent.com/"
+              "didhuuu/ControleHoras/"
+              "39fc6bfb41ebc7b01d6c435a85b5228e735f3f2/"
+              ".github/workflows/build.yml"
           )
 
-          end = code.find(
-              "    private fun showHistory()",
+          workflow = urlopen(
+              url,
+              timeout=60
+          ).read().decode("utf-8")
+
+          start_marker = (
+              "      - name: "
+              "Corrigir tela e instalar roleta personalizada"
+          )
+
+          end_marker = (
+              "      - name: Validar projeto antes do Gradle"
+          )
+
+          if start_marker not in workflow:
+              raise RuntimeError(
+                  "Bloco da roleta não encontrado."
+              )
+
+          start = workflow.index(
+              start_marker
+          )
+
+          end = workflow.index(
+              end_marker,
               start
           )
 
-          if start < 0 or end < 0:
+          block = workflow[start:end]
 
-              raise SystemExit(
-                  "ERRO: showPunch/showHistory não encontrados."
+          marker = "        run: |\n"
+
+          if marker not in block:
+              raise RuntimeError(
+                  "Bloco Python da roleta não encontrado."
               )
 
-          show = code[start:end]
-
-          # ----------------------------------------------------------
-          # NORMALIZAR O card() DO FUNCIONÁRIO
-          #
-          # Antes:
-          #
-          # box.addView(
-          #     card().apply{
-          #         ...
-          #     },
-          #     0,
-          #     0,
-          #     0,
-          #     dp(10)
-          # )
-          #
-          # Problemas:
-          # 1. addView não possui essa assinatura.
-          # 2. card() estava tipado como View.
-          #
-          # Agora:
-          #
-          # val employeeCard =
-          #     (card() as ViewGroup).apply{
-          #         ...
-          #     }
-          #
-          # box.addView(
-          #     employeeCard,
-          #     LinearLayout.LayoutParams(...).apply{
-          #         bottomMargin=dp(10)
-          #     }
-          # )
-          # ----------------------------------------------------------
-
-          pattern = re.compile(
-              r"box\.addView\s*"
-              r"(?:"
-              r"\(card\(\s+as\s+View\)"
-              r"|"
-              r"card"
-              r")"
-              r"\.apply\{"
-              r"([\s\S]*?)"
-              r"\n\s*\},"
-              r"\s*0,"
-              r"\s*0,"
-              r"\s*0,"
-              r"\s*dp10"
-              r"\s*\)"
-              r"\s*\n\s*val dateCard=card"
+          pos = (
+              block.index(marker)
+              + len(marker)
           )
 
-          match = pattern.search(
-              show
+          lines = block[pos:].splitlines()
+
+          script = "\n".join(
+              line[10:]
+              if line.startswith("          ")
+              else line
+              for line in lines
+          ).rstrip() + "\n"
+
+          p = (
+              Path(tempfile.gettempdir())
+              / "roleta_completa.py"
           )
 
-          if not match:
-
-              # Tentar uma segunda forma caso o script anterior
-              # tenha deixado "(card() as View).apply".
-
-              pattern2 = re.compile(
-                  r"box\.addView\s*"
-                  r"\(card\(\s+as\s+View\)"
-                  r"\.apply\{"
-                  r"([\s\S]*?)"
-                  r"\n\s*\},"
-                  r"\s*0,"
-                  r"\s*0,"
-                  r"\s*0,"
-                  r"\s*dp10"
-                  r"\s*\)"
-                  r"\s*\n\s*val dateCard=card"
-              )
-
-              match = pattern2.search(
-                  show
-              )
-
-          if not match:
-
-              raise SystemExit(
-                  "ERRO: bloco problemático do "
-                  "showPunch não encontrado."
-              )
-
-          body = match.group(1)
-
-          replacement = (
-              "val employeeCard="
-              "(card() as ViewGroup).apply{"
-              + body
-              + "\n"
-              "                  }\n"
-              "\n"
-              "                  box.addView(\n"
-              "                      employeeCard,\n"
-              "                      LinearLayout.LayoutParams(\n"
-              "                          -1,\n"
-              "                          -2\n"
-              "                      ).apply{\n"
-              "                          bottomMargin=dp(10)\n"
-              "                      }\n"
-              "                  )\n"
-              "\n"
-              "                  val dateCard=card()"
+          p.write_text(
+              script,
+              encoding="utf-8"
           )
 
-          show = (
-              show[:match.start()]
-              + replacement
-              + show[match.end():]
+          compile(
+              script,
+              str(p),
+              "exec"
           )
 
-          # ----------------------------------------------------------
-          # GARANTIR QUE NÃO SOBROU O PADRÃO INVÁLIDO
-          # ----------------------------------------------------------
+          subprocess.run(
+              [
+                  "python",
+                  str(p)
+              ],
+              check=True
+          )
 
-          if re.search(
-              r"box\.addView\s*"
-              r"(?:card\(|card\(\s+as\s+View\))"
-              r"\.apply\{",
-              show
-          ):
+          print("========================================")
+          print("ROLETA INSTALADA")
+          print("SHOWPUNCH CORRIGIDO")
+          print("EDIÇÃO MANUAL PRESERVADA")
+          print("========================================")
 
-              raise SystemExit(
+      # ============================================================
+      # 8 - VALIDAÇÃO ANTES DO GRADLE
+      # ============================================================
+
+      - name: Validar projeto antes do Gradle
+        shell: bash
+        run: |
+          set -e
+
+          echo "========================================"
+          echo "VALIDANDO PROJETO"
+          echo "========================================"
+
+          SRC="ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
+
+          MANIFEST="ControleHoras/app/src/main/AndroidManifest.xml"
+
+          SOUND="ControleHoras/app/src/main/res/raw/roller_click.wav"
+
+          test -s "$SRC"
+
+          test -s "$MANIFEST"
+
+          test -s "$SOUND"
+
+          grep -q \
+            "ControleHorasTimeWheelView" \
+            "$SRC"
+
+          grep -q \
+            "showControleHorasWheelDialog" \
+            "$SRC"
+
+          grep -q \
+            "showManualWheel" \
+            "$SRC"
+
+          grep -q \
+            "showEditWheel" \
+            "$SRC"
+
+          grep -q \
+            "controleHorasPunchPage" \
+            "$SRC"
+
+          grep -q \
+            "punchNames" \
+            "$SRC"
+
+          grep -q \
+            "nextPunchIndex" \
+            "$SRC"
+
+          grep -q \
+            "extra2Enabled" \
+            "$SRC"
+
+          grep -q \
+            "controlehoras_icon" \
+            "$MANIFEST"
+
+          if grep -q "NumberPicker(" "$SRC"; then
+              echo "ERRO: NumberPicker encontrado."
+              exit 1
+          fi
+
+          if grep -q \
+            "Esse registro ainda está vazio" \
+            "$SRC"; then
+
+              echo "ERRO: mensagem antiga encontrada."
+              exit 1
+          fi
+
+          echo "========================================"
+          echo "VALIDAÇÃO OK"
+          echo "========================================"
+
+      # ============================================================
+      # 9 - INSTALAR GRADLE
+      # ============================================================
+
+      - name: Instalar Gradle 8.11.1
+        shell: bash
+        run: |
+          set -e
+
+          wget -q \
+            https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
+
+          unzip -q \
+            gradle-8.11.1-bin.zip
+
+          echo \
+            "$PWD/gradle-8.11.1/bin" \
+            >> "$GITHUB_PATH"
+
+          "$PWD/gradle-8.11.1/bin/gradle" \
+            --version
+
+      # ============================================================
+      # 10 - LIMPAR
+      # ============================================================
+
+      - name: Limpar projeto
+        working-directory: ControleHoras
+        shell: bash
+        run: |
+          set -e
+
+          gradle clean \
+            --no-daemon
+
+      # ============================================================
+      # 11 - GERAR APK
+      # ============================================================
+
+      - name: Gerar APK
+        working-directory: ControleHoras
+        shell: bash
+        run: |
+          set -e
+
+          echo "========================================"
+          echo "GERANDO APK"
+          echo "========================================"
+
+          gradle assembleDebug \
+            --no-daemon \
+            --stacktrace
+
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+
+          test -s "$APK"
+
+          ls -lh "$APK"
+
+          echo "========================================"
+          echo "APK GERADO COM SUCESSO"
+          echo "========================================"
+
+      # ============================================================
+      # 12 - VALIDAR APK
+      # ============================================================
+
+      - name: Verificar APK
+        working-directory: ControleHoras
+        shell: bash
+        run: |
+          set -e
+
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+
+          test -s "$APK"
+
+          unzip -t \
+            "$APK" \
+            >/dev/null
+
+          echo "========================================"
+          echo "APK VALIDADO"
+          echo "========================================"
+
+      # ============================================================
+      # 13 - PUBLICAR APK
+      # ============================================================
+
+      - name: Publicar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ControleHoras-APK
+          path: ControleHoras/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
