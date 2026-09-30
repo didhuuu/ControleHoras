@@ -60,11 +60,7 @@ jobs:
                   timeout=30
               ).read().decode("utf-8")
 
-          def extract_step(
-              workflow,
-              name,
-              next_name
-          ):
+          def extract_step(workflow, name, next_name):
 
               start = workflow.index(
                   f"      - name: {name}"
@@ -75,9 +71,7 @@ jobs:
                   start
               )
 
-              block = workflow[
-                  start:end
-              ]
+              block = workflow[start:end]
 
               marker = "        run: |\n"
 
@@ -86,9 +80,7 @@ jobs:
                   + len(marker)
               )
 
-              lines = block[
-                  pos:
-              ].splitlines()
+              lines = block[pos:].splitlines()
 
               return "\n".join(
                   line[10:]
@@ -116,9 +108,7 @@ jobs:
               )
           ]
 
-          for index, script in enumerate(
-              scripts
-          ):
+          for index, script in enumerate(scripts):
 
               path = (
                   Path(tempfile.gettempdir())
@@ -144,9 +134,7 @@ jobs:
                   check=True
               )
 
-          print(
-              "BASE 70 APLICADA"
-          )
+          print("BASE 70 APLICADA")
 
       - name: Aplicar tela estável da Base 70 + intervalo 2
         shell: python
@@ -177,9 +165,7 @@ jobs:
               start
           )
 
-          block = workflow[
-              start:end
-          ]
+          block = workflow[start:end]
 
           marker = "        run: |\n"
 
@@ -188,9 +174,7 @@ jobs:
               + len(marker)
           )
 
-          lines = block[
-              pos:
-          ].splitlines()
+          lines = block[pos:].splitlines()
 
           script = "\n".join(
               line[10:]
@@ -223,9 +207,7 @@ jobs:
               check=True
           )
 
-          print(
-              "TELA BASE 70 APLICADA"
-          )
+          print("TELA BASE 70 APLICADA")
 
       - name: Corrigir cartão do funcionário sem quebrar o addView
         shell: python
@@ -240,11 +222,7 @@ jobs:
               encoding="utf-8"
           )
 
-          def find_matching(
-              text,
-              opening,
-              start
-          ):
+          def find_matching(text, opening, start):
 
               pairs = {
                   "(": ")",
@@ -268,11 +246,9 @@ jobs:
                   if quote:
 
                       if escape:
-
                           escape = False
 
                       elif ch == "\\":
-
                           escape = True
 
                       elif triple:
@@ -281,37 +257,31 @@ jobs:
                               quote * 3,
                               i
                           ):
-
                               quote = None
                               triple = False
                               i += 2
 
                       elif ch == quote:
-
                           quote = None
 
                       i += 1
-
                       continue
 
                   if text.startswith(
                       '"""',
                       i
                   ):
-
                       quote = '"'
                       triple = True
                       i += 3
                       continue
 
                   if ch in "\"'":
-
                       quote = ch
                       i += 1
                       continue
 
                   if ch == opening:
-
                       depth += 1
 
                   elif ch == closing:
@@ -319,7 +289,6 @@ jobs:
                       depth -= 1
 
                       if depth == 0:
-
                           return i
 
                   i += 1
@@ -341,7 +310,6 @@ jobs:
               show_start < 0
               or show_end < 0
           ):
-
               raise SystemExit(
                   "showPunch não encontrado"
               )
@@ -391,7 +359,6 @@ jobs:
               )
 
               if inner_start < 0:
-
                   raise SystemExit(
                       "card().apply não encontrado"
                   )
@@ -501,7 +468,7 @@ jobs:
 
               private fun dp(
                   v: Int
-              ) =
+              ): Float =
                   v * density
 
               private val paint =
@@ -538,13 +505,13 @@ jobs:
                   var next =
                       value + delta
 
-                  if(next > max)
+                  if (next > max)
                       next = min
 
-                  if(next < min)
+                  if (next < min)
                       next = max
 
-                  if(next != value) {
+                  if (next != value) {
 
                       value =
                           next
@@ -650,7 +617,7 @@ jobs:
                   paint.textAlign =
                       Paint.Align.CENTER
 
-                  for(offset in -2..2) {
+                  for (offset in -2..2) {
 
                       var v =
                           value + offset
@@ -658,20 +625,20 @@ jobs:
                       val range =
                           max - min + 1
 
-                      while(v > max)
+                      while (v > max)
                           v -= range
 
-                      while(v < min)
+                      while (v < min)
                           v += range
 
                       paint.textSize =
-                          if(offset == 0)
+                          if (offset == 0)
                               dp(27)
                           else
                               dp(20)
 
                       paint.color =
-                          if(offset == 0)
+                          if (offset == 0)
                               0xFFFFFFFF.toInt()
                           else
                               0xFF9CCBFF.toInt()
@@ -680,8 +647,8 @@ jobs:
                           "%02d".format(v),
                           w / 2f,
                           center +
-                          offset * dp(45) +
-                          dp(9),
+                              offset * dp(45) +
+                              dp(9),
                           paint
                       )
                   }
@@ -726,6 +693,219 @@ jobs:
                       center,
                       paint
                   )
+              }
 
-                  paint.style =
-                     
+              override fun onTouchEvent(
+                  event: MotionEvent
+              ): Boolean {
+
+                  when (event.actionMasked) {
+
+                      MotionEvent.ACTION_DOWN -> {
+
+                          lastY =
+                              event.y
+
+                          moved =
+                              0f
+
+                          return true
+                      }
+
+                      MotionEvent.ACTION_MOVE -> {
+
+                          val dy =
+                              event.y - lastY
+
+                          moved += dy
+
+                          val threshold =
+                              dp(24)
+
+                          while (
+                              moved <= -threshold
+                          ) {
+
+                              change(1)
+
+                              moved +=
+                                  threshold
+                          }
+
+                          while (
+                              moved >= threshold
+                          ) {
+
+                              change(-1)
+
+                              moved -=
+                                  threshold
+                          }
+
+                          lastY =
+                              event.y
+
+                          return true
+                      }
+
+                      MotionEvent.ACTION_UP -> {
+
+                          if (
+                              abs(moved) < dp(8)
+                          ) {
+
+                              if (
+                                  event.x <
+                                  width / 2f
+                              ) {
+
+                                  change(-1)
+
+                              } else {
+
+                                  change(1)
+                              }
+                          }
+
+                          performClick()
+
+                          return true
+                      }
+                  }
+
+                  return true
+              }
+
+              override fun performClick():
+                  Boolean {
+
+                  super.performClick()
+
+                  return true
+              }
+
+              override fun onDetachedFromWindow() {
+
+                  try {
+
+                      tone.release()
+
+                  } catch (
+                      _: Exception
+                  ) {
+                  }
+
+                  super.onDetachedFromWindow()
+              }
+          }
+          KOT
+
+          echo "ROLETA AZUL NEON CRIADA"
+
+      - name: Validar código
+        shell: bash
+        run: |
+          set -e
+
+          MAIN="ControleHoras/app/src/main/java/com/didhuuu/controlehoras/MainActivity.kt"
+          WHEEL="ControleHoras/app/src/main/java/com/didhuuu/controlehoras/TimeWheelView.kt"
+
+          test -s "$MAIN"
+          test -s "$WHEEL"
+
+          grep -q "class TimeWheelView" "$WHEEL"
+          grep -q "onTouchEvent" "$WHEEL"
+          grep -q "Paint.Style.FILL" "$WHEEL"
+          grep -q "Paint.Style.STROKE" "$WHEEL"
+
+          if grep -q "paint.style = *$" "$WHEEL"; then
+              echo "ERRO: roleta ainda está truncada"
+              exit 1
+          fi
+
+          if grep -q "unterminated" "$WHEEL"; then
+              echo "ERRO: conteúdo inválido da roleta"
+              exit 1
+          fi
+
+          echo "FONTES PRESENTES"
+          echo "ROLETA VALIDADA"
+          echo "VALIDAÇÃO INICIAL OK"
+
+      - name: Dar permissão ao Gradle
+        shell: bash
+        run: |
+          set -e
+
+          chmod +x ControleHoras/gradlew
+
+          test -x ControleHoras/gradlew
+
+          echo "GRADLE PRONTO"
+
+      - name: Limpar build anterior
+        shell: bash
+        working-directory: ControleHoras
+        run: |
+          set -e
+
+          ./gradlew --no-daemon clean
+
+          echo "CLEAN OK"
+
+      - name: Compilar APK
+        shell: bash
+        working-directory: ControleHoras
+        run: |
+          set -e
+
+          ./gradlew \
+            --no-daemon \
+            --stacktrace \
+            --warning-mode all \
+            :app:assembleDebug
+
+          echo "APK COMPILADO"
+
+      - name: Verificar APK
+        shell: bash
+        run: |
+          set -e
+
+          APK="$(
+            find ControleHoras/app/build/outputs/apk \
+              -type f \
+              -name "*.apk" \
+              | head -n 1
+          )"
+
+          if [ -z "$APK" ]; then
+            echo "ERRO: APK NÃO FOI GERADO"
+            find ControleHoras/app/build/outputs -type f 2>/dev/null || true
+            exit 1
+          fi
+
+          if [ ! -f "$APK" ]; then
+            echo "ERRO: ARQUIVO APK NÃO EXISTE"
+            exit 1
+          fi
+
+          echo "======================================"
+          echo "APK GERADO COM SUCESSO"
+          echo "======================================"
+          echo "$APK"
+
+      - name: Enviar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ControleHoras-debug
+          path: ControleHoras/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+
+      - name: Final
+        shell: bash
+        run: |
+          echo "======================================"
+          echo "BUILD CONTROLEHORAS FINALIZADO"
+          echo "APK DISPONÍVEL NOS ARTIFACTS"
+          echo "======================================"
