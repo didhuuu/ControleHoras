@@ -272,10 +272,6 @@ jobs:
           import tempfile
           import re
 
-          # ==========================================================
-          # ARQUIVO PRINCIPAL
-          # ==========================================================
-
           src = Path(
               "ControleHoras/app/src/main/java/"
               "com/didhuuu/controlehoras/MainActivity.kt"
@@ -286,10 +282,6 @@ jobs:
               raise SystemExit(
                   "ERRO: MainActivity.kt não encontrado"
               )
-
-          # ==========================================================
-          # BAIXAR A IMPLEMENTAÇÃO ORIGINAL DA ROLETA
-          # ==========================================================
 
           url = (
               "https://raw.githubusercontent.com/"
@@ -341,7 +333,7 @@ jobs:
           ) + "\n"
 
           # ==========================================================
-          # REMOVER O BLOCO PROBLEMÁTICO DE BATIDA VAZIA
+          # REMOVER BLOCO ANTIGO DE BATIDA VAZIA
           # ==========================================================
 
           bad_start = script.find(
@@ -387,7 +379,7 @@ jobs:
           )
 
           # ==========================================================
-          # EXTRAIR A ROLETA DE FORMA ROBUSTA
+          # EXTRAIR ROLETA
           # ==========================================================
 
           wheel_match = re.search(
@@ -399,7 +391,7 @@ jobs:
           if wheel_match is None:
 
               raise SystemExit(
-                  "ERRO: bloco wheel_dialog não encontrado no script original"
+                  "ERRO: bloco wheel_dialog não encontrado"
               )
 
           wheel_dialog = wheel_match.group(1)
@@ -410,23 +402,17 @@ jobs:
           ):
 
               raise SystemExit(
-                  "ERRO: wheel_dialog encontrado, "
-                  "mas a função showControleHorasWheelDialog "
-                  "não está dentro dele"
+                  "ERRO: showControleHorasWheelDialog não encontrada na roleta"
               )
 
           print(
               "WHEEL_DIALOG EXTRAÍDO COM SUCESSO"
           )
 
-          # ==========================================================
-          # PREPARAR SCRIPT ORIGINAL
-          # ==========================================================
-
           fixed_script = script
 
           # ==========================================================
-          # CORRIGIR A CONDIÇÃO ANTIGA
+          # CORRIGIR VALIDAÇÃO ANTIGA
           # ==========================================================
 
           fixed_script = fixed_script.replace(
@@ -439,18 +425,6 @@ jobs:
               'if "private fun showControleHorasWheelDialog(" not in code:',
               fixed_script
           )
-
-          # ==========================================================
-          # REMOVER VALIDAÇÃO ANTIGA DA ROLETA
-          #
-          # O problema da versão 110 está aqui.
-          #
-          # O script antigo exige showEditWheel, mas a base atual
-          # pode não trazer essa função.
-          #
-          # Abaixo nós removemos a exigência antiga e, logo depois,
-          # garantimos a função de forma compatível.
-          # ==========================================================
 
           fixed_script = re.sub(
               r'^\s*"showControleHorasWheelDialog",\s*$',
@@ -467,15 +441,16 @@ jobs:
           )
 
           # ==========================================================
-          # GARANTIR SHOW EDIT WHEEL
+          # GARANTIR showEditWheel ANTES DO BLOCO ANTIGO
           #
-          # Se a função já existir, não duplica.
+          # IMPORTANTE:
+          # O script original tenta localizar showEditWheel antes
+          # de chegar à validação final.
           #
-          # Se não existir, cria uma função compatível com a roleta
-          # personalizada nova.
+          # Portanto a função precisa existir ANTES desse bloco.
           # ==========================================================
 
-          ensure_edit = r'''
+          ensure_edit_code = '''
 if "private fun showEditWheel(" not in code:
 
     anchor = code.find(
@@ -488,14 +463,14 @@ if "private fun showEditWheel(" not in code:
             "ERRO: showManualWheel não encontrado para inserir showEditWheel"
         )
 
-    edit_method = "\n".join([
+    edit_method = "\\n".join([
         "    private fun showEditWheel(",
         "        rec:PunchDay,",
         "        index:Int",
         "    ){",
         "",
         "        val old=rec.punches[index]",
-        "        val parts=old.split(\":\")",
+        "        val parts=old.split(\\":\\")",
         "        val now=Calendar.getInstance()",
         "",
         "        val hour=if(parts.size==2)",
@@ -507,16 +482,14 @@ if "private fun showEditWheel(" not in code:
         "        else now.get(Calendar.MINUTE)",
         "",
         "        showControleHorasWheelDialog(",
-        "            \"Editar registro\",",
+        "            \\"Editar registro\\",",
         "            df.format(parseIso(rec.date)),",
         "            hour,",
         "            minute",
         "        ){value->",
         "",
         "            rec.punches[index]=value",
-        "",
         "            saveData()",
-        "",
         "            showPunch()",
         "        }",
         "    }",
@@ -530,27 +503,27 @@ if "private fun showEditWheel(" not in code:
     )
 '''
 
-          marker_edit = (
+          marker_edit_original = (
               "# ==========================================================\n"
-              "# GARANTIR MANIFESTO"
+              "# SUBSTITUIR SHOW EDIT WHEEL"
           )
 
-          if marker_edit not in fixed_script:
+          if marker_edit_original not in fixed_script:
 
               raise SystemExit(
-                  "ERRO: ponto de inserção da correção showEditWheel não encontrado"
+                  "ERRO: bloco SUBSTITUIR SHOW EDIT WHEEL não encontrado"
               )
 
           fixed_script = fixed_script.replace(
-              marker_edit,
-              ensure_edit.strip("\n")
+              marker_edit_original,
+              ensure_edit_code.strip("\n")
               + "\n\n"
-              + marker_edit,
+              + marker_edit_original,
               1
           )
 
           # ==========================================================
-          # VALIDAR SINTAXE DO SCRIPT
+          # VALIDAR SINTAXE PYTHON
           # ==========================================================
 
           compile(
@@ -574,7 +547,7 @@ if "private fun showEditWheel(" not in code:
           )
 
           # ==========================================================
-          # EXECUTAR A CORREÇÃO ORIGINAL
+          # EXECUTAR SCRIPT
           # ==========================================================
 
           subprocess.run(
@@ -590,7 +563,7 @@ if "private fun showEditWheel(" not in code:
           )
 
           # ==========================================================
-          # LER NOVAMENTE O MAINACTIVITY
+          # RECARREGAR MAINACTIVITY
           # ==========================================================
 
           code = src.read_text(
@@ -598,7 +571,7 @@ if "private fun showEditWheel(" not in code:
           )
 
           # ==========================================================
-          # INSERÇÃO DEFINITIVA DA ROLETA
+          # GARANTIR ROLETA
           # ==========================================================
 
           function_signature = (
@@ -618,8 +591,7 @@ if "private fun showEditWheel(" not in code:
               if anchor < 0:
 
                   raise SystemExit(
-                      "ERRO: showManualWheel não encontrado "
-                      "para inserir a roleta"
+                      "ERRO: showManualWheel não encontrado"
                   )
 
               insertion = (
@@ -640,17 +612,11 @@ if "private fun showEditWheel(" not in code:
               )
 
               print(
-                  "ROLETA INSERIDA DIRETAMENTE NO MainActivity.kt"
-              )
-
-          else:
-
-              print(
-                  "DECLARAÇÃO DA ROLETA JÁ EXISTE"
+                  "ROLETA INSERIDA DIRETAMENTE"
               )
 
           # ==========================================================
-          # RECARREGAR APÓS A INSERÇÃO
+          # RECARREGAR
           # ==========================================================
 
           code = src.read_text(
@@ -688,10 +654,7 @@ if "private fun showEditWheel(" not in code:
               )
 
           # ==========================================================
-          # GARANTIR NOVAMENTE SHOW EDIT WHEEL
-          #
-          # Esta segunda proteção existe para impedir que qualquer
-          # transformação anterior remova a função.
+          # GARANTIR SHOW EDIT WHEEL DEPOIS DA TRANSFORMAÇÃO
           # ==========================================================
 
           if "private fun showEditWheel(" not in code:
@@ -703,8 +666,7 @@ if "private fun showEditWheel(" not in code:
               if anchor < 0:
 
                   raise SystemExit(
-                      "ERRO FINAL: showManualWheel não encontrado "
-                      "para inserir showEditWheel"
+                      "ERRO FINAL: showManualWheel não encontrado"
                   )
 
               edit_method = "\n".join([
@@ -731,6 +693,7 @@ if "private fun showEditWheel(" not in code:
                   "            hour,",
                   "            minute",
                   "        ){value->",
+                  "",
                   "            rec.punches[index]=value",
                   "            saveData()",
                   "            showPunch()",
@@ -751,12 +714,16 @@ if "private fun showEditWheel(" not in code:
               )
 
               print(
-                  "SHOW EDIT WHEEL INSERIDO COM SUCESSO"
+                  "SHOW EDIT WHEEL INSERIDO"
               )
 
           # ==========================================================
-          # VALIDAÇÃO FINAL DA ROLETA
+          # VALIDAÇÃO FINAL
           # ==========================================================
+
+          code = src.read_text(
+              encoding="utf-8"
+          )
 
           required = [
               "ControleHorasTimeWheelView",
@@ -792,8 +759,7 @@ if "private fun showEditWheel(" not in code:
           ):
 
               raise SystemExit(
-                  "ERRO FINAL: declaração da roleta "
-                  "não está no MainActivity.kt"
+                  "ERRO FINAL: roleta não encontrada"
               )
 
           if (
@@ -802,8 +768,7 @@ if "private fun showEditWheel(" not in code:
           ):
 
               raise SystemExit(
-                  "ERRO FINAL: showEditWheel "
-                  "não está no MainActivity.kt"
+                  "ERRO FINAL: showEditWheel não encontrada"
               )
 
           if "NumberPicker(" in code:
@@ -824,8 +789,7 @@ if "private fun showEditWheel(" not in code:
           if "roller_click.wav" not in code:
 
               print(
-                  "AVISO: referência textual ao som não encontrada; "
-                  "arquivo será validado separadamente"
+                  "AVISO: referência textual ao som não encontrada"
               )
 
           src.write_text(
@@ -838,7 +802,7 @@ if "private fun showEditWheel(" not in code:
           )
 
           print(
-              "ROLETA PERSONALIZADA VALIDADA COM SUCESSO"
+              "ROLETA PERSONALIZADA VALIDADA"
           )
 
           print(
@@ -876,13 +840,13 @@ if "private fun showEditWheel(" not in code:
           test -s "$ICON"
           test -s "$SOUND"
 
-          echo "Verificando assinatura da roleta..."
+          echo "Verificando roleta..."
 
           grep -q \
             "private fun showControleHorasWheelDialog(" \
             "$SRC"
 
-          echo "OK: declaração da roleta encontrada"
+          echo "OK: roleta encontrada"
 
           grep -q \
             "ControleHorasTimeWheelView" \
